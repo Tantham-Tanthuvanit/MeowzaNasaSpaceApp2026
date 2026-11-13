@@ -22,7 +22,9 @@ import {
   Zap,
   Flag,
   MapPin,
-  Trash2
+  Trash2,
+  ArrowRight,
+  MoveHorizontal
 } from 'lucide-react';
 import { fetchShiftAndAdd } from '../services/api';
 import { pixelToRaDec } from '../services/astrometry';
@@ -68,6 +70,13 @@ export default function SkyViewer({
   const [shiftImage, setShiftImage] = useState(shiftAndAddData?.target_stack_url || null);
   const [isShiftAligned, setIsShiftAligned] = useState(Boolean(shiftAndAddData?.recommended_vx));
   const [isShiftLoading, setIsShiftLoading] = useState(false);
+
+  // Side-by-Side Dual Epoch Comparison & Difference Highlighter State
+  const [splitLeftEpoch, setSplitLeftEpoch] = useState(0); // Epoch 1
+  const [splitRightEpoch, setSplitRightEpoch] = useState(3); // Epoch 4
+  const [highlightDifferences, setHighlightDifferences] = useState(true);
+  const [splitSubView, setSplitSubView] = useState('dual'); // 'dual', 'trio', 'wipe'
+  const [wipePercent, setWipePercent] = useState(50);
 
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -187,6 +196,61 @@ export default function SkyViewer({
     }
     return true;
   });
+
+  // Calculate difference pair and astrometric motion vectors for Split Comparison Mode
+  const leftEpoch = epochs[splitLeftEpoch] || epochs[0] || {};
+  const rightEpoch = epochs[splitRightEpoch] || epochs[Math.min(1, epochs.length - 1)] || {};
+  const coordsA = leftEpoch.target_pixel_coords || [128.0, 128.0];
+  const coordsB = rightEpoch.target_pixel_coords || [135.5, 123.8];
+  const deltaX = coordsB[0] - coordsA[0];
+  const deltaY = coordsB[1] - coordsA[1];
+  const driftDistPx = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  const baselineMonths = Math.abs(splitRightEpoch - splitLeftEpoch) * 6;
+  const pixelScaleArcsec = (Number(currentFov) * 60.0) / 256.0;
+  const driftArcsec = driftDistPx * pixelScaleArcsec;
+  const properMotionMasYr = baselineMonths > 0 ? (driftArcsec / (baselineMonths / 12.0)) * 1000.0 : 0;
+
+  // Determine matching subtraction difference image for chosen Left and Right epochs
+  const getDiffKey = (l, r) => {
+    const minEp = Math.min(l, r) + 1;
+    const maxEp = Math.max(l, r) + 1;
+    if (minEp === maxEp) return 'e2_minus_e1';
+    const key = `e${maxEp}_minus_e${minEp}`;
+    if (differenceImages && differenceImages[key]) return key;
+    return 'e2_minus_e1';
+  };
+  const splitDiffImage = differenceImages[getDiffKey(splitLeftEpoch, splitRightEpoch)] || activeDifferenceUrl;
+
+  const handleCanvasClickWithEpoch = (e, epochIdx, customLabel) => {
+    if (!isFlaggingActive) return;
+    if (e.target.closest('button[data-flag-pin="true"]') || e.target.closest('button[data-catalog-source="true"]')) {
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const pixelX = Math.max(0, Math.min(256, (clickX / rect.width) * 256.0));
+    const pixelY = Math.max(0, Math.min(256, (clickY / rect.height) * 256.0));
+
+    const centerRa = targetInfo?.ra_deg || 133.795129;
+    const centerDec = targetInfo?.dec_deg || -7.245147;
+    const fovVal = currentFov || 5.0;
+
+    const astrometry = pixelToRaDec(pixelX, pixelY, centerRa, centerDec, fovVal, 256);
+
+    setPendingFlag({
+      pixelX,
+      pixelY,
+      raDeg: astrometry.raDeg,
+      decDeg: astrometry.decDeg,
+      raHms: astrometry.raHms,
+      decDms: astrometry.decDms,
+      epochLabel: customLabel || `Epoch ${epochIdx + 1}`,
+      bandGroup: targetInfo?.band_group || 'stacked'
+    });
+  };
 
   // Active difference image according to selected epoch pair
   const activeDifferenceUrl = differenceImages[diffPair] || differenceImageUrl;
@@ -528,6 +592,137 @@ export default function SkyViewer({
         </div>
       )}
 
+      {/* 3.5 Sub-Toolbar: Side-by-Side Dual Epoch Comparison & Difference Highlighter */}
+      {isSplitMode && (
+        <div className="mt-3 p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl space-y-2.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left & Right Epoch Selectors */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                <span className="text-cyan-400 font-semibold mono">Left Pane:</span>
+                <div className="flex items-center gap-1">
+                  {epochs.map((ep, idx) => (
+                    <button
+                      key={ep.epoch_id || idx}
+                      onClick={() => setSplitLeftEpoch(idx)}
+                      className={`px-2 py-0.5 rounded text-xs mono transition-all ${
+                        splitLeftEpoch === idx
+                          ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      E{idx + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                <span className="text-amber-400 font-semibold mono">Right Pane:</span>
+                <div className="flex items-center gap-1">
+                  {epochs.map((ep, idx) => (
+                    <button
+                      key={ep.epoch_id || idx}
+                      onClick={() => setSplitRightEpoch(idx)}
+                      className={`px-2 py-0.5 rounded text-xs mono transition-all ${
+                        splitRightEpoch === idx
+                          ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      E{idx + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Difference Highlighting Toggle Button */}
+              <button
+                onClick={() => setHighlightDifferences(!highlightDifferences)}
+                className={`px-3 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  highlightDifferences
+                    ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 border-cyan-400 text-white shadow-md shadow-cyan-500/20'
+                    : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-white'
+                }`}
+                title="Highlight moving objects and flux variations between selected epochs"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${highlightDifferences ? 'text-amber-300 animate-spin-slow' : 'text-slate-500'}`} />
+                <span>Highlight Differences: {highlightDifferences ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+
+            {/* Layout Views: Dual vs Trio (with Difference Map) vs Curtain Wipe */}
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 mono text-[11px]">
+              <button
+                onClick={() => setSplitSubView('dual')}
+                className={`px-2.5 py-1 rounded transition-all ${
+                  splitSubView === 'dual'
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Side-by-side Dual Epoch Comparison"
+              >
+                Dual View
+              </button>
+              <button
+                onClick={() => setSplitSubView('trio')}
+                className={`px-2.5 py-1 rounded transition-all ${
+                  splitSubView === 'trio'
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Triple Panel: Left Epoch | Subtraction Difference Map | Right Epoch"
+              >
+                Trio + Diff Map
+              </button>
+              <button
+                onClick={() => setSplitSubView('wipe')}
+                className={`px-2.5 py-1 rounded transition-all ${
+                  splitSubView === 'wipe'
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Interactive Curtain Wipe Slider"
+              >
+                Curtain Wipe
+              </button>
+            </div>
+          </div>
+
+          {/* Astrometric Motion Telemetry Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] mono">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-slate-400">
+                Baseline: <strong className="text-white">{baselineMonths} months</strong> ({leftEpoch.timestamp || '2025-06-15'} &rarr; {rightEpoch.timestamp || '2025-12-15'})
+              </span>
+              {driftDistPx > 0.05 ? (
+                <>
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <span>Target Drift:</span>
+                    <strong className="text-white">{driftDistPx.toFixed(1)} px</strong>
+                    <span>({driftArcsec.toFixed(2)}" arcsec)</span>
+                  </span>
+                  {properMotionMasYr > 0 && (
+                    <span className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                      Proper Motion: ~{Math.round(properMotionMasYr)} mas/yr
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-slate-500 italic">No significant proper motion detected across selected epochs</span>
+              )}
+            </div>
+            <div className="text-slate-400 text-[11px]">
+              <span className="text-cyan-400">Cyan Reticle</span>: Epoch {splitLeftEpoch + 1} &bull; <span className="text-amber-400">Amber Reticle</span>: Epoch {splitRightEpoch + 1}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 4. Interactive Astronomical Display Canvas */}
       <div className="relative my-4 flex items-center justify-center min-h-[380px] md:min-h-[460px] bg-slate-950/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner">
         {/* Click-to-Flag Mode Floating Instruction Banner */}
@@ -659,36 +854,391 @@ export default function SkyViewer({
 
         {/* Main Sky Imagery & Overlay Surface */}
         {isSplitMode ? (
-          /* Side-by-Side Dual Epoch View */
-          <div className="w-full h-full flex flex-col md:flex-row items-center justify-center gap-4 p-4">
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-xs font-semibold text-cyan-400 mb-2 mono">
-                Epoch 1: {epochs[0]?.timestamp || '2025-06-15'}
-              </span>
-              <img
-                src={epochs[0]?.image_url}
-                alt="Epoch 1 Sky Cutout"
-                style={{ 
-                  transform: `scale(${zoomLevel})`,
-                  filter: getFilterStyle()
-                }}
-                className="max-h-[360px] object-contain rounded-lg border border-slate-800 transition-all duration-200"
-              />
-            </div>
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-xs font-semibold text-amber-400 mb-2 mono">
-                Epoch 2: {epochs[1]?.timestamp || '2025-12-15'}
-              </span>
-              <img
-                src={epochs[1]?.image_url}
-                alt="Epoch 2 Sky Cutout"
-                style={{ 
-                  transform: `scale(${zoomLevel})`,
-                  filter: getFilterStyle()
-                }}
-                className="max-h-[360px] object-contain rounded-lg border border-slate-800 transition-all duration-200"
-              />
-            </div>
+          /* Side-by-Side Dual / Trio / Curtain Wipe Epoch Comparison View */
+          <div className="w-full h-full p-4 flex flex-col items-center justify-center">
+            {splitSubView === 'dual' && (
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
+                {/* Left Epoch Panel */}
+                <div className="flex flex-col items-center bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between w-full mb-2 px-1 text-xs mono">
+                    <span className="font-semibold text-cyan-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                      <span>Epoch {splitLeftEpoch + 1}: {leftEpoch.timestamp || '2025-06-15'}</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">Reference Epoch</span>
+                  </div>
+
+                  <div
+                    onClick={(e) => handleCanvasClickWithEpoch(e, splitLeftEpoch, `Epoch ${splitLeftEpoch + 1}`)}
+                    className={`relative rounded-lg overflow-hidden border border-slate-800 shadow-xl transition-all ${
+                      isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400' : ''
+                    }`}
+                    style={{ transform: `scale(${zoomLevel})` }}
+                  >
+                    <img
+                      src={leftEpoch.image_url}
+                      alt={`Epoch ${splitLeftEpoch + 1}`}
+                      style={{ filter: getFilterStyle() }}
+                      className="max-h-[360px] aspect-square object-contain block select-none pointer-events-none"
+                    />
+
+                    {/* Difference Highlight: Epoch A Reticle */}
+                    {highlightDifferences && (
+                      <div
+                        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                        style={{
+                          left: `${(coordsA[0] / 256) * 100}%`,
+                          top: `${(coordsA[1] / 256) * 100}%`
+                        }}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full border-2 border-cyan-400/80 bg-cyan-500/10 shadow-[0_0_12px_#38bdf8]"></div>
+                          <div className="w-2 h-2 rounded-full bg-cyan-300"></div>
+                          <div className="absolute -top-4 whitespace-nowrap bg-cyan-950/90 border border-cyan-400 text-cyan-200 text-[9px] font-mono px-1.5 py-0.2 rounded shadow">
+                            Pos A (E{splitLeftEpoch + 1})
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Candidate Flag Pins */}
+                    {candidates.map((cand, idx) => (
+                      <button
+                        key={cand.id || idx}
+                        data-flag-pin="true"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHoveredFlag(hoveredFlag?.id === cand.id ? null : cand);
+                        }}
+                        onMouseEnter={() => setHoveredFlag(cand)}
+                        onMouseLeave={() => setHoveredFlag(null)}
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 group focus:outline-none cursor-pointer"
+                        style={{
+                          left: `${(cand.pixelX / 256) * 100}%`,
+                          top: `${(cand.pixelY / 256) * 100}%`
+                        }}
+                        title={`Flag #${idx + 1}: ${cand.category}`}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <div className="w-7 h-7 rounded-full border-2 border-rose-400 bg-rose-500/20 flex items-center justify-center animate-pulse">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div>
+                          </div>
+                          <div className="absolute -top-3 -right-3 px-1 py-0.2 rounded bg-rose-600 border border-white text-white font-mono text-[8px] font-bold">
+                            🚩#{idx + 1}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Epoch Panel */}
+                <div className="flex flex-col items-center bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between w-full mb-2 px-1 text-xs mono">
+                    <span className="font-semibold text-amber-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                      <span>Epoch {splitRightEpoch + 1}: {rightEpoch.timestamp || '2025-12-15'}</span>
+                    </span>
+                    <span className="text-[11px] text-amber-300/80 font-bold">
+                      {driftDistPx > 0.05 ? `Δ +${driftDistPx.toFixed(1)}px drift` : 'Shift Target'}
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={(e) => handleCanvasClickWithEpoch(e, splitRightEpoch, `Epoch ${splitRightEpoch + 1}`)}
+                    className={`relative rounded-lg overflow-hidden border border-slate-800 shadow-xl transition-all ${
+                      isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400' : ''
+                    }`}
+                    style={{ transform: `scale(${zoomLevel})` }}
+                  >
+                    <img
+                      src={rightEpoch.image_url}
+                      alt={`Epoch ${splitRightEpoch + 1}`}
+                      style={{ filter: getFilterStyle() }}
+                      className="max-h-[360px] aspect-square object-contain block select-none pointer-events-none"
+                    />
+
+                    {/* Difference Highlight: Motion Vector Arrow & Shifted Reticle */}
+                    {highlightDifferences && (
+                      <>
+                        {/* SVG Motion Vector Arrow */}
+                        {driftDistPx > 0.05 && (
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+                            <defs>
+                              <marker id="motionArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
+                              </marker>
+                            </defs>
+                            <line
+                              x1={`${(coordsA[0] / 256) * 100}%`}
+                              y1={`${(coordsA[1] / 256) * 100}%`}
+                              x2={`${(coordsB[0] / 256) * 100}%`}
+                              y2={`${(coordsB[1] / 256) * 100}%`}
+                              stroke="#f59e0b"
+                              strokeWidth="2"
+                              strokeDasharray="4 2"
+                              markerEnd="url(#motionArrow)"
+                            />
+                          </svg>
+                        )}
+
+                        {/* Ghost Previous Position Reticle (from Epoch A) */}
+                        <div
+                          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-60"
+                          style={{
+                            left: `${(coordsA[0] / 256) * 100}%`,
+                            top: `${(coordsA[1] / 256) * 100}%`
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-full border-2 border-dashed border-cyan-400"></div>
+                        </div>
+
+                        {/* Current Position Reticle (Epoch B) */}
+                        <div
+                          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                          style={{
+                            left: `${(coordsB[0] / 256) * 100}%`,
+                            top: `${(coordsB[1] / 256) * 100}%`
+                          }}
+                        >
+                          <div className="relative flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full border-2 border-amber-400 bg-amber-500/10 shadow-[0_0_12px_#f59e0b]"></div>
+                            <div className="w-2 h-2 rounded-full bg-amber-300"></div>
+                            <div className="absolute -top-4 whitespace-nowrap bg-amber-950/90 border border-amber-400 text-amber-200 text-[9px] font-mono px-1.5 py-0.2 rounded shadow">
+                              Pos B (E{splitRightEpoch + 1})
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Candidate Flag Pins */}
+                    {candidates.map((cand, idx) => (
+                      <button
+                        key={cand.id || idx}
+                        data-flag-pin="true"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHoveredFlag(hoveredFlag?.id === cand.id ? null : cand);
+                        }}
+                        onMouseEnter={() => setHoveredFlag(cand)}
+                        onMouseLeave={() => setHoveredFlag(null)}
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 group focus:outline-none cursor-pointer"
+                        style={{
+                          left: `${(cand.pixelX / 256) * 100}%`,
+                          top: `${(cand.pixelY / 256) * 100}%`
+                        }}
+                        title={`Flag #${idx + 1}: ${cand.category}`}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <div className="w-7 h-7 rounded-full border-2 border-rose-400 bg-rose-500/20 flex items-center justify-center animate-pulse">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div>
+                          </div>
+                          <div className="absolute -top-3 -right-3 px-1 py-0.2 rounded bg-rose-600 border border-white text-white font-mono text-[8px] font-bold">
+                            🚩#{idx + 1}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {splitSubView === 'trio' && (
+              <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-3 max-w-6xl">
+                {/* Panel 1: Epoch A */}
+                <div className="flex flex-col items-center bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                  <span className="text-xs font-semibold text-cyan-400 mb-1.5 mono">
+                    Epoch {splitLeftEpoch + 1}: {leftEpoch.timestamp || '2025-06-15'}
+                  </span>
+                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                    <img
+                      src={leftEpoch.image_url}
+                      alt={`Epoch ${splitLeftEpoch + 1}`}
+                      style={{ filter: getFilterStyle() }}
+                      className="max-h-[300px] aspect-square object-contain block pointer-events-none"
+                    />
+                    {highlightDifferences && (
+                      <div
+                        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                        style={{
+                          left: `${(coordsA[0] / 256) * 100}%`,
+                          top: `${(coordsA[1] / 256) * 100}%`
+                        }}
+                      >
+                        <div className="w-8 h-8 rounded-full border-2 border-cyan-400 bg-cyan-500/20"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Panel 2: Subtraction Difference Map (B - A) */}
+                <div className="flex flex-col items-center bg-slate-950/80 p-2.5 rounded-xl border border-amber-500/30">
+                  <div className="flex items-center justify-between w-full mb-1.5 px-1 text-xs mono">
+                    <span className="font-semibold text-amber-400">
+                      Difference Map (E{splitRightEpoch + 1} - E{splitLeftEpoch + 1})
+                    </span>
+                    <span className="text-[10px] text-amber-300 bg-amber-950/60 border border-amber-500/40 px-1.5 rounded">
+                      Dipole Signature
+                    </span>
+                  </div>
+                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                    <img
+                      src={splitDiffImage}
+                      alt="Difference Subtraction Map"
+                      style={{ filter: getFilterStyle() }}
+                      className="max-h-[300px] aspect-square object-contain block pointer-events-none"
+                    />
+                    {highlightDifferences && (
+                      <>
+                        {/* Negative Dipole Trough (Blue) */}
+                        <div
+                          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                          style={{
+                            left: `${(coordsA[0] / 256) * 100}%`,
+                            top: `${(coordsA[1] / 256) * 100}%`
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-full border-2 border-blue-400 bg-blue-500/20 flex items-center justify-center">
+                            <span className="text-[9px] text-blue-300 font-bold mono">-Δ</span>
+                          </div>
+                        </div>
+
+                        {/* Positive Dipole Peak (Red/Amber) */}
+                        <div
+                          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                          style={{
+                            left: `${(coordsB[0] / 256) * 100}%`,
+                            top: `${(coordsB[1] / 256) * 100}%`
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-full border-2 border-rose-400 bg-rose-500/20 flex items-center justify-center">
+                            <span className="text-[9px] text-rose-300 font-bold mono">+Δ</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Panel 3: Epoch B */}
+                <div className="flex flex-col items-center bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                  <span className="text-xs font-semibold text-amber-400 mb-1.5 mono">
+                    Epoch {splitRightEpoch + 1}: {rightEpoch.timestamp || '2025-12-15'}
+                  </span>
+                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                    <img
+                      src={rightEpoch.image_url}
+                      alt={`Epoch ${splitRightEpoch + 1}`}
+                      style={{ filter: getFilterStyle() }}
+                      className="max-h-[300px] aspect-square object-contain block pointer-events-none"
+                    />
+                    {highlightDifferences && (
+                      <div
+                        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                        style={{
+                          left: `${(coordsB[0] / 256) * 100}%`,
+                          top: `${(coordsB[1] / 256) * 100}%`
+                        }}
+                      >
+                        <div className="w-8 h-8 rounded-full border-2 border-amber-400 bg-amber-500/20"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {splitSubView === 'wipe' && (
+              <div className="flex flex-col items-center w-full max-w-lg">
+                <div className="flex items-center justify-between w-full mb-2 text-xs mono text-slate-300">
+                  <span className="text-cyan-400 font-semibold">◀ Epoch {splitLeftEpoch + 1} ({wipePercent}%)</span>
+                  <span className="text-amber-400 font-semibold">Epoch {splitRightEpoch + 1} ({100 - wipePercent}%) ▶</span>
+                </div>
+
+                <div 
+                  className="relative rounded-lg overflow-hidden border border-slate-800 shadow-2xl w-[360px] h-[360px]"
+                  style={{ transform: `scale(${zoomLevel})` }}
+                >
+                  {/* Base Image: Epoch B */}
+                  <img
+                    src={rightEpoch.image_url}
+                    alt={`Epoch ${splitRightEpoch + 1}`}
+                    style={{ filter: getFilterStyle() }}
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  />
+
+                  {/* Overlaid Clipped Image: Epoch A */}
+                  <div
+                    className="absolute inset-0 overflow-hidden"
+                    style={{ width: `${wipePercent}%` }}
+                  >
+                    <img
+                      src={leftEpoch.image_url}
+                      alt={`Epoch ${splitLeftEpoch + 1}`}
+                      style={{ 
+                        filter: getFilterStyle(),
+                        width: '360px',
+                        maxWidth: 'none',
+                        height: '360px'
+                      }}
+                      className="object-contain pointer-events-none"
+                    />
+                  </div>
+
+                  {/* Vertical Divider Slider Line */}
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-cyan-400 shadow-[0_0_10px_#38bdf8] pointer-events-none"
+                    style={{ left: `${wipePercent}%` }}
+                  >
+                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-slate-900 border-2 border-cyan-400 flex items-center justify-center text-cyan-300 shadow-lg">
+                      <MoveHorizontal className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+
+                  {/* Difference Reticles */}
+                  {highlightDifferences && (
+                    <>
+                      <div
+                        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                        style={{
+                          left: `${(coordsA[0] / 256) * 100}%`,
+                          top: `${(coordsA[1] / 256) * 100}%`
+                        }}
+                      >
+                        <div className="w-8 h-8 rounded-full border-2 border-cyan-400/80 bg-cyan-500/10 shadow-[0_0_8px_#38bdf8]"></div>
+                      </div>
+                      <div
+                        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse"
+                        style={{
+                          left: `${(coordsB[0] / 256) * 100}%`,
+                          top: `${(coordsB[1] / 256) * 100}%`
+                        }}
+                      >
+                        <div className="w-8 h-8 rounded-full border-2 border-amber-400/80 bg-amber-500/10 shadow-[0_0_8px_#f59e0b]"></div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Range Slider Control */}
+                <div className="w-full mt-3 flex items-center gap-3">
+                  <span className="text-[11px] mono text-slate-400">Slide:</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={wipePercent}
+                    onChange={(e) => setWipePercent(parseInt(e.target.value, 10))}
+                    className="w-full accent-cyan-400 cursor-pointer"
+                  />
+                  <span className="text-[11px] mono text-cyan-300 w-8">{wipePercent}%</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Single Continuous Sky View OR Difference Subtraction OR Shift-and-Add Stack */

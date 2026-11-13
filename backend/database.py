@@ -68,11 +68,9 @@ def init_db():
 
         conn.commit()
 
-        # Seed initial realistic benchmark discoveries if table is empty
-        cursor.execute("SELECT COUNT(*) as count FROM candidates")
-        if cursor.fetchone()["count"] == 0:
-            seed_initial_discoveries(cursor)
-            conn.commit()
+        # Seed initial realistic benchmark discoveries if not present
+        seed_initial_discoveries(cursor)
+        conn.commit()
 
     finally:
         conn.close()
@@ -139,7 +137,7 @@ def seed_initial_discoveries(cursor: sqlite3.Cursor):
 
     for s in initial_seeds:
         cursor.execute("""
-            INSERT INTO candidates (
+            INSERT OR IGNORE INTO candidates (
                 id, ra_deg, dec_deg, ra_hms, dec_dms, pixel_x, pixel_y,
                 category, confidence, notes, observer_callsign, target_preset,
                 band_group, epoch_label, upvotes, created_at
