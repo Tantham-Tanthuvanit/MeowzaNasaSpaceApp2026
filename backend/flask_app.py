@@ -72,7 +72,7 @@ def get_element_density():
         return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
 
     element = request.args.get("element", "H2O")
-    fov = float(request.args.get("fov", 5.0))
+    fov = float(request.args.get("fov", 12.0))
 
     try:
         data = loader.get_element_density(ra_input=ra, dec_input=dec, element=element, fov_arcmin=fov)
@@ -88,7 +88,7 @@ def get_catalog_overlay():
     if not ra or not dec:
         return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
 
-    fov = float(request.args.get("fov", 5.0))
+    fov = float(request.args.get("fov", 12.0))
     catalogs_arg = request.args.get("catalogs", "gaia_dr3,allwise")
     cat_list = [c.strip() for c in catalogs_arg.split(",") if c.strip()]
 
@@ -117,7 +117,7 @@ def get_sky_cutout():
     if not ra or not dec:
         return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
 
-    fov = float(request.args.get("fov", 5.0))
+    fov = float(request.args.get("fov", 12.0))
     band_group = request.args.get("band_group", "stacked")
     stretch = request.args.get("stretch", "zscale")
     colormap = request.args.get("colormap", "inferno")
@@ -147,7 +147,7 @@ def get_pixel_to_radec():
     pixel_y = request.args.get("pixel_y")
     center_ra = request.args.get("center_ra")
     center_dec = request.args.get("center_dec")
-    fov = float(request.args.get("fov", 5.0))
+    fov = float(request.args.get("fov", 12.0))
 
     if None in (pixel_x, pixel_y, center_ra, center_dec):
         return jsonify({"error": "Missing required query parameters: pixel_x, pixel_y, center_ra, center_dec"}), 400
@@ -177,7 +177,7 @@ def get_shift_and_add():
     if not ra or not dec:
         return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
 
-    fov = float(request.args.get("fov", 5.0))
+    fov = float(request.args.get("fov", 12.0))
     shift_x = float(request.args.get("shift_x", 0.0))
     shift_y = float(request.args.get("shift_y", 0.0))
     band_group = request.args.get("band_group", "stacked")

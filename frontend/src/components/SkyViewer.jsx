@@ -40,6 +40,7 @@ export default function SkyViewer({
   shiftAndAddData = null,
   targetInfo,
   fov,
+  onFovChange,
   catalogOverlay = [],
   candidates = [],
   onFlagCandidate,
@@ -92,8 +93,8 @@ export default function SkyViewer({
   const containerRef = useRef(null);
   const canvasViewportRef = useRef(null);
 
-  // Active FOV value in arcmin (from prop or targetInfo, fallback to 5.0)
-  const currentFov = typeof fov === 'number' ? fov : (targetInfo?.fov_arcmin || 5.0);
+  // Active FOV value in arcmin (from prop or targetInfo, fallback to 12.0)
+  const currentFov = typeof fov === 'number' ? fov : (targetInfo?.fov_arcmin || 12.0);
 
   const currentEpoch = epochs[currentEpochIndex] || epochs[0] || {};
   const isDiffMode = viewMode === 'diff';
@@ -525,6 +526,31 @@ export default function SkyViewer({
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Quick FOV Selector (Compact 5', Wide 12' [4x], Deep 20') */}
+          {onFovChange && (
+            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5 text-xs">
+              <span className="text-[10px] mono text-slate-400 px-1.5 hidden sm:inline">FOV:</span>
+              {[
+                { val: 5.0, label: "5' (1x)" },
+                { val: 12.0, label: "12' (4x)" },
+                { val: 20.0, label: "20' (16x)" }
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  onClick={() => onFovChange(opt.val)}
+                  className={`px-2 py-1 rounded text-[11px] mono font-medium transition-all ${
+                    Math.abs(Number(currentFov) - opt.val) < 2.0
+                      ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title={`Switch Field of View to ${opt.val}' arcminutes (${opt.label})`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Fullscreen Button */}
           <button

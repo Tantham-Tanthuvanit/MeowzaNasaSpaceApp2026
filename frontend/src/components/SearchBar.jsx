@@ -4,7 +4,7 @@ import { Search, Compass, Layers, Sliders, Share2, Check, Sparkles, Orbit } from
 export default function SearchBar({
   ra,
   dec,
-  fov = 5.0,
+  fov = 12.0,
   bandGroup,
   stretch,
   colormap,
@@ -30,7 +30,7 @@ export default function SearchBar({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (raInput && decInput) {
-      onSearch(raInput.trim(), decInput.trim(), fov || 5.0);
+      onSearch(raInput.trim(), decInput.trim(), fov || 12.0);
     }
   };
 

@@ -48,7 +48,7 @@ export async function fetchDetectorBands() {
 export async function fetchSkyCutout({
   ra,
   dec,
-  fov = 5.0,
+  fov = 12.0,
   bandGroup = 'stacked',
   stretch = 'zscale',
   colormap = 'inferno',
@@ -88,7 +88,7 @@ export async function fetchSkyCutout({
 export async function fetchShiftAndAdd({
   ra,
   dec,
-  fov = 5.0,
+  fov = 12.0,
   shiftX = 0.0,
   shiftY = 0.0,
   bandGroup = 'stacked',
@@ -296,7 +296,7 @@ export function readInitialUrlParams() {
   return {
     ra: params.get('ra') || '08h55m10.831s',
     dec: params.get('dec') || '-07d14m42.53s',
-    fov: params.get('fov') ? parseFloat(params.get('fov')) : 5.0,
+    fov: params.get('fov') ? parseFloat(params.get('fov')) : 12.0,
     band: params.get('band') || 'stacked',
     hasCustomCoords: Boolean(params.get('ra') && params.get('dec'))
   };

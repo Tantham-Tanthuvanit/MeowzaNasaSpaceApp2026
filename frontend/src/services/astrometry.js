@@ -11,7 +11,7 @@
  * 
  * Standard astronomical convention: North up, East left.
  */
-export function pixelToRaDec(pixelX, pixelY, centerRaDeg, centerDecDeg, fovArcmin = 5.0, dim = 256) {
+export function pixelToRaDec(pixelX, pixelY, centerRaDeg, centerDecDeg, fovArcmin = 12.0, dim = 256) {
   const centerPixel = dim / 2.0;
   const degPerPixel = (Number(fovArcmin) / 60.0) / dim;
   

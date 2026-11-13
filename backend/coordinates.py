@@ -222,7 +222,7 @@ def pixel_to_radec(
     pixel_y: float,
     center_ra_deg: float,
     center_dec_deg: float,
-    fov_arcmin: float = 5.0,
+    fov_arcmin: float = 12.0,
     dim: int = 256
 ) -> Dict[str, Any]:
     """

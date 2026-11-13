@@ -188,6 +188,7 @@ class SPHERExDataLoader:
         self,
         ra_deg: float,
         dec_deg: float,
+        fov_arcmin: float = 12.0,
         matched_preset: Optional[str] = None
     ) -> Optional[List[np.ndarray]]:
         """
@@ -208,17 +209,18 @@ class SPHERExDataLoader:
             if target_slug:
                 fpath = os.path.join(self.irsa_dir, f"{target_slug}_{band_name}.fits")
             else:
-                fpath = os.path.join(self.irsa_dir, f"irsa_{round(ra_deg, 4)}_{round(dec_deg, 4)}_{band_name}.fits")
+                fpath = os.path.join(self.irsa_dir, f"irsa_{round(ra_deg, 4)}_{round(dec_deg, 4)}_{round(fov_arcmin, 1)}_{band_name}.fits")
 
             # If not cached on disk, attempt a short-timeout live query to NASA IRSA FinderChart
             if not os.path.exists(fpath):
                 try:
+                    actual_subset = max(round(fov_arcmin, 1), 6.0)
                     url = (
                         f"https://irsa.ipac.caltech.edu/applications/finderchart/servlet/api"
-                        f"?mode=getImage&RA={ra_deg}&DEC={dec_deg}&subsetsize=3.0"
+                        f"?mode=getImage&RA={ra_deg}&DEC={dec_deg}&subsetsize={actual_subset}"
                         f"&thumbnail_size=medium&survey=wise&wise_bands={band_num}&type=fitsurl"
                     )
-                    r = requests.get(url, timeout=3.5)
+                    r = requests.get(url, timeout=4.5)
                     if r.status_code == 200 and len(r.content) > 1000:
                         with open(fpath, "wb") as f:
                             f.write(r.content)
@@ -504,7 +506,7 @@ class SPHERExDataLoader:
         self,
         ra_input: str,
         dec_input: str,
-        fov_arcmin: float = 5.0,
+        fov_arcmin: float = 12.0,
         band_group: str = "stacked",
         stretch: str = "zscale",
         colormap: str = "inferno",
@@ -574,7 +576,7 @@ class SPHERExDataLoader:
         # Attempt to load genuine NASA WISE FITS cutouts from IRSA
         real_nasa_bands = None
         if band_group in ["stacked", "false_color_rgb", "filter_wise_w1", "filter_wise_w2", ""]:
-            real_nasa_bands = self._load_real_irsa_cutout(ra_deg, dec_deg, matched_preset=matched_target)
+            real_nasa_bands = self._load_real_irsa_cutout(ra_deg, dec_deg, fov_arcmin=float(fov_arcmin), matched_preset=matched_target)
 
         if real_nasa_bands is not None:
             wise_labels = [
@@ -927,7 +929,7 @@ class SPHERExDataLoader:
         ra_input: str,
         dec_input: str,
         element: str = "H2O",
-        fov_arcmin: float = 5.0
+        fov_arcmin: float = 12.0
     ) -> Dict[str, Any]:
         """
         Retrieves dedicated elemental column density map and astrophysical telemetry

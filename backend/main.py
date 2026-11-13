@@ -93,7 +93,7 @@ def get_element_density(
     ra: str = Query(..., description="Right Ascension in sexagesimal or decimal degrees"),
     dec: str = Query(..., description="Declination in sexagesimal or decimal degrees"),
     element: str = Query("H2O", description="Target molecule/element: H2O, CH4, CO2, CO, H, DUST"),
-    fov: float = Query(5.0, description="Field of View in arcminutes")
+    fov: float = Query(12.0, description="Field of View in arcminutes")
 ):
     """
     Fetches 2D spatial column density map and astrophysical telemetry for a specific element or molecule.
@@ -108,7 +108,7 @@ def get_element_density(
 def get_catalog_overlay(
     ra: str = Query(..., description="Right Ascension"),
     dec: str = Query(..., description="Declination"),
-    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    fov: float = Query(12.0, description="Field of View in arcminutes"),
     catalogs: Optional[str] = Query("gaia_dr3,allwise", description="Comma-separated catalog names")
 ):
     """
@@ -138,7 +138,7 @@ def get_catalog_overlay(
 def get_sky_cutout(
     ra: str = Query(..., description="Right Ascension in sexagesimal (08h55m10.831s) or decimal degrees (133.795)"),
     dec: str = Query(..., description="Declination in sexagesimal (-07d14m42.53s) or decimal degrees (-7.245)"),
-    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    fov: float = Query(12.0, description="Field of View in arcminutes"),
     band_group: str = Query("stacked", description="Wavelength group: 'stacked', 'array_1'..'array_6', or 'false_color_rgb'"),
     stretch: str = Query("zscale", description="Contrast stretch: 'zscale', 'asinh', 'linear', 'log'"),
     colormap: str = Query("inferno", description="Display colormap: 'inferno', 'viridis', 'magma', 'grayscale'"),
@@ -168,7 +168,7 @@ def get_pixel_to_radec(
     pixel_y: float = Query(..., description="Canvas Y pixel coordinate (0 to 256)"),
     center_ra: str = Query(..., description="Field center RA"),
     center_dec: str = Query(..., description="Field center Dec"),
-    fov: float = Query(5.0, description="Field of View in arcminutes")
+    fov: float = Query(12.0, description="Field of View in arcminutes")
 ):
     """
     Translates a 2D canvas pixel coordinate back to celestial RA/Dec for Citizen Science candidate flagging.
@@ -191,7 +191,7 @@ def get_pixel_to_radec(
 def get_shift_and_add(
     ra: str = Query(..., description="Right Ascension"),
     dec: str = Query(..., description="Declination"),
-    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    fov: float = Query(12.0, description="Field of View in arcminutes"),
     shift_x: float = Query(0.0, description="X velocity offset (pixels/epoch)"),
     shift_y: float = Query(0.0, description="Y velocity offset (pixels/epoch)"),
     band_group: str = Query("stacked", description="Wavelength group"),

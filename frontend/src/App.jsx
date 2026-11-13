@@ -222,6 +222,11 @@ export default function App() {
     loadSkyData(ra, dec, fov, bandGroup, stretch, newColormap);
   };
 
+  const handleFovChange = (newFov) => {
+    setFov(newFov);
+    loadSkyData(ra, dec, newFov, bandGroup, stretch, colormap);
+  };
+
   return (
     <div className="min-h-screen flex flex-col justify-between">
       {/* Top Header Navigation */}
@@ -320,6 +325,7 @@ export default function App() {
               shiftAndAddData={skyData.shift_and_add || null}
               targetInfo={skyData.target_info}
               fov={fov}
+              onFovChange={handleFovChange}
               catalogOverlay={skyData.catalog_overlay || []}
               candidates={flaggedCandidates}
               onFlagCandidate={handleFlagCandidate}
