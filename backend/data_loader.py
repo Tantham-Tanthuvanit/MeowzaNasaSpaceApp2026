@@ -23,6 +23,7 @@ from astropy.io import fits
 
 import coordinates
 import image_processor
+from catalog_service import catalog_service
 
 
 # SPHEREx Detector Array Layout (102 Near-IR Spectral Channels)
@@ -319,6 +320,13 @@ class SPHERExDataLoader:
         # 102-band spectral energy distribution preview
         spectrum = self._generate_102_band_spectrum(matched_target, seed)
 
+        # Cross-matched Gaia DR3 & AllWISE catalog overlay sources
+        catalog_stars = catalog_service.query_catalogs(
+            ra_deg=coord_info["ra_deg"],
+            dec_deg=coord_info["dec_deg"],
+            fov_arcmin=float(fov_arcmin)
+        )
+
         return {
             "target_info": {
                 "ra_deg": coord_info["ra_deg"],
@@ -334,5 +342,6 @@ class SPHERExDataLoader:
             "epochs": epochs_data,
             "difference_image_url": diff_uri,
             "spectrum_preview": spectrum,
-            "spherex_detector_arrays": SPHEREX_ARRAYS
+            "spherex_detector_arrays": SPHEREX_ARRAYS,
+            "catalog_overlay": catalog_stars
         }

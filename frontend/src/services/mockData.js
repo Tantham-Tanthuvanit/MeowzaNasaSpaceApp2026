@@ -185,6 +185,35 @@ export function createMockSkyCutout(ra = "08h55m10.831s", dec = "-07d14m42.53s",
     ],
     difference_image_url: createMockStarSvg({ x: 7.5, y: -4.2 }, true),
     spectrum_preview: generateMockSpectrum("WISE 0855"),
-    spherex_detector_arrays: MOCK_DETECTOR_ARRAYS
+    spherex_detector_arrays: MOCK_DETECTOR_ARRAYS,
+    catalog_overlay: [
+      {
+        id: "WISE J085510.83-071442.5",
+        catalog: "AllWISE",
+        ra_deg: 133.795129,
+        dec_deg: -7.245147,
+        pixel_x: 128.0,
+        pixel_y: 128.0,
+        mag: 13.9,
+        mag_band: "W2 (4.6 μm)",
+        proper_motion_mas_yr: 8150.0,
+        is_high_proper_motion: true,
+        is_brown_dwarf_candidate: true,
+        notes: "Classic brown dwarf signature: strong near-IR WISE detection with zero optical Gaia counterpart."
+      },
+      {
+        id: "Gaia DR3 552194812",
+        catalog: "Gaia DR3",
+        ra_deg: 133.812,
+        dec_deg: -7.231,
+        pixel_x: 185.0,
+        pixel_y: 65.0,
+        mag: 15.4,
+        mag_band: "G (optical)",
+        proper_motion_mas_yr: 18.5,
+        is_high_proper_motion: false,
+        is_brown_dwarf_candidate: false
+      }
+    ]
   };
 }

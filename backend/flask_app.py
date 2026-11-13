@@ -14,6 +14,7 @@ from flask_cors import CORS
 
 import coordinates
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from catalog_service import catalog_service
 
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
@@ -56,6 +57,35 @@ def get_bands():
         "wavelength_range_um": [0.75, 5.00],
         "detector_arrays": SPHEREX_ARRAYS
     })
+
+
+@app.route("/api/catalog-overlay", methods=["GET"])
+def get_catalog_overlay():
+    ra = request.args.get("ra")
+    dec = request.args.get("dec")
+    if not ra or not dec:
+        return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
+
+    fov = float(request.args.get("fov", 5.0))
+    catalogs_arg = request.args.get("catalogs", "gaia_dr3,allwise")
+    cat_list = [c.strip() for c in catalogs_arg.split(",") if c.strip()]
+
+    try:
+        coord_info = coordinates.parse_coordinates(ra, dec)
+        sources = catalog_service.query_catalogs(
+            ra_deg=coord_info["ra_deg"],
+            dec_deg=coord_info["dec_deg"],
+            fov_arcmin=fov,
+            catalogs=cat_list
+        )
+        return jsonify({
+            "target": coord_info,
+            "fov_arcmin": fov,
+            "total_sources": len(sources),
+            "sources": sources
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/sky-cutout", methods=["GET"])

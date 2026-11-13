@@ -179,6 +179,7 @@ export default function App() {
               epochs={skyData.epochs}
               differenceImageUrl={skyData.difference_image_url}
               targetInfo={skyData.target_info}
+              catalogOverlay={skyData.catalog_overlay || []}
               currentEpochIndex={currentEpochIndex}
               viewMode={viewMode}
               onViewModeChange={setViewMode}

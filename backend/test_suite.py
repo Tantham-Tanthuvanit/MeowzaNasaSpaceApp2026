@@ -123,6 +123,35 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("epochs", data)
         self.assertIn("difference_image_url", data)
         self.assertIn("spectrum_preview", data)
+        self.assertIn("catalog_overlay", data)
+        self.assertGreater(len(data["catalog_overlay"]), 0)
+
+    def test_catalog_overlay_endpoint(self):
+        resp = self.client.get("/api/catalog-overlay?ra=08h55m10.831s&dec=-07d14m42.53s&fov=5.0")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("sources", data)
+        self.assertIn("total_sources", data)
+        self.assertGreater(data["total_sources"], 0)
+
+
+class TestCatalogService(unittest.TestCase):
+    """Test Gaia DR3 and AllWISE catalog cross-matching logic."""
+
+    def test_radec_to_pixel_center(self):
+        from catalog_service import radec_to_pixel
+        proj = radec_to_pixel(133.795, -7.245, 133.795, -7.245, fov_arcmin=5.0, dim=256)
+        self.assertEqual(proj["pixel_x"], 128.0)
+        self.assertEqual(proj["pixel_y"], 128.0)
+        self.assertTrue(proj["is_within_bounds"])
+
+    def test_brown_dwarf_cross_matching(self):
+        from catalog_service import catalog_service
+        sources = catalog_service.query_catalogs(133.795129, -7.245147, fov_arcmin=5.0)
+        # WISE 0855 should be flagged as brown dwarf candidate
+        bd_candidates = [s for s in sources if s.get("is_brown_dwarf_candidate")]
+        self.assertGreater(len(bd_candidates), 0)
+        self.assertEqual(bd_candidates[0]["catalog"], "AllWISE")
 
 
 if __name__ == "__main__":

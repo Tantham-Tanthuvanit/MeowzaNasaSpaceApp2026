@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 import coordinates
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from catalog_service import catalog_service
 
 app = FastAPI(
     title="NASA SPHEREx Sky Viewer API",
@@ -78,6 +79,36 @@ def get_bands():
         "wavelength_range_um": [0.75, 5.00],
         "detector_arrays": SPHEREX_ARRAYS
     }
+
+
+@app.get("/api/catalog-overlay")
+def get_catalog_overlay(
+    ra: str = Query(..., description="Right Ascension"),
+    dec: str = Query(..., description="Declination"),
+    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    catalogs: Optional[str] = Query("gaia_dr3,allwise", description="Comma-separated catalog names")
+):
+    """
+    Returns Gaia DR3 and AllWISE catalog sources with projected pixel coordinates
+    for overlaying onto SPHEREx sky cutouts.
+    """
+    try:
+        coord_info = coordinates.parse_coordinates(ra, dec)
+        cat_list = [c.strip() for c in catalogs.split(",") if c.strip()]
+        sources = catalog_service.query_catalogs(
+            ra_deg=coord_info["ra_deg"],
+            dec_deg=coord_info["dec_deg"],
+            fov_arcmin=fov,
+            catalogs=cat_list
+        )
+        return {
+            "target": coord_info,
+            "fov_arcmin": fov,
+            "total_sources": len(sources),
+            "sources": sources
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to query catalog overlay: {str(e)}")
 
 
 @app.get("/api/sky-cutout")
