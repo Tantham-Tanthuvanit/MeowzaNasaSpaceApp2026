@@ -7,12 +7,13 @@ detector band stacking across SPHEREx's 102 near-infrared channels, false-color
 RGB synthesis, and export to web-ready PNG / Base64.
 """
 
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Dict, Any
 import io
 import base64
 import numpy as np
 from PIL import Image
 import matplotlib as mpl
+import scipy.ndimage as ndi
 from astropy.visualization import ZScaleInterval, AsinhStretch, LinearStretch, LogStretch
 
 
@@ -286,4 +287,86 @@ def density_array_to_base64(
         png_bytes = render_density_map_to_png(density_arr, colormap=colormap)
     b64_str = base64.b64encode(png_bytes).decode("ascii")
     return f"data:image/png;base64,{b64_str}"
+
+
+def perform_shift_and_add(
+    epoch_arrays: List[np.ndarray],
+    shift_x_per_epoch: float,
+    shift_y_per_epoch: float,
+    method: str = "median"
+) -> np.ndarray:
+    """
+    NASA Shift-and-Add Search Algorithm (Planet X / TNO Discovery Engine).
+    
+    Co-adds multi-epoch astronomical exposures along a trial proper-motion / orbital velocity
+    vector (shift_x, shift_y in pixels per epoch). Stationary background stars are smeared
+    out and rejected, while faint moving bodies (Planet X, Sedna, brown dwarfs) align across
+    all epochs, boosting signal-to-noise ratio by up to sqrt(N_epochs).
+    
+    Parameters:
+      epoch_arrays: List of 2D numpy arrays corresponding to chronological survey epochs.
+      shift_x_per_epoch: Velocity offset along X axis in pixels per 6-month survey epoch.
+      shift_y_per_epoch: Velocity offset along Y axis in pixels per 6-month survey epoch.
+      method: "median" (recommended for cosmic ray / star rejection) or "mean".
+      
+    Returns:
+      2D numpy array containing the shifted-and-added composite science stack.
+    """
+    if not epoch_arrays:
+        raise ValueError("epoch_arrays list cannot be empty.")
+    if len(epoch_arrays) == 1:
+        return epoch_arrays[0].copy()
+
+    shifted_stack = []
+    num_epochs = len(epoch_arrays)
+
+    for i, arr in enumerate(epoch_arrays):
+        # Epoch 0 is reference frame (shift = 0); subsequent epochs shift by i * velocity
+        dx = float(i) * shift_x_per_epoch
+        dy = float(i) * shift_y_per_epoch
+
+        if abs(dx) < 1e-4 and abs(dy) < 1e-4:
+            shifted_stack.append(arr.astype(np.float32))
+        else:
+            # Shift along [Y, X] using bilinear interpolation
+            shifted_plane = ndi.shift(arr.astype(np.float32), shift=[dy, dx], mode="nearest", order=1)
+            shifted_stack.append(shifted_plane)
+
+    stack_3d = np.stack(shifted_stack, axis=0)
+    if method == "median":
+        coadded = np.median(stack_3d, axis=0)
+    else:
+        coadded = np.mean(stack_3d, axis=0)
+
+    return coadded.astype(np.float32)
+
+
+def apply_image_filter(
+    data: np.ndarray,
+    filter_mode: str = "normal"
+) -> np.ndarray:
+    """
+    Applies spatial / noise enhancement filters to astronomical images:
+      - 'normal': Unmodified data
+      - 'smooth': Gaussian noise reduction (sigma=1.0) for low-SNR detection
+      - 'sharpen': Unsharp mask high-pass filter to accentuate point sources
+      - 'median': 3x3 median filter for cosmic ray / hot pixel suppression
+      - 'threshold_3sigma': Background sigma-clipping highlighting >3-sigma candidates
+    """
+    mode = filter_mode.lower()
+    if mode == "smooth":
+        return ndi.gaussian_filter(data.astype(np.float32), sigma=1.0)
+    elif mode == "sharpen":
+        smoothed = ndi.gaussian_filter(data.astype(np.float32), sigma=1.2)
+        sharpened = data.astype(np.float32) + (data.astype(np.float32) - smoothed) * 0.8
+        return sharpened
+    elif mode == "median":
+        return ndi.median_filter(data.astype(np.float32), size=3)
+    elif mode == "threshold_3sigma":
+        bg_med = float(np.median(data))
+        bg_std = float(np.std(data))
+        threshold = bg_med + 2.5 * bg_std
+        return np.where(data >= threshold, data, bg_med).astype(np.float32)
+    return data
+
 

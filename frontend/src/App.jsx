@@ -178,6 +178,8 @@ export default function App() {
             <SkyViewer
               epochs={skyData.epochs}
               differenceImageUrl={skyData.difference_image_url}
+              differenceImages={skyData.difference_images || {}}
+              shiftAndAddData={skyData.shift_and_add || null}
               targetInfo={skyData.target_info}
               catalogOverlay={skyData.catalog_overlay || []}
               currentEpochIndex={currentEpochIndex}

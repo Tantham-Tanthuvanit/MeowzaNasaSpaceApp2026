@@ -85,6 +85,42 @@ export async function fetchSkyCutout({
 /**
  * Helper to update browser URL query params without triggering a page reload.
  */
+export async function fetchShiftAndAdd({
+  ra,
+  dec,
+  fov = 5.0,
+  shiftX = 0.0,
+  shiftY = 0.0,
+  bandGroup = 'stacked',
+  stretch = 'zscale',
+  colormap = 'inferno',
+  filterMode = 'normal'
+}) {
+  const query = new URLSearchParams({
+    ra: (ra || '').trim(),
+    dec: (dec || '').trim(),
+    fov: fov.toString(),
+    shift_x: shiftX.toString(),
+    shift_y: shiftY.toString(),
+    band_group: bandGroup,
+    stretch,
+    colormap,
+    filter_mode: filterMode
+  });
+
+  try {
+    const res = await fetch(`${API_BASE}/api/shift-and-add?${query.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API Service] Failed to execute shift-and-add API:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Helper to update browser URL query params without triggering a page reload.
+ */
 export function syncUrlWithQuery(ra, dec, fov, band) {
   const params = new URLSearchParams(window.location.search);
   if (ra) params.set('ra', ra);
