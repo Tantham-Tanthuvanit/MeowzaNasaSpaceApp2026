@@ -99,5 +99,5 @@ fi
 
 echo "=========================================================="
 echo " Setup complete! Ready to launch."
-echo " Run ./start.sh (or ./start.sh flask) to start the system."
+echo " Run ./start.sh to start the system."
 echo "=========================================================="
