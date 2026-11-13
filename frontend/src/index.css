@@ -139,3 +139,128 @@ input[type='range']::-moz-range-thumb {
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
   border: 2px solid #0f172a;
 }
+
+/* ==========================================================================
+   Light Mode Theme Styles (Observatory Clean Mode)
+   ========================================================================== */
+html.light {
+  --bg-space: #f8fafc;
+  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-card: rgba(241, 245, 249, 0.95);
+  --border-cyan: rgba(2, 132, 199, 0.35);
+  --border-amber: rgba(217, 119, 6, 0.4);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --accent-cyan: #0284c7;
+  --accent-amber: #d97706;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(2, 132, 199, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(217, 119, 6, 0.05) 0%, transparent 50%);
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(203, 213, 225, 0.9);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+}
+
+html.light .glass-card {
+  background: rgba(248, 250, 252, 0.95);
+  border-color: rgba(226, 232, 240, 0.9);
+}
+
+html.light header {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light footer {
+  background-color: rgba(248, 250, 252, 0.9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Light mode background surface mapping */
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950\/85,
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+}
+
+/* Light mode borders */
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60,
+html.light .border-slate-800,
+html.light .border-slate-700\/80,
+html.light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Light mode typography */
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Input fields & controls in light mode */
+html.light input[type="text"],
+html.light input[type="number"],
+html.light select,
+html.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input[type="text"]::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Keep the astronomy canvas background true dark for deep-space contrast */
+html.light .bg-slate-950\/90.min-h-\[380px\],
+html.light .bg-slate-950\/90.min-h-\[460px\],
+html.light .bg-slate-950\/90.relative {
+  background-color: #050811 !important;
+}
+
+/* Scrollbars in light mode */
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(2, 132, 199, 0.4);
+}

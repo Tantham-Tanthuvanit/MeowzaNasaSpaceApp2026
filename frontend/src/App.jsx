@@ -14,7 +14,17 @@ import {
   voteCandidateApi,
   deleteCandidateApi
 } from './services/api';
-import { Telescope, Satellite, Radio, Info, Compass, Sparkles, AlertCircle } from 'lucide-react';
+import { 
+  Telescope, 
+  Satellite, 
+  Radio, 
+  Info, 
+  Compass, 
+  Sparkles, 
+  AlertCircle,
+  Sun,
+  Moon
+} from 'lucide-react';
 
 export default function App() {
   const initialParams = readInitialUrlParams();
@@ -32,6 +42,26 @@ export default function App() {
   const [presets, setPresets] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  // Theme Mode State (Dark / Light) with LocalStorage persistence
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('spherex_theme') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+    try {
+      localStorage.setItem('spherex_theme', theme);
+    } catch {}
+  }, [theme]);
 
   // Citizen Science Flagged Candidates State (with LocalStorage & SQLite database synchronization)
   const [flaggedCandidates, setFlaggedCandidates] = useState(() => {
@@ -229,6 +259,25 @@ export default function App() {
               <span className="text-slate-300">Channels:</span>
               <span className="text-cyan-400 font-semibold">102 Near-IR</span>
             </div>
+
+            {/* Theme Toggle Button (Dark / Light Observatory Mode) */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700/80 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white transition-all text-xs font-mono shadow-sm"
+              title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Dark</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </header>
