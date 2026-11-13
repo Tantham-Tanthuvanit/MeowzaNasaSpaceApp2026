@@ -165,6 +165,18 @@ export default function App() {
           colormap={colormap}
           presets={presets}
           onSearch={handleSearch}
+          onFovChange={(newFov) => {
+            setFov(newFov);
+            if (skyData) {
+              setSkyData((prev) => prev ? {
+                ...prev,
+                target_info: {
+                  ...prev.target_info,
+                  fov_arcmin: newFov
+                }
+              } : prev);
+            }
+          }}
           onSelectPreset={handleSelectPreset}
           onBandGroupChange={handleBandGroupChange}
           onStretchChange={handleStretchChange}
@@ -179,6 +191,7 @@ export default function App() {
               epochs={skyData.epochs}
               differenceImageUrl={skyData.difference_image_url}
               targetInfo={skyData.target_info}
+              fov={fov}
               catalogOverlay={skyData.catalog_overlay || []}
               currentEpochIndex={currentEpochIndex}
               viewMode={viewMode}

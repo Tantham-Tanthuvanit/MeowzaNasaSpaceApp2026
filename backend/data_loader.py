@@ -475,29 +475,29 @@ class SPHERExDataLoader:
         dim = 256
         center_x, center_y = dim / 2.0, dim / 2.0
 
-        # Generate static background field stars (persisting across all epochs)
-        if matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"]:
-            n_background_stars = rng.randint(65, 95)
-        else:
-            n_background_stars = rng.randint(25, 45)
+        # Scale star count and spatial distribution with FOV
+        # Base FOV reference is 5.0 arcmin. As FOV widens, area scales with (fov / 5)^2
+        fov_scale = max(float(fov_arcmin) / 5.0, 0.2)
+        base_density = 75 if matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"] else 35
+        # Scale number of stars with square root to prevent excessive crowding while scaling area
+        n_background_stars = int(base_density * min(max(fov_scale ** 0.85, 0.4), 6.0))
+
         bg_stars = []
         for _ in range(n_background_stars):
-            bx = rng.uniform(5, dim - 5)
-            by = rng.uniform(5, dim - 5)
+            bx = rng.uniform(4, dim - 4)
+            by = rng.uniform(4, dim - 4)
             b_amp = rng.exponential(scale=15.0) + 2.0
-            b_fwhm = rng.uniform(2.8, 3.8)
+            # Source apparent size shrinks slightly in wider field of view
+            b_fwhm = max(rng.uniform(2.4, 3.4) / (fov_scale ** 0.25), 1.6)
             bg_stars.append((bx, by, b_amp, b_fwhm))
 
         epochs_data = []
         epoch_raw_arrays = []
 
-        # Target motion / variability profile
-        # WISE 0855 proper motion: ~8 pixels/epoch
-        # Barnard's Star proper motion: ~6 pixels/epoch
-        # Epsilon Indi B: ~4 pixels/epoch + companion
-        # RW Aurigae: stationary, large flux changes [25.0 -> 4.0 -> 18.0 -> 8.0]
-        # R Draconis: stationary, pulsating [30.0 -> 8.0 -> 35.0 -> 6.0]
-        # Unknown coordinates: subtle moving asteroid (~2 pixels/epoch) or stationary
+        # Target motion / variability profile (scales inverse to FOV in pixels)
+        # In larger FOV, same physical proper motion in arcsec spans fewer pixels: motion_px = base_motion * (5.0 / fov)
+        motion_scale = 1.0 / fov_scale
+        target_fwhm = max(3.2 / (fov_scale ** 0.25), 1.8)
         target_proper_motion = (0.0, 0.0)
         target_flux_series = [15.0, 15.0, 15.0, 15.0]
 
@@ -546,24 +546,24 @@ class SPHERExDataLoader:
                 star_canvas += self._generate_gaussian_psf((dim, dim), by, bx, b_amp, b_fwhm)
 
             # 3. Add target source
-            tx = center_x + ep_idx * target_proper_motion[0]
-            ty = center_y + ep_idx * target_proper_motion[1]
+            tx = center_x + ep_idx * target_proper_motion[0] * motion_scale
+            ty = center_y + ep_idx * target_proper_motion[1] * motion_scale
             t_flux = target_flux_series[ep_idx]
-            star_canvas += self._generate_gaussian_psf((dim, dim), ty, tx, t_flux, fwhm=3.2)
+            star_canvas += self._generate_gaussian_psf((dim, dim), ty, tx, t_flux, fwhm=target_fwhm)
 
             # Special case for Epsilon Indi B binary companion
             if matched_target == "Epsilon Indi B":
-                comp_x = tx + 8.5
-                comp_y = ty - 6.0
+                comp_x = tx + 8.5 * motion_scale
+                comp_y = ty - 6.0 * motion_scale
                 comp_flux = t_flux * 0.7
-                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=3.0)
+                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.95)
 
             # Special case for Luhman 16 binary companion
             if matched_target == "Luhman 16":
-                comp_x = tx + 5.2
-                comp_y = ty + 3.8
+                comp_x = tx + 5.2 * motion_scale
+                comp_y = ty + 3.8 * motion_scale
                 comp_flux = t_flux * 0.85
-                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=2.9)
+                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.92)
 
             # Multi-band / Detector Array / Narrow-band Filter simulation
             is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]

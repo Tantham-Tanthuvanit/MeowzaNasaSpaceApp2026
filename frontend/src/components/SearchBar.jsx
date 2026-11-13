@@ -10,6 +10,7 @@ export default function SearchBar({
   colormap,
   presets,
   onSearch,
+  onFovChange,
   onSelectPreset,
   onBandGroupChange,
   onStretchChange,
@@ -179,21 +180,30 @@ export default function SearchBar({
           />
         </div>
 
-        {/* FOV */}
+        {/* FOV Slider */}
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-slate-300 mb-1">
-            FOV (arcmin)
-          </label>
-          <select
-            value={fovInput}
-            onChange={(e) => setFovInput(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-cyan-400"
-          >
-            <option value="2.0">2.0' (Deep Zoom)</option>
-            <option value="5.0">5.0' (Standard)</option>
-            <option value="10.0">10.0' (Wide Field)</option>
-            <option value="15.0">15.0' (Cluster View)</option>
-          </select>
+          <div className="flex items-center justify-between text-xs font-medium text-slate-300 mb-1">
+            <span>FOV (arcmin)</span>
+            <span className="mono font-semibold text-cyan-400 bg-slate-900 border border-slate-700/80 px-1.5 py-0.2 rounded text-[11px]">
+              {Number(fovInput).toFixed(1)}'
+            </span>
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-950/80 border border-slate-700 rounded-lg">
+            <input
+              type="range"
+              min="1.0"
+              max="120.0"
+              step="0.5"
+              value={fovInput}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setFovInput(val);
+                if (onFovChange) onFovChange(val);
+              }}
+              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              title={`Field of View: ${Number(fovInput).toFixed(1)} arcminutes`}
+            />
+          </div>
         </div>
 
         {/* Action Buttons */}

@@ -11,6 +11,7 @@ import {
   Maximize2, 
   Minimize2,
   SplitSquareVertical,
+  Compass,
   Satellite,
   Sparkles,
   Info,
@@ -21,6 +22,7 @@ export default function SkyViewer({
   epochs,
   differenceImageUrl,
   targetInfo,
+  fov,
   catalogOverlay = [],
   currentEpochIndex,
   viewMode, // 'single', 'diff', or 'split'
@@ -33,6 +35,9 @@ export default function SkyViewer({
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef(null);
+
+  // Active FOV value in arcmin (from prop or targetInfo, fallback to 5.0)
+  const currentFov = typeof fov === 'number' ? fov : (targetInfo?.fov_arcmin || 5.0);
 
   const currentEpoch = epochs[currentEpochIndex] || epochs[0] || {};
   const isDiffMode = viewMode === 'diff';
@@ -282,17 +287,17 @@ export default function SkyViewer({
             </div>
           </div>
         ) : (
-          /* Single Epoch / Blink View OR Difference Subtraction */
+          /* Single Continuous Unified Sky View or Difference Subtraction */
           <div className="relative flex items-center justify-center p-4">
             {/* Image Canvas Container (256x256 coordinate frame) */}
             <div 
-              className="relative rounded-lg overflow-hidden shadow-2xl transition-transform duration-200"
+              className="relative rounded-lg overflow-hidden shadow-2xl transition-transform duration-200 border border-slate-800"
               style={{ transform: `scale(${zoomLevel})` }}
             >
               <img
                 src={isDiffMode ? differenceImageUrl : currentEpoch?.image_url}
                 alt={isDiffMode ? 'Difference Image' : `SPHEREx Epoch ${currentEpochIndex + 1}`}
-                className="max-h-[420px] aspect-square object-contain block select-none pointer-events-none"
+                className="max-h-[440px] aspect-square object-contain block select-none pointer-events-none"
               />
 
               {/* Gaia DR3 & AllWISE Catalog Overlays */}
@@ -318,17 +323,14 @@ export default function SkyViewer({
                     {/* Visual Reticle Marker */}
                     <div className="relative flex items-center justify-center">
                       {isBD ? (
-                        /* Brown Dwarf Candidate Pulsing Reticle */
                         <div className="w-7 h-7 rounded-full border-2 border-rose-400/90 bg-rose-500/10 flex items-center justify-center animate-pulse shadow-[0_0_12px_#f43f5e]">
                           <div className="w-1.5 h-1.5 rounded-full bg-rose-300"></div>
                         </div>
                       ) : isHPM ? (
-                        /* High Proper Motion Star Reticle */
                         <div className="w-6 h-6 rounded-full border border-amber-400/80 bg-amber-500/10 flex items-center justify-center shadow-[0_0_8px_#f59e0b]">
                           <div className="w-1 h-1 rounded-full bg-amber-300"></div>
                         </div>
                       ) : (
-                        /* Standard Catalog Star Reticle */
                         <div className={`w-5 h-5 rounded-full border transition-transform duration-150 group-hover:scale-125 flex items-center justify-center ${
                           isGaia 
                             ? 'border-cyan-400/70 bg-cyan-500/10 group-hover:border-cyan-300' 

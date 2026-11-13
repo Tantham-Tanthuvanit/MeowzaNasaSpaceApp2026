@@ -154,11 +154,26 @@ export function generateMockSpectrum(targetName = "WISE 0855") {
 }
 
 // 4. Lightweight inline SVG Data URIs representing astronomical cutouts
-function createMockStarSvg(targetOffset = { x: 0, y: 0 }, isDiff = false) {
+function createMockStarSvg(targetOffset = { x: 0, y: 0 }, isDiff = false, fovArcmin = 5.0) {
   const bg = isDiff ? "#1e293b" : "#020617";
   const starFill = isDiff ? "#f59e0b" : "#38bdf8";
-  const tx = 128 + targetOffset.x;
-  const ty = 128 + targetOffset.y;
+
+  const fovScale = Math.max(parseFloat(fovArcmin) / 5.0, 0.2);
+  const motionScale = 1.0 / fovScale;
+  const tx = 128 + targetOffset.x * motionScale;
+  const ty = 128 + targetOffset.y * motionScale;
+  const targetRadius = Math.max(12 / Math.pow(fovScale, 0.25), 5);
+
+  // Generate deterministic field stars scaled by FOV
+  const starCount = Math.min(Math.floor(20 * Math.pow(fovScale, 0.7)), 80);
+  let extraStars = '';
+  for (let i = 0; i < starCount; i++) {
+    const sx = (37 * (i + 1) * 7) % 244 + 6;
+    const sy = (53 * (i + 1) * 11) % 244 + 6;
+    const sr = Math.max(1.8 / Math.pow(fovScale, 0.2), 0.8);
+    const op = ((i % 5) + 4) / 10;
+    extraStars += `<circle cx="${sx}" cy="${sy}" r="${sr.toFixed(1)}" fill="%23cbd5e1" opacity="${op}"/>`;
+  }
 
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
     <rect width="256" height="256" fill="${encodeURIComponent(bg)}"/>
@@ -169,16 +184,17 @@ function createMockStarSvg(targetOffset = { x: 0, y: 0 }, isDiff = false) {
     <circle cx="70" cy="210" r="1.8" fill="%23cbd5e1" opacity="0.6"/>
     <circle cx="30" cy="150" r="1.2" fill="%2364748b" opacity="0.5"/>
     <circle cx="160" cy="220" r="2.2" fill="%23e2e8f0" opacity="0.8"/>
+    ${extraStars}
     <!-- Target celestial object -->
     ${isDiff 
       ? `<!-- Moving dipole signature -->
-         <circle cx="${128}" cy="${128}" r="5" fill="%233b82f6" opacity="0.7"/>
-         <circle cx="${tx}" cy="${ty}" r="5" fill="%23ef4444" opacity="0.85"/>
-         <line x1="${128}" y1="${128}" x2="${tx}" y2="${ty}" stroke="%23fbbf24" stroke-width="1.5" stroke-dasharray="2,2"/>`
+         <circle cx="${128}" cy="${128}" r="${Math.max(5 / Math.pow(fovScale, 0.25), 2.5)}" fill="%233b82f6" opacity="0.7"/>
+         <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${Math.max(5 / Math.pow(fovScale, 0.25), 2.5)}" fill="%23ef4444" opacity="0.85"/>
+         <line x1="${128}" y1="${128}" x2="${tx.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="%23fbbf24" stroke-width="1.5" stroke-dasharray="2,2"/>`
       : `<!-- Stellar PSF -->
-         <circle cx="${tx}" cy="${ty}" r="12" fill="${encodeURIComponent(starFill)}" opacity="0.25"/>
-         <circle cx="${tx}" cy="${ty}" r="6" fill="${encodeURIComponent(starFill)}" opacity="0.6"/>
-         <circle cx="${tx}" cy="${ty}" r="2.5" fill="%23ffffff"/>`
+         <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${targetRadius.toFixed(1)}" fill="${encodeURIComponent(starFill)}" opacity="0.25"/>
+         <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${(targetRadius * 0.5).toFixed(1)}" fill="${encodeURIComponent(starFill)}" opacity="0.6"/>
+         <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${Math.max(targetRadius * 0.2, 1.2).toFixed(1)}" fill="%23ffffff"/>`
     }
   </svg>`;
 }
@@ -201,33 +217,33 @@ export function createMockSkyCutout(ra = "08h55m10.831s", dec = "-07d14m42.53s",
       {
         epoch_id: "epoch_1",
         timestamp: "2025-06-15",
-        image_url: createMockStarSvg({ x: 0, y: 0 }),
+        image_url: createMockStarSvg({ x: 0, y: 0 }, false, fov),
         contamination_flag: false,
         target_pixel_coords: [128.0, 128.0]
       },
       {
         epoch_id: "epoch_2",
         timestamp: "2025-12-15",
-        image_url: createMockStarSvg({ x: 7.5, y: -4.2 }),
+        image_url: createMockStarSvg({ x: 7.5, y: -4.2 }, false, fov),
         contamination_flag: false,
         target_pixel_coords: [135.5, 123.8]
       },
       {
         epoch_id: "epoch_3",
         timestamp: "2026-06-15",
-        image_url: createMockStarSvg({ x: 15.0, y: -8.4 }),
+        image_url: createMockStarSvg({ x: 15.0, y: -8.4 }, false, fov),
         contamination_flag: false,
         target_pixel_coords: [143.0, 119.6]
       },
       {
         epoch_id: "epoch_4",
         timestamp: "2026-12-15",
-        image_url: createMockStarSvg({ x: 22.5, y: -12.6 }),
+        image_url: createMockStarSvg({ x: 22.5, y: -12.6 }, false, fov),
         contamination_flag: false,
         target_pixel_coords: [150.5, 115.4]
       }
     ],
-    difference_image_url: createMockStarSvg({ x: 7.5, y: -4.2 }, true),
+    difference_image_url: createMockStarSvg({ x: 7.5, y: -4.2 }, true, fov),
     spectrum_preview: generateMockSpectrum("WISE 0855"),
     spherex_detector_arrays: MOCK_DETECTOR_ARRAYS,
     catalog_overlay: [
