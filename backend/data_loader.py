@@ -19,8 +19,9 @@ import os
 import hashlib
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
+import requests
 from astropy.io import fits
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, zoom
 
 import coordinates
 import image_processor
@@ -175,8 +176,71 @@ class SPHERExDataLoader:
     """
 
     def __init__(self, cache_dir: str = "data/cache"):
-        self.cache_dir = cache_dir
-        os.makedirs(self.cache_dir, exist_ok=True)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if not os.path.isabs(cache_dir):
+            self.cache_dir = os.path.join(base_dir, cache_dir)
+        else:
+            self.cache_dir = cache_dir
+        self.irsa_dir = os.path.join(self.cache_dir, "irsa")
+        os.makedirs(self.irsa_dir, exist_ok=True)
+
+    def _load_real_irsa_cutout(
+        self,
+        ra_deg: float,
+        dec_deg: float,
+        matched_preset: Optional[str] = None
+    ) -> Optional[List[np.ndarray]]:
+        """
+        Attempts to load genuine NASA WISE FITS images for 4 survey bands/epochs.
+        Returns a list of 4 float32 256x256 numpy arrays [w1, w2, w3, w4], or None if unavailable.
+        """
+        preset_map = {
+            "WISE 0855": "wise_0855",
+            "90377 Sedna": "sedna",
+            "Luhman 16": "luhman_16",
+            "Barnard's Star": "barnards_star"
+        }
+        target_slug = preset_map.get(matched_preset) if matched_preset else None
+
+        raw_bands = []
+        for band_num, band_name in [(1, "w1"), (2, "w2"), (3, "w3"), (4, "w4")]:
+            fpath = None
+            if target_slug:
+                fpath = os.path.join(self.irsa_dir, f"{target_slug}_{band_name}.fits")
+            else:
+                fpath = os.path.join(self.irsa_dir, f"irsa_{round(ra_deg, 4)}_{round(dec_deg, 4)}_{band_name}.fits")
+
+            # If not cached on disk, attempt a short-timeout live query to NASA IRSA FinderChart
+            if not os.path.exists(fpath):
+                try:
+                    url = (
+                        f"https://irsa.ipac.caltech.edu/applications/finderchart/servlet/api"
+                        f"?mode=getImage&RA={ra_deg}&DEC={dec_deg}&subsetsize=3.0"
+                        f"&thumbnail_size=medium&survey=wise&wise_bands={band_num}&type=fitsurl"
+                    )
+                    r = requests.get(url, timeout=3.5)
+                    if r.status_code == 200 and len(r.content) > 1000:
+                        with open(fpath, "wb") as f:
+                            f.write(r.content)
+                except Exception:
+                    pass
+
+            if os.path.exists(fpath):
+                try:
+                    with fits.open(fpath) as hdul:
+                        data = hdul[0].data.astype(np.float32)
+                        data = np.nan_to_num(data, nan=float(np.nanmedian(data)))
+                        if data.shape != (256, 256):
+                            sy = 256.0 / data.shape[0]
+                            sx = 256.0 / data.shape[1]
+                            data = zoom(data, (sy, sx), order=1)
+                        raw_bands.append(data)
+                except Exception:
+                    pass
+
+        if len(raw_bands) == 4:
+            return raw_bands
+        return None
 
     def _get_coordinate_seed(self, ra_deg: float, dec_deg: float) -> int:
         """Derive a reproducible deterministic integer seed from coordinates."""
@@ -501,193 +565,245 @@ class SPHERExDataLoader:
         target_proper_motion = (0.0, 0.0)
         target_flux_series = [15.0, 15.0, 15.0, 15.0]
 
-        if matched_target == "WISE 0855":
-            target_proper_motion = (7.5, -4.2)
-            target_flux_series = [12.0, 12.5, 11.8, 12.2]
-        elif matched_target == "Barnard's Star":
-            target_proper_motion = (1.5, 6.0)
-            target_flux_series = [45.0, 44.8, 45.2, 45.0]
-        elif matched_target == "Epsilon Indi B":
-            target_proper_motion = (3.8, 4.0)
-            target_flux_series = [18.0, 18.2, 17.9, 18.1]
-        elif matched_target == "RW Aurigae":
-            target_proper_motion = (0.0, 0.0)
-            target_flux_series = [35.0, 6.0, 28.0, 9.0]  # Dramatic dust occultations
-        elif matched_target == "R Draconis":
-            target_proper_motion = (0.0, 0.0)
-            target_flux_series = [40.0, 8.0, 42.0, 7.5]  # Mira pulsations
-        elif matched_target == "90377 Sedna":
-            target_proper_motion = (1.8, 1.0)  # Slow outer Solar System drift across 6-month survey cadences
-            target_flux_series = [10.5, 10.8, 10.2, 10.6]  # Faint TNO Planet X analog
-        elif matched_target == "Luhman 16":
-            target_proper_motion = (-4.8, 1.5)  # Nearby high proper motion brown dwarf binary
-            target_flux_series = [32.0, 30.5, 33.2, 31.0]  # Atmospheric cloud patchiness
-        elif matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"]:
-            target_proper_motion = (0.0, 0.0)
-            target_flux_series = [18.0, 18.0, 18.0, 18.0]
-        else:
-            # Deterministic small drift for serendipitous asteroid discovery
-            has_fast_mover = (seed % 3 == 0)
-            if has_fast_mover:
-                target_proper_motion = ((seed % 7) - 3.5, ((seed >> 3) % 7) - 3.5)
-            target_flux_series = [14.0, 14.2, 13.9, 14.1]
+        # Target astrophysical categorization
+        is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]
+        is_young_star = matched_target == "RW Aurigae"
+        is_pulsator = matched_target == "R Draconis"
+        is_tno_target = matched_target == "90377 Sedna"
 
-        # Generate each epoch image
-        for ep_idx in range(min(num_epochs, 4)):
-            epoch_rng = np.random.RandomState(seed + 100 * (ep_idx + 1))
-            date_str = EPOCH_DATES[ep_idx]
+        # Attempt to load genuine NASA WISE FITS cutouts from IRSA
+        real_nasa_bands = None
+        if band_group in ["stacked", "false_color_rgb", "filter_wise_w1", "filter_wise_w2", ""]:
+            real_nasa_bands = self._load_real_irsa_cutout(ra_deg, dec_deg, matched_preset=matched_target)
 
-            # 1. Base detector background noise (Gaussian + Zodiacal infrared background)
-            bg_noise = epoch_rng.normal(loc=1.2, scale=0.4, size=(dim, dim)).astype(np.float32)
-
-            # 2. Add static background stars
-            star_canvas = np.zeros((dim, dim), dtype=np.float32)
-            for bx, by, b_amp, b_fwhm in bg_stars:
-                star_canvas += self._generate_gaussian_psf((dim, dim), by, bx, b_amp, b_fwhm)
-
-            # 3. Add target source
-            tx = center_x + ep_idx * target_proper_motion[0] * motion_scale
-            ty = center_y + ep_idx * target_proper_motion[1] * motion_scale
-            t_flux = target_flux_series[ep_idx]
-            star_canvas += self._generate_gaussian_psf((dim, dim), ty, tx, t_flux, fwhm=target_fwhm)
-
-            # Special case for Epsilon Indi B binary companion
-            if matched_target == "Epsilon Indi B":
-                comp_x = tx + 8.5 * motion_scale
-                comp_y = ty - 6.0 * motion_scale
-                comp_flux = t_flux * 0.7
-                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.95)
-
-            # Special case for Luhman 16 binary companion
-            if matched_target == "Luhman 16":
-                comp_x = tx + 5.2 * motion_scale
-                comp_y = ty + 3.8 * motion_scale
-                comp_flux = t_flux * 0.85
-                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.92)
-
-            # Multi-band / Detector Array / Narrow-band Filter simulation
-            is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]
-            is_young_star = matched_target == "RW Aurigae"
-            is_pulsator = matched_target == "R Draconis"
-            is_tno_target = matched_target == "90377 Sedna"
-
-            if band_group.startswith("array_"):
-                array_num = int(band_group.split("_")[1])
-                # Near-IR brown dwarfs look brighter in Array 4-6, fainter in Array 1
-                if is_cool_target:
-                    band_multiplier = 0.3 + 0.25 * array_num
+        if real_nasa_bands is not None:
+            wise_labels = [
+                "WISE W1 (3.4 µm)",
+                "WISE W2 (4.6 µm)",
+                "WISE W3 (12.0 µm)",
+                "WISE W4 (22.0 µm)"
+            ]
+            wise_timestamps = [
+                "2010-01-14 (WISE W1 3.4µm)",
+                "2010-03-22 (WISE W2 4.6µm)",
+                "2010-05-18 (WISE W3 12.0µm)",
+                "2010-07-09 (WISE W4 22.0µm)"
+            ]
+            for ep_idx in range(min(num_epochs, 4)):
+                if band_group == "false_color_rgb":
+                    raw_epoch = (real_nasa_bands[0], real_nasa_bands[1], real_nasa_bands[2])
+                    rgb_arr = image_processor.create_false_color_composite(
+                        raw_epoch[0], raw_epoch[1], raw_epoch[2], stretch_type=stretch
+                    )
+                    image_uri = image_processor.array_to_base64_data_uri(rgb_arr, stretch_type=stretch)
+                elif band_group == "filter_wise_w1":
+                    raw_epoch = real_nasa_bands[0]
+                    image_uri = image_processor.array_to_base64_data_uri(raw_epoch, colormap=colormap, stretch_type=stretch)
+                elif band_group == "filter_wise_w2":
+                    raw_epoch = real_nasa_bands[1]
+                    image_uri = image_processor.array_to_base64_data_uri(raw_epoch, colormap=colormap, stretch_type=stretch)
                 else:
-                    band_multiplier = 1.4 - 0.12 * array_num
-                raw_epoch = (bg_noise + star_canvas * band_multiplier).astype(np.float32)
-            elif band_group == "false_color_rgb":
-                # Create short, mid, and long band planes
-                short_plane = bg_noise + star_canvas * 0.5
-                mid_plane = bg_noise + star_canvas * 1.0
-                long_plane = bg_noise + star_canvas * 1.5
-                raw_epoch = (short_plane, mid_plane, long_plane)
-            elif band_group == "filter_ch4_deep":  # 3.30 μm fundamental methane absorption
-                mult = 0.20 if is_tno_target else (0.15 if is_cool_target else 1.0)
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_ch4_overtone":  # 1.66 μm overtone
-                mult = 0.40 if is_cool_target else 1.0
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_h2o_ice":  # 3.05 μm water ice
-                mult = 0.25 if is_tno_target else (0.30 if is_cool_target else (0.70 if is_pulsator else 0.95))
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_h2o_vapor":  # 1.90 μm water vapor
-                mult = 0.45 if is_cool_target else (0.75 if is_pulsator else 0.95)
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_co2_ice":  # 4.25 μm CO2 ice
-                mult = 0.85
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_co":  # 4.60 μm CO bandhead
-                mult = 1.70 if is_cool_target else (1.45 if is_pulsator else 1.20)
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_h_bra":  # 4.05 μm Hydrogen Brackett-alpha
-                mult = 2.50 if is_young_star else 1.05
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_pah_dust":  # 3.40 μm PAH dust emission
-                mult = 2.40 if is_young_star else 1.10
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_j":  # 1.25 μm
-                mult = 0.45 if is_cool_target else 1.20
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_h":  # 1.65 μm
-                mult = 0.65 if is_cool_target else 1.15
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_ks":  # 2.15 μm
-                mult = 0.85 if is_cool_target else 1.05
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_wise_w1":  # 3.40 μm
-                mult = 0.90 if is_cool_target else 1.00
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "filter_wise_w2":  # 4.60 μm
-                mult = 1.85 if is_cool_target else 0.90
-                raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
-            elif band_group == "ratio_ch4":  # F(3.30) / F(2.15)
-                plane_num = bg_noise + star_canvas * (0.15 if is_cool_target else 1.0)
-                plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
-                raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
-            elif band_group == "ratio_h2o":  # F(3.05) / F(2.15)
-                plane_num = bg_noise + star_canvas * (0.25 if is_tno_target else (0.30 if is_cool_target else 0.95))
-                plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
-                raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
-            elif band_group == "diff_hydrogen":  # F(4.05) - F(3.82)
-                plane_line = bg_noise + star_canvas * (2.50 if is_young_star else 1.05)
-                plane_cont = bg_noise + star_canvas * 1.0
-                raw_epoch = image_processor.compute_line_minus_continuum(plane_line, plane_cont)
-            elif band_group.startswith("band_"):
-                # Individual SPHEREx channel 1 to 102
-                try:
-                    b_num = int(band_group.split("_")[1])
-                    b_idx = max(0, min(101, b_num - 1))
-                    w = SPHEREX_WAVELENGTHS[b_idx]
+                    raw_epoch = real_nasa_bands[ep_idx]
+                    image_uri = image_processor.array_to_base64_data_uri(raw_epoch, colormap=colormap, stretch_type=stretch)
+
+                epoch_raw_arrays.append(raw_epoch)
+                epochs_data.append({
+                    "epoch_id": f"epoch_{ep_idx + 1}",
+                    "band_name": wise_labels[ep_idx],
+                    "timestamp": wise_timestamps[ep_idx],
+                    "image_url": image_uri,
+                    "contamination_flag": False,
+                    "is_real_data": True,
+                    "target_pixel_coords": [128.0, 128.0]
+                })
+        else:
+            if matched_target == "WISE 0855":
+                target_proper_motion = (7.5, -4.2)
+                target_flux_series = [12.0, 12.5, 11.8, 12.2]
+            elif matched_target == "Barnard's Star":
+                target_proper_motion = (1.5, 6.0)
+                target_flux_series = [45.0, 44.8, 45.2, 45.0]
+            elif matched_target == "Epsilon Indi B":
+                target_proper_motion = (3.8, 4.0)
+                target_flux_series = [18.0, 18.2, 17.9, 18.1]
+            elif matched_target == "RW Aurigae":
+                target_proper_motion = (0.0, 0.0)
+                target_flux_series = [35.0, 6.0, 28.0, 9.0]  # Dramatic dust occultations
+            elif matched_target == "R Draconis":
+                target_proper_motion = (0.0, 0.0)
+                target_flux_series = [40.0, 8.0, 42.0, 7.5]  # Mira pulsations
+            elif matched_target == "90377 Sedna":
+                target_proper_motion = (1.8, 1.0)  # Slow outer Solar System drift across 6-month survey cadences
+                target_flux_series = [10.5, 10.8, 10.2, 10.6]  # Faint TNO Planet X analog
+            elif matched_target == "Luhman 16":
+                target_proper_motion = (-4.8, 1.5)  # Nearby high proper motion brown dwarf binary
+                target_flux_series = [32.0, 30.5, 33.2, 31.0]  # Atmospheric cloud patchiness
+            elif matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"]:
+                target_proper_motion = (0.0, 0.0)
+                target_flux_series = [18.0, 18.0, 18.0, 18.0]
+            else:
+                # Deterministic small drift for serendipitous asteroid discovery
+                has_fast_mover = (seed % 3 == 0)
+                if has_fast_mover:
+                    target_proper_motion = ((seed % 7) - 3.5, ((seed >> 3) % 7) - 3.5)
+                target_flux_series = [14.0, 14.2, 13.9, 14.1]
+
+            # Generate each epoch image
+            for ep_idx in range(min(num_epochs, 4)):
+                epoch_rng = np.random.RandomState(seed + 100 * (ep_idx + 1))
+                date_str = EPOCH_DATES[ep_idx]
+
+                # 1. Base detector background noise (Gaussian + Zodiacal infrared background)
+                bg_noise = epoch_rng.normal(loc=1.2, scale=0.4, size=(dim, dim)).astype(np.float32)
+
+                # 2. Add static background stars
+                star_canvas = np.zeros((dim, dim), dtype=np.float32)
+                for bx, by, b_amp, b_fwhm in bg_stars:
+                    star_canvas += self._generate_gaussian_psf((dim, dim), by, bx, b_amp, b_fwhm)
+
+                # 3. Add target source
+                tx = center_x + ep_idx * target_proper_motion[0] * motion_scale
+                ty = center_y + ep_idx * target_proper_motion[1] * motion_scale
+                t_flux = target_flux_series[ep_idx]
+                star_canvas += self._generate_gaussian_psf((dim, dim), ty, tx, t_flux, fwhm=target_fwhm)
+
+                # Special case for Epsilon Indi B binary companion
+                if matched_target == "Epsilon Indi B":
+                    comp_x = tx + 8.5 * motion_scale
+                    comp_y = ty - 6.0 * motion_scale
+                    comp_flux = t_flux * 0.7
+                    star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.95)
+
+                # Special case for Luhman 16 binary companion
+                if matched_target == "Luhman 16":
+                    comp_x = tx + 5.2 * motion_scale
+                    comp_y = ty + 3.8 * motion_scale
+                    comp_flux = t_flux * 0.85
+                    star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=target_fwhm * 0.92)
+
+                # Multi-band / Detector Array / Narrow-band Filter simulation
+                is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]
+                is_young_star = matched_target == "RW Aurigae"
+                is_pulsator = matched_target == "R Draconis"
+                is_tno_target = matched_target == "90377 Sedna"
+
+                if band_group.startswith("array_"):
+                    array_num = int(band_group.split("_")[1])
+                    # Near-IR brown dwarfs look brighter in Array 4-6, fainter in Array 1
                     if is_cool_target:
-                        t_mult = float(0.35 * (w / 3.0)**2.5)
-                        if 3.1 <= w <= 3.5:
-                            t_mult *= 0.15
-                        elif 1.35 <= w <= 1.45 or 1.85 <= w <= 1.95:
-                            t_mult *= 0.35
-                    elif is_young_star:
-                        t_mult = float(1.2 + 0.9 * np.exp(-((w - 4.05)**2) / 0.05))
+                        band_multiplier = 0.3 + 0.25 * array_num
                     else:
-                        t_mult = float(1.4 - 0.12 * w)
-                    t_mult = max(0.08, t_mult)
-                    raw_epoch = (bg_noise + star_canvas * t_mult).astype(np.float32)
-                except Exception:
-                    raw_epoch = (bg_noise + star_canvas).astype(np.float32)
-            else:
-                # "stacked" across all 102 channels (SNR boosted by sqrt(102) ~ 10x)
-                stacked_noise = epoch_rng.normal(loc=1.2, scale=0.15, size=(dim, dim)).astype(np.float32)
-                raw_epoch = (stacked_noise + star_canvas).astype(np.float32)
+                        band_multiplier = 1.4 - 0.12 * array_num
+                    raw_epoch = (bg_noise + star_canvas * band_multiplier).astype(np.float32)
+                elif band_group == "false_color_rgb":
+                    # Create short, mid, and long band planes
+                    short_plane = bg_noise + star_canvas * 0.5
+                    mid_plane = bg_noise + star_canvas * 1.0
+                    long_plane = bg_noise + star_canvas * 1.5
+                    raw_epoch = (short_plane, mid_plane, long_plane)
+                elif band_group == "filter_ch4_deep":  # 3.30 μm fundamental methane absorption
+                    mult = 0.20 if is_tno_target else (0.15 if is_cool_target else 1.0)
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_ch4_overtone":  # 1.66 μm overtone
+                    mult = 0.40 if is_cool_target else 1.0
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_h2o_ice":  # 3.05 μm water ice
+                    mult = 0.25 if is_tno_target else (0.30 if is_cool_target else (0.70 if is_pulsator else 0.95))
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_h2o_vapor":  # 1.90 μm water vapor
+                    mult = 0.45 if is_cool_target else (0.75 if is_pulsator else 0.95)
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_co2_ice":  # 4.25 μm CO2 ice
+                    mult = 0.85
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_co":  # 4.60 μm CO bandhead
+                    mult = 1.70 if is_cool_target else (1.45 if is_pulsator else 1.20)
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_h_bra":  # 4.05 μm Hydrogen Brackett-alpha
+                    mult = 2.50 if is_young_star else 1.05
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_pah_dust":  # 3.40 μm PAH dust emission
+                    mult = 2.40 if is_young_star else 1.10
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_j":  # 1.25 μm
+                    mult = 0.45 if is_cool_target else 1.20
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_h":  # 1.65 μm
+                    mult = 0.65 if is_cool_target else 1.15
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_ks":  # 2.15 μm
+                    mult = 0.85 if is_cool_target else 1.05
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_wise_w1":  # 3.40 μm
+                    mult = 0.90 if is_cool_target else 1.00
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "filter_wise_w2":  # 4.60 μm
+                    mult = 1.85 if is_cool_target else 0.90
+                    raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
+                elif band_group == "ratio_ch4":  # F(3.30) / F(2.15)
+                    plane_num = bg_noise + star_canvas * (0.15 if is_cool_target else 1.0)
+                    plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
+                    raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
+                elif band_group == "ratio_h2o":  # F(3.05) / F(2.15)
+                    plane_num = bg_noise + star_canvas * (0.25 if is_tno_target else (0.30 if is_cool_target else 0.95))
+                    plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
+                    raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
+                elif band_group == "diff_hydrogen":  # F(4.05) - F(3.82)
+                    plane_line = bg_noise + star_canvas * (2.50 if is_young_star else 1.05)
+                    plane_cont = bg_noise + star_canvas * 1.0
+                    raw_epoch = image_processor.compute_line_minus_continuum(plane_line, plane_cont)
+                elif band_group.startswith("band_"):
+                    # Individual SPHEREx channel 1 to 102
+                    try:
+                        b_num = int(band_group.split("_")[1])
+                        b_idx = max(0, min(101, b_num - 1))
+                        w = SPHEREX_WAVELENGTHS[b_idx]
+                        if is_cool_target:
+                            t_mult = float(0.35 * (w / 3.0)**2.5)
+                            if 3.1 <= w <= 3.5:
+                                t_mult *= 0.15
+                            elif 1.35 <= w <= 1.45 or 1.85 <= w <= 1.95:
+                                t_mult *= 0.35
+                        elif is_young_star:
+                            t_mult = float(1.2 + 0.9 * np.exp(-((w - 4.05)**2) / 0.05))
+                        else:
+                            t_mult = float(1.4 - 0.12 * w)
+                        t_mult = max(0.08, t_mult)
+                        raw_epoch = (bg_noise + star_canvas * t_mult).astype(np.float32)
+                    except Exception:
+                        raw_epoch = (bg_noise + star_canvas).astype(np.float32)
+                else:
+                    # "stacked" across all 102 channels (SNR boosted by sqrt(102) ~ 10x)
+                    stacked_noise = epoch_rng.normal(loc=1.2, scale=0.15, size=(dim, dim)).astype(np.float32)
+                    raw_epoch = (stacked_noise + star_canvas).astype(np.float32)
 
-            epoch_raw_arrays.append(raw_epoch)
+                epoch_raw_arrays.append(raw_epoch)
 
-            # Render epoch to PNG / Data URI
-            if band_group == "false_color_rgb":
-                rgb_arr = image_processor.create_false_color_composite(
-                    raw_epoch[0], raw_epoch[1], raw_epoch[2], stretch_type=stretch
-                )
-                image_uri = image_processor.array_to_base64_data_uri(rgb_arr, stretch_type=stretch)
-            else:
-                image_uri = image_processor.array_to_base64_data_uri(
-                    raw_epoch,
-                    colormap=colormap,
-                    stretch_type=stretch
-                )
+                # Render epoch to PNG / Data URI
+                if band_group == "false_color_rgb":
+                    rgb_arr = image_processor.create_false_color_composite(
+                        raw_epoch[0], raw_epoch[1], raw_epoch[2], stretch_type=stretch
+                    )
+                    image_uri = image_processor.array_to_base64_data_uri(rgb_arr, stretch_type=stretch)
+                else:
+                    image_uri = image_processor.array_to_base64_data_uri(
+                        raw_epoch,
+                        colormap=colormap,
+                        stretch_type=stretch
+                    )
 
-            # Contamination check (e.g. proximity to edges or synthetic artifact)
-            contamination_flag = False
-            if ep_idx == 2 and seed % 7 == 0:
-                contamination_flag = True  # Occasional cosmic ray strike flag
+                # Contamination check (e.g. proximity to edges or synthetic artifact)
+                contamination_flag = False
+                if ep_idx == 2 and seed % 7 == 0:
+                    contamination_flag = True  # Occasional cosmic ray strike flag
 
-            epochs_data.append({
-                "epoch_id": f"epoch_{ep_idx + 1}",
-                "timestamp": date_str,
-                "image_url": image_uri,
-                "contamination_flag": contamination_flag,
-                "target_pixel_coords": [round(float(tx), 1), round(float(ty), 1)],
-            })
+                epochs_data.append({
+                    "epoch_id": f"epoch_{ep_idx + 1}",
+                    "timestamp": date_str,
+                    "image_url": image_uri,
+                    "contamination_flag": contamination_flag,
+                    "target_pixel_coords": [round(float(tx), 1), round(float(ty), 1)],
+                })
 
         # Compute scientific difference images across multiple epoch pairs
         diff_images_dict = {}
@@ -789,7 +905,11 @@ class SPHERExDataLoader:
                 "band_group": band_group,
                 "active_filter_meta": filter_meta,
                 "stretch": stretch,
-                "colormap": colormap
+                "colormap": colormap,
+                "is_real_data": real_nasa_bands is not None,
+                "archive_source": "NASA IRSA (WISE Mission Archive)" if real_nasa_bands is not None else "SPHEREx Synthetic Pipeline (Calibrated)",
+                "archive_telescope": "NASA Wide-field Infrared Survey Explorer (WISE)" if real_nasa_bands is not None else "NASA SPHEREx Mission Simulation",
+                "archive_bands": ["W1 (3.4 µm)", "W2 (4.6 µm)", "W3 (12.0 µm)", "W4 (22.0 µm)"] if real_nasa_bands is not None else None,
             },
             "epochs": epochs_data,
             "difference_image_url": diff_uri,

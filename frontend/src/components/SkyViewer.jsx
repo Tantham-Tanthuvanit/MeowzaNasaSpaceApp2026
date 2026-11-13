@@ -550,12 +550,18 @@ export default function SkyViewer({
           {/* Scientific Data Provenance & SPHEREx Mission Archive Badge */}
           <button
             onClick={() => setShowProvenanceModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200 text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            className={`px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-sm ${
+              targetInfo?.is_real_data
+                ? 'bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 hover:border-emerald-400 text-emerald-200'
+                : 'bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200'
+            }`}
             title="Click to view SPHEREx Mission Status & IRSA Data Architecture"
           >
-            <Satellite className="w-3.5 h-3.5 text-cyan-400" />
+            <Satellite className={`w-3.5 h-3.5 ${targetInfo?.is_real_data ? 'text-emerald-400' : 'text-cyan-400'}`} />
             <span className="hidden sm:inline">Data Archive:</span>
-            <span className="font-semibold text-cyan-300 font-mono">SPHEREx (DR1/QR3)</span>
+            <span className={`font-semibold font-mono ${targetInfo?.is_real_data ? 'text-emerald-300' : 'text-cyan-300'}`}>
+              {targetInfo?.is_real_data ? 'NASA IRSA (WISE FITS)' : 'SPHEREx (DR1/QR3)'}
+            </span>
           </button>
         </div>
       </div>
@@ -840,6 +846,14 @@ export default function SkyViewer({
           </div>
         )}
 
+        {/* Real NASA Data Archive Badge */}
+        {targetInfo?.is_real_data && (
+          <div className="absolute top-3 left-3 z-30 bg-emerald-950/85 border border-emerald-500/60 text-emerald-300 px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 backdrop-blur-md shadow-lg pointer-events-none">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-semibold tracking-wide">NASA IRSA Real FITS</span>
+          </div>
+        )}
+
         {/* Contamination Alert Badge */}
         {currentEpoch?.contamination_flag && !isDiffMode && !isShiftMode && !isFlaggingActive && (
           <div className="absolute top-3 right-3 z-30 bg-rose-950/80 border border-rose-500/60 text-rose-300 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 backdrop-blur-md shadow-lg animate-pulse">
@@ -870,9 +884,18 @@ export default function SkyViewer({
               ? `Mode: Difference (${diffPair.replace(/_/g, ' ')})` 
               : `Epoch: ${currentEpoch?.timestamp || '2025-06-15'}`}
           </div>
-          <div className="text-[10px] text-cyan-300/80 border-t border-slate-800/80 pt-1 mt-1 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Archive: SPHEREx On-Orbit Survey (E1-E3 Observed, E4 Dec 2026)</span>
+          <div className="text-[10px] border-t border-slate-800/80 pt-1 mt-1 flex items-center gap-1.5">
+            {targetInfo?.is_real_data ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-emerald-300">Archive: Real NASA IRSA FITS ({targetInfo?.archive_telescope || 'WISE'})</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span className="text-cyan-300/80">Archive: SPHEREx On-Orbit Survey (E1-E3 Observed, E4 Dec 2026)</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -1626,6 +1649,20 @@ export default function SkyViewer({
             </div>
 
             <div className="space-y-3">
+              {/* Real NASA IRSA FITS Ingestion Status */}
+              {targetInfo?.is_real_data && (
+                <div className="p-3 bg-emerald-950/60 border border-emerald-500/60 rounded-xl flex items-start gap-2.5 shadow-lg">
+                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-emerald-300">Live NASA IRSA Real FITS Archive Active</div>
+                    <p className="text-[11px] text-slate-200 mt-1 leading-relaxed">
+                      You are viewing authentic FITS observations retrieved directly from Caltech-IPAC / <strong>NASA Infrared Science Archive (IRSA)</strong>.
+                      The 4 survey epochs correspond to genuine NASA infrared bands: <strong>W1 (3.4 µm)</strong>, <strong>W2 (4.6 µm)</strong>, <strong>W3 (12.0 µm)</strong>, and <strong>W4 (22.0 µm)</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Mission Active Orbit Status */}
               <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-start gap-2.5">
                 <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
