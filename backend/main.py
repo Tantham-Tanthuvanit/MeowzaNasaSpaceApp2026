@@ -17,7 +17,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import coordinates
+<<<<<<< HEAD
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
+=======
+from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from catalog_service import catalog_service
+>>>>>>> test2
 
 app = FastAPI(
     title="NASA SPHEREx Sky Viewer API",
@@ -82,6 +87,7 @@ def get_bands():
     }
 
 
+<<<<<<< HEAD
 @app.get("/api/element-density")
 def get_element_density(
     ra: str = Query(..., description="Right Ascension in sexagesimal or decimal degrees"),
@@ -97,6 +103,36 @@ def get_element_density(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to calculate element density: {str(e)}")
 
+=======
+@app.get("/api/catalog-overlay")
+def get_catalog_overlay(
+    ra: str = Query(..., description="Right Ascension"),
+    dec: str = Query(..., description="Declination"),
+    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    catalogs: Optional[str] = Query("gaia_dr3,allwise", description="Comma-separated catalog names")
+):
+    """
+    Returns Gaia DR3 and AllWISE catalog sources with projected pixel coordinates
+    for overlaying onto SPHEREx sky cutouts.
+    """
+    try:
+        coord_info = coordinates.parse_coordinates(ra, dec)
+        cat_list = [c.strip() for c in catalogs.split(",") if c.strip()]
+        sources = catalog_service.query_catalogs(
+            ra_deg=coord_info["ra_deg"],
+            dec_deg=coord_info["dec_deg"],
+            fov_arcmin=fov,
+            catalogs=cat_list
+        )
+        return {
+            "target": coord_info,
+            "fov_arcmin": fov,
+            "total_sources": len(sources),
+            "sources": sources
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to query catalog overlay: {str(e)}")
+>>>>>>> test2
 
 
 @app.get("/api/sky-cutout")

@@ -13,7 +13,12 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 import coordinates
+<<<<<<< HEAD
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
+=======
+from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from catalog_service import catalog_service
+>>>>>>> test2
 
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
@@ -60,24 +65,53 @@ def get_bands():
     })
 
 
+<<<<<<< HEAD
 @app.route("/api/element-density", methods=["GET"])
 def get_element_density():
+=======
+@app.route("/api/catalog-overlay", methods=["GET"])
+def get_catalog_overlay():
+>>>>>>> test2
     ra = request.args.get("ra")
     dec = request.args.get("dec")
     if not ra or not dec:
         return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
 
+<<<<<<< HEAD
     element = request.args.get("element", "H2O")
     fov = float(request.args.get("fov", 5.0))
 
     try:
         data = loader.get_element_density(ra_input=ra, dec_input=dec, element=element, fov_arcmin=fov)
         return jsonify(data)
+=======
+    fov = float(request.args.get("fov", 5.0))
+    catalogs_arg = request.args.get("catalogs", "gaia_dr3,allwise")
+    cat_list = [c.strip() for c in catalogs_arg.split(",") if c.strip()]
+
+    try:
+        coord_info = coordinates.parse_coordinates(ra, dec)
+        sources = catalog_service.query_catalogs(
+            ra_deg=coord_info["ra_deg"],
+            dec_deg=coord_info["dec_deg"],
+            fov_arcmin=fov,
+            catalogs=cat_list
+        )
+        return jsonify({
+            "target": coord_info,
+            "fov_arcmin": fov,
+            "total_sources": len(sources),
+            "sources": sources
+        })
+>>>>>>> test2
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> test2
 @app.route("/api/sky-cutout", methods=["GET"])
 def get_sky_cutout():
     ra = request.args.get("ra")
