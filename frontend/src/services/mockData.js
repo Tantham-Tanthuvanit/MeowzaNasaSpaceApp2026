@@ -62,6 +62,50 @@ export const MOCK_PRESETS = [
     dec_deg: 66.754972,
     description: "Pulsating red giant star with strong cyclical variations in brightness and heavy infrared excess.",
     expected_phenomenon: "Periodic brightness change highlighting variability over 6-month SPHEREx cadences."
+  },
+  {
+    id: "sedna_90377",
+    name: "90377 Sedna",
+    category: "Planet X / Extreme TNO",
+    ra: "03h48m15.00s",
+    dec: "+07d47m20.00s",
+    ra_deg: 57.062500,
+    dec_deg: 7.788889,
+    description: "Extreme detached Trans-Neptunian Object with an 11,400-year orbit whose orbital clustering inspired the Planet Nine / Planet X hypothesis.",
+    expected_phenomenon: "Slow outer solar system orbital drift with water & methane ice absorption bands."
+  },
+  {
+    id: "luhman_16",
+    name: "Luhman 16",
+    category: "Nearby Brown Dwarf Binary",
+    ra: "10h49m18.72s",
+    dec: "-53d19m10.10s",
+    ra_deg: 162.328000,
+    dec_deg: -53.319472,
+    description: "Closest known brown dwarf system to Earth (6.5 light-years away) consisting of an L-dwarf and T-dwarf binary pair with dynamic atmospheric weather.",
+    expected_phenomenon: "High proper motion binary pair with deep near-infrared methane absorption."
+  },
+  {
+    id: "north_ecliptic_pole",
+    name: "North Ecliptic Pole",
+    category: "SPHEREx Deep Field",
+    ra: "18h00m00.00s",
+    dec: "+66d33m38.50s",
+    ra_deg: 270.000000,
+    dec_deg: 66.560694,
+    description: "SPHEREx mission northern deep calibration field with maximum survey overlap, highest sensitivity, and ultra-high observation redundancy.",
+    expected_phenomenon: "Ultra-deep stack with dense background sources and minimum background noise."
+  },
+  {
+    id: "south_ecliptic_pole",
+    name: "South Ecliptic Pole",
+    category: "SPHEREx Deep Field",
+    ra: "06h00m00.00s",
+    dec: "-66d33m38.50s",
+    ra_deg: 90.000000,
+    dec_deg: -66.560694,
+    description: "SPHEREx southern celestial deep survey field utilized for temporal stability and photometric calibration.",
+    expected_phenomenon: "Deep calibration stack with continuous survey coverage."
   }
 ];
 

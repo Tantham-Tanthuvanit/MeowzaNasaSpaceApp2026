@@ -246,6 +246,79 @@ class CatalogService:
                         "is_brown_dwarf_candidate": False,
                         "notes": "Mira pulsating variable red giant."
                     })
+                elif pid == "sedna_90377":
+                    results.append({
+                        "id": "MPC 90377 Sedna (2003 VB12)",
+                        "catalog": "AllWISE",
+                        "ra_deg": 57.0625,
+                        "dec_deg": 7.788889,
+                        "pixel_x": 128.0,
+                        "pixel_y": 128.0,
+                        "mag": 15.2,
+                        "mag_band": "W1 (3.4 μm)",
+                        "proper_motion_mas_yr": 35.0,
+                        "is_high_proper_motion": False,
+                        "is_brown_dwarf_candidate": False,
+                        "notes": "Detached extreme Trans-Neptunian Object with an 11,400-year orbit; prime dynamical tracer for Planet X / Planet Nine."
+                    })
+                elif pid == "luhman_16":
+                    results.append({
+                        "id": "WISE J104915.57-531906.1",
+                        "catalog": "AllWISE",
+                        "ra_deg": 162.3280,
+                        "dec_deg": -53.319472,
+                        "pixel_x": 128.0,
+                        "pixel_y": 128.0,
+                        "mag": 10.7,
+                        "mag_band": "W2 (4.6 μm)",
+                        "proper_motion_mas_yr": 2780.0,
+                        "is_high_proper_motion": True,
+                        "is_brown_dwarf_candidate": True,
+                        "notes": "Closest brown dwarf binary to Earth (6.5 ly away) showing rapid near-IR spectral variability."
+                    })
+                    results.append({
+                        "id": "Gaia DR3 53528491029384",
+                        "catalog": "Gaia DR3",
+                        "ra_deg": 162.3280,
+                        "dec_deg": -53.319472,
+                        "pixel_x": 128.0,
+                        "pixel_y": 128.0,
+                        "mag": 14.8,
+                        "mag_band": "G (optical)",
+                        "proper_motion_mas_yr": 2780.0,
+                        "is_high_proper_motion": True,
+                        "is_brown_dwarf_candidate": False
+                    })
+                elif pid == "north_ecliptic_pole":
+                    results.append({
+                        "id": "SPHEREx Deep Field NEP-1",
+                        "catalog": "SPHEREx Deep Field",
+                        "ra_deg": 270.0,
+                        "dec_deg": 66.560694,
+                        "pixel_x": 128.0,
+                        "pixel_y": 128.0,
+                        "mag": 17.5,
+                        "mag_band": "Stack (0.75-5.0 um)",
+                        "proper_motion_mas_yr": 0.0,
+                        "is_high_proper_motion": False,
+                        "is_brown_dwarf_candidate": False,
+                        "notes": "North Ecliptic Pole deep calibration stack with maximum survey overlap."
+                    })
+                elif pid == "south_ecliptic_pole":
+                    results.append({
+                        "id": "SPHEREx Deep Field SEP-1",
+                        "catalog": "SPHEREx Deep Field",
+                        "ra_deg": 90.0,
+                        "dec_deg": -66.560694,
+                        "pixel_x": 128.0,
+                        "pixel_y": 128.0,
+                        "mag": 17.8,
+                        "mag_band": "Stack (0.75-5.0 um)",
+                        "proper_motion_mas_yr": 0.0,
+                        "is_high_proper_motion": False,
+                        "is_brown_dwarf_candidate": False,
+                        "notes": "South Ecliptic Pole calibration field for multi-epoch temporal stability."
+                    })
 
             # Add background catalog stars in the FOV
             n_extra = rng.randint(6, 14)

@@ -213,8 +213,9 @@ class SPHERExDataLoader:
         waves = SPHEREX_WAVELENGTHS
         spectrum = []
 
-        is_brown_dwarf = target_name in ["WISE 0855", "Epsilon Indi B"]
+        is_brown_dwarf = target_name in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]
         is_variable = target_name in ["RW Aurigae", "R Draconis"]
+        is_tno = target_name in ["90377 Sedna"]
 
         for i, w in enumerate(waves):
             if is_brown_dwarf:
@@ -227,6 +228,11 @@ class SPHERExDataLoader:
                 # CO absorption at 4.6 um
                 co_abs = 0.40 * np.exp(-((w - 4.6)**2) / 0.08)
                 flux = max(0.08, base_flux * (1.0 - h2o_abs - ch4_abs - co_abs) + rng.normal(0, 0.03))
+            elif is_tno:
+                # Solar reflectance spectrum with water and methane ice absorption (outer solar system body / Planet X analog)
+                base_flux = 1.8 * (w / 1.5)**(-0.8)
+                ice_abs = 0.50 * np.exp(-((w - 1.5)**2) / 0.06) + 0.60 * np.exp(-((w - 2.0)**2) / 0.08) + 0.70 * np.exp(-((w - 3.05)**2) / 0.15)
+                flux = max(0.05, base_flux * (1.0 - ice_abs) + rng.normal(0, 0.02))
             elif is_variable:
                 # Young or pulsating star with infrared excess from circumstellar dust
                 base_flux = 3.5 * (2.0 / w)**1.2
@@ -470,7 +476,10 @@ class SPHERExDataLoader:
         center_x, center_y = dim / 2.0, dim / 2.0
 
         # Generate static background field stars (persisting across all epochs)
-        n_background_stars = rng.randint(25, 45)
+        if matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"]:
+            n_background_stars = rng.randint(65, 95)
+        else:
+            n_background_stars = rng.randint(25, 45)
         bg_stars = []
         for _ in range(n_background_stars):
             bx = rng.uniform(5, dim - 5)
@@ -507,6 +516,15 @@ class SPHERExDataLoader:
         elif matched_target == "R Draconis":
             target_proper_motion = (0.0, 0.0)
             target_flux_series = [40.0, 8.0, 42.0, 7.5]  # Mira pulsations
+        elif matched_target == "90377 Sedna":
+            target_proper_motion = (1.8, 1.0)  # Slow outer Solar System drift across 6-month survey cadences
+            target_flux_series = [10.5, 10.8, 10.2, 10.6]  # Faint TNO Planet X analog
+        elif matched_target == "Luhman 16":
+            target_proper_motion = (-4.8, 1.5)  # Nearby high proper motion brown dwarf binary
+            target_flux_series = [32.0, 30.5, 33.2, 31.0]  # Atmospheric cloud patchiness
+        elif matched_target in ["North Ecliptic Pole", "South Ecliptic Pole"]:
+            target_proper_motion = (0.0, 0.0)
+            target_flux_series = [18.0, 18.0, 18.0, 18.0]
         else:
             # Deterministic small drift for serendipitous asteroid discovery
             has_fast_mover = (seed % 3 == 0)
@@ -540,10 +558,18 @@ class SPHERExDataLoader:
                 comp_flux = t_flux * 0.7
                 star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=3.0)
 
+            # Special case for Luhman 16 binary companion
+            if matched_target == "Luhman 16":
+                comp_x = tx + 5.2
+                comp_y = ty + 3.8
+                comp_flux = t_flux * 0.85
+                star_canvas += self._generate_gaussian_psf((dim, dim), comp_y, comp_x, comp_flux, fwhm=2.9)
+
             # Multi-band / Detector Array / Narrow-band Filter simulation
-            is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B"]
+            is_cool_target = matched_target in ["WISE 0855", "Epsilon Indi B", "Luhman 16"]
             is_young_star = matched_target == "RW Aurigae"
             is_pulsator = matched_target == "R Draconis"
+            is_tno_target = matched_target == "90377 Sedna"
 
             if band_group.startswith("array_"):
                 array_num = int(band_group.split("_")[1])

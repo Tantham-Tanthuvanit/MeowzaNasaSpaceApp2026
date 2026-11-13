@@ -42,9 +42,20 @@ class TestCoordinatesEngine(unittest.TestCase):
 
     def test_all_five_presets_exist(self):
         preset_names = [p["name"] for p in coordinates.PRESET_TARGETS]
-        expected = ["WISE 0855", "Barnard's Star", "Epsilon Indi B", "RW Aurigae", "R Draconis"]
+        expected = [
+            "WISE 0855",
+            "Barnard's Star",
+            "Epsilon Indi B",
+            "RW Aurigae",
+            "R Draconis",
+            "90377 Sedna",
+            "Luhman 16",
+            "North Ecliptic Pole",
+            "South Ecliptic Pole"
+        ]
         for exp in expected:
             self.assertIn(exp, preset_names)
+        self.assertEqual(len(coordinates.PRESET_TARGETS), 9)
 
 
 class TestImageProcessorEngine(unittest.TestCase):
@@ -142,7 +153,7 @@ class TestAPIEndpoints(unittest.TestCase):
         resp = self.client.get("/api/presets")
         self.assertEqual(resp.status_code, 200)
         presets = resp.json()
-        self.assertEqual(len(presets), 5)
+        self.assertEqual(len(presets), 9)
 
     def test_bands_endpoint(self):
         resp = self.client.get("/api/bands")

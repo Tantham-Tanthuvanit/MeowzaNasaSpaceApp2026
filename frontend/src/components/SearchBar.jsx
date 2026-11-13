@@ -20,6 +20,7 @@ export default function SearchBar({
   const [decInput, setDecInput] = useState(dec);
   const [fovInput, setFovInput] = useState(fov);
   const [copied, setCopied] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Sync inputs when props change (e.g. clicking a preset)
   React.useEffect(() => {
@@ -41,26 +42,81 @@ export default function SearchBar({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const filteredPresets = presets.filter((p) => {
+    if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'planet_x') return p.category.includes('Planet X') || p.category.includes('TNO');
+    if (selectedCategory === 'brown_dwarf') return p.category.includes('Brown Dwarf');
+    if (selectedCategory === 'deep_field') return p.category.includes('Deep Field');
+    if (selectedCategory === 'motion') return p.category.includes('Proper-Motion') || p.category.includes('Star');
+    return true;
+  });
+
   return (
     <div className="glass-panel p-5 mb-6">
       {/* Top Bar: Title & 1-Click NASA Benchmark Presets */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-cyan-500/20">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Orbit className="w-5 h-5 text-cyan-400 animate-spin-slow" />
-            <h2 className="text-sm font-semibold tracking-wider uppercase text-cyan-400">
-              NASA Challenge Targets (1-Click Verification)
-            </h2>
+      <div className="flex flex-col gap-3 pb-4 border-b border-cyan-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Orbit className="w-5 h-5 text-cyan-400 animate-spin-slow" />
+              <h2 className="text-sm font-semibold tracking-wider uppercase text-cyan-400">
+                NASA Challenge Benchmark Targets (1-Click Verification)
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400">
+              Official NASA SPHEREx test targets including Planet X analog Sedna, brown dwarfs, and deep survey fields:
+            </p>
           </div>
-          <p className="text-xs text-slate-400">
-            Instant benchmark coordinates tested across SPHEREx 6-month survey epochs:
-          </p>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-800 text-[11px] self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className={`px-2 py-0.5 rounded transition-all ${
+                selectedCategory === 'all' ? 'bg-cyan-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All ({presets.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('planet_x')}
+              className={`px-2 py-0.5 rounded transition-all ${
+                selectedCategory === 'planet_x' ? 'bg-rose-500 text-white font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Planet X / TNO
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('brown_dwarf')}
+              className={`px-2 py-0.5 rounded transition-all ${
+                selectedCategory === 'brown_dwarf' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Brown Dwarfs
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('deep_field')}
+              className={`px-2 py-0.5 rounded transition-all ${
+                selectedCategory === 'deep_field' ? 'bg-emerald-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Deep Fields
+            </button>
+          </div>
         </div>
 
         {/* Preset Badges */}
-        <div className="flex flex-wrap items-center gap-2">
-          {presets.map((p) => {
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          {filteredPresets.map((p) => {
             const isSelected = ra.includes(p.ra.slice(0, 5)) || p.name === p.matched_preset;
+            const isPlanetX = p.category.includes('Planet X') || p.id === 'sedna_90377';
+            const isDeepField = p.category.includes('Deep Field');
+            const isBrownDwarf = p.category.includes('Brown Dwarf');
+
             return (
               <button
                 key={p.id}
@@ -68,13 +124,21 @@ export default function SearchBar({
                 type="button"
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 border ${
                   isSelected
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-sm shadow-cyan-500/30'
+                    ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-md shadow-cyan-500/30'
+                    : isPlanetX
+                    ? 'bg-rose-950/40 border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-white'
+                    : isDeepField
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:border-emerald-400 hover:text-white'
+                    : isBrownDwarf
+                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-300 hover:border-amber-400 hover:text-white'
                     : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:border-cyan-500/40 hover:text-white'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className={`w-3.5 h-3.5 ${
+                  isPlanetX ? 'text-rose-400' : isDeepField ? 'text-emerald-400' : 'text-amber-400'
+                }`} />
                 <span>{p.name}</span>
-                <span className="text-[10px] text-slate-400 ml-1 bg-slate-800 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] text-slate-400 ml-1 bg-slate-950/80 px-1.5 py-0.5 rounded font-mono">
                   {p.category.split(' ')[0]}
                 </span>
               </button>

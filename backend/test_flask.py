@@ -19,7 +19,7 @@ class TestFlaskEndpoints(unittest.TestCase):
         resp = self.client.get("/api/presets")
         self.assertEqual(resp.status_code, 200)
         presets = resp.get_json()
-        self.assertEqual(len(presets), 5)
+        self.assertEqual(len(presets), 9)
 
     def test_flask_bands(self):
         resp = self.client.get("/api/bands")
