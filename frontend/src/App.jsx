@@ -118,6 +118,7 @@ export default function App() {
         return list;
       });
     }
+    return updated;
   };
 
   const handleClearAllCandidates = () => {

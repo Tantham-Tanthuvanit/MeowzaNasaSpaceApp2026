@@ -203,16 +203,36 @@ export async function createCandidateApi(candidateData) {
 }
 
 /**
- * Cast a community corroboration vote for a candidate.
+ * Retrieve or generate a persistent unique client identifier for anti-spam voting.
  */
-export async function voteCandidateApi(candidateId, { voteType = 'corroborate', voterCallsign = 'Citizen Scientist', comment = '' } = {}) {
+export function getClientVoterId() {
   try {
+    let id = localStorage.getItem('spherex_client_voter_id');
+    if (!id) {
+      id = 'voter_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem('spherex_client_voter_id', id);
+    }
+    return id;
+  } catch {
+    return 'voter_anonymous';
+  }
+}
+
+/**
+ * Cast a community corroboration vote for a candidate with anti-spam voter deduplication.
+ */
+export async function voteCandidateApi(candidateId, { voteType = 'corroborate', voterCallsign, voterId, comment = '' } = {}) {
+  try {
+    const callsign = voterCallsign || localStorage.getItem('spherex_observer_callsign') || 'Citizen Scientist';
+    const clientVoterId = voterId || getClientVoterId();
+
     const res = await fetch(`${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         vote_type: voteType,
-        voter_callsign: voterCallsign,
+        voter_callsign: callsign,
+        voter_id: clientVoterId,
         comment
       })
     });

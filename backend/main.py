@@ -294,6 +294,7 @@ class CandidatePayload(BaseModel):
 class VotePayload(BaseModel):
     vote_type: Optional[str] = "corroborate"
     voter_callsign: Optional[str] = "Citizen Scientist"
+    voter_id: Optional[str] = ""
     comment: Optional[str] = ""
 
 
@@ -347,6 +348,7 @@ def cast_candidate_vote(candidate_id: str, vote: VotePayload):
         candidate_id,
         vote_type=vote.vote_type or "corroborate",
         voter_callsign=vote.voter_callsign or "Citizen Scientist",
+        voter_id=vote.voter_id or "",
         comment=vote.comment or ""
     )
     if not updated:

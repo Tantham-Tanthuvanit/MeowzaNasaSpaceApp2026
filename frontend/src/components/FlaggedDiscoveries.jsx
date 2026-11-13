@@ -214,8 +214,42 @@ export function FlaggedDiscoveriesPanel({
   targetInfo = {}
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [votingCandidateId, setVotingCandidateId] = useState(null);
+  const [userVotedIds, setUserVotedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('spherex_user_voted_candidates');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   if (candidates.length === 0) return null;
+
+  const handleToggleVote = async (candidateId) => {
+    if (votingCandidateId) return; // Anti-spam lock
+    setVotingCandidateId(candidateId);
+
+    const hasVoted = userVotedIds.includes(candidateId);
+    const voteType = hasVoted ? 'unvote' : 'corroborate';
+
+    try {
+      if (onVoteCandidate) {
+        await onVoteCandidate(candidateId, { voteType });
+      }
+      setUserVotedIds((prev) => {
+        const next = hasVoted ? prev.filter((id) => id !== candidateId) : [...prev, candidateId];
+        try {
+          localStorage.setItem('spherex_user_voted_candidates', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to toggle corroboration vote:', err);
+    } finally {
+      setVotingCandidateId(null);
+    }
+  };
 
   const handleDownloadDossier = () => {
     const reportText = generateDiscoveryDossier(candidates, targetInfo);
@@ -393,14 +427,27 @@ export function FlaggedDiscoveriesPanel({
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                  <button
-                    onClick={() => onVoteCandidate && onVoteCandidate(c.id, { voteType: 'corroborate' })}
-                    className="flex items-center gap-1.5 px-2 py-0.5 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 rounded text-[11px] font-semibold transition-all shadow-sm"
-                    title="Corroborate this citizen science candidate detection"
-                  >
-                    <ThumbsUp className="w-3 h-3 text-cyan-400" />
-                    <span>Corroborate ({c.upvotes || 1})</span>
-                  </button>
+                  {userVotedIds.includes(c.id) ? (
+                    <button
+                      onClick={() => handleToggleVote(c.id)}
+                      disabled={votingCandidateId === c.id}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 hover:border-emerald-400 text-emerald-300 rounded text-[11px] font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                      title="You corroborated this discovery. Click to remove your vote."
+                    >
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Corroborated ({c.upvotes || 1})</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleVote(c.id)}
+                      disabled={votingCandidateId === c.id}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 rounded text-[11px] font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                      title="Corroborate this citizen science candidate detection"
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Corroborate ({c.upvotes || 1})</span>
+                    </button>
+                  )}
                   <span className="text-cyan-400/80">{c.id || `Candidate #${idx + 1}`}</span>
                 </div>
               </div>

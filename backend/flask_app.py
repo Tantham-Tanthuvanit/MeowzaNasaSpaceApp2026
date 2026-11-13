@@ -308,12 +308,14 @@ def cast_candidate_vote(candidate_id):
     payload = request.get_json() or {}
     vote_type = payload.get("vote_type", "corroborate")
     voter_callsign = payload.get("voter_callsign", "Citizen Scientist")
+    voter_id = payload.get("voter_id", "")
     comment = payload.get("comment", "")
 
     updated = database.vote_candidate(
         candidate_id,
         vote_type=vote_type,
         voter_callsign=voter_callsign,
+        voter_id=voter_id,
         comment=comment
     )
     if not updated:

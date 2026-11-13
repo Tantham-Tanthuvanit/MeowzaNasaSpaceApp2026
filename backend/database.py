@@ -22,6 +22,7 @@ def get_db_connection():
     os.makedirs(DB_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
@@ -53,19 +54,28 @@ def init_db():
             )
         """)
 
-        # 2. Community Corroboration Votes Table
+        # 2. Community Corroboration Votes Table (with voter_id for anti-spam deduplication)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS community_votes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 candidate_id TEXT NOT NULL,
                 vote_type TEXT NOT NULL,
                 voter_callsign TEXT DEFAULT 'Anonymous Citizen',
+                voter_id TEXT DEFAULT '',
                 comment TEXT DEFAULT '',
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (candidate_id) REFERENCES candidates (id) ON DELETE CASCADE
             )
         """)
 
+        # Schema migration: ensure voter_id column exists in existing database
+        try:
+            cursor.execute("ALTER TABLE community_votes ADD COLUMN voter_id TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        # Prune any orphan votes left from deleted temporary test objects
+        cursor.execute("DELETE FROM community_votes WHERE candidate_id NOT IN (SELECT id FROM candidates)")
         conn.commit()
 
         # Seed initial realistic benchmark discoveries if not present
@@ -158,6 +168,9 @@ def add_candidate(data: Dict[str, Any]) -> Dict[str, Any]:
         cand_id = data.get("id") or f"SPX-2026-{int(datetime.datetime.utcnow().timestamp()) % 100000:05d}"
         created_at = data.get("created_at") or datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         observer = data.get("observer_callsign") or data.get("observer") or "Citizen Scientist"
+
+        # Clear any prior votes associated with this ID
+        cursor.execute("DELETE FROM community_votes WHERE candidate_id = ?", (cand_id,))
 
         cursor.execute("""
             INSERT OR REPLACE INTO candidates (
@@ -253,25 +266,74 @@ def vote_candidate(
     candidate_id: str,
     vote_type: str = "corroborate",
     voter_callsign: str = "Citizen Scientist",
+    voter_id: str = "",
     comment: str = ""
 ) -> Optional[Dict[str, Any]]:
-    """Cast a community corroboration vote on a candidate."""
+    """
+    Cast, deduplicate, or toggle a community corroboration vote on a candidate.
+    Prevents vote spamming by verifying prior votes from voter_id or voter_callsign.
+    """
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+        # 1. Verify candidate exists
+        cursor.execute("SELECT id, upvotes FROM candidates WHERE id = ?", (candidate_id,))
+        cand_row = cursor.fetchone()
+        if not cand_row:
+            return None
+
+        # 2. Check for an existing vote by this voter (using voter_id or voter_callsign)
+        existing_vote = None
+        if voter_id and voter_id.strip():
+            cursor.execute(
+                "SELECT id, vote_type FROM community_votes WHERE candidate_id = ? AND voter_id = ?",
+                (candidate_id, voter_id.strip())
+            )
+            existing_vote = cursor.fetchone()
+        elif voter_callsign and voter_callsign.strip() and voter_callsign != "Citizen Scientist":
+            cursor.execute(
+                "SELECT id, vote_type FROM community_votes WHERE candidate_id = ? AND voter_callsign = ?",
+                (candidate_id, voter_callsign.strip())
+            )
+            existing_vote = cursor.fetchone()
+
+        # 3. Handle unvote / remove action
+        if vote_type in ["unvote", "remove"]:
+            if existing_vote:
+                cursor.execute("DELETE FROM community_votes WHERE id = ?", (existing_vote["id"],))
+                cursor.execute("UPDATE candidates SET upvotes = MAX(0, upvotes - 1) WHERE id = ?", (candidate_id,))
+                conn.commit()
+            updated = get_candidate_by_id(candidate_id)
+            if updated:
+                updated["user_voted"] = False
+            return updated
+
+        # 4. Handle corroborate action
+        if existing_vote:
+            # Voter has already corroborated this candidate — block duplicate inflation!
+            updated = get_candidate_by_id(candidate_id)
+            if updated:
+                updated["user_voted"] = True
+                updated["already_voted"] = True
+            return updated
+
+        # 5. First-time vote: record vote & increment count
+        now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
-            INSERT INTO community_votes (candidate_id, vote_type, voter_callsign, comment, created_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (candidate_id, vote_type, voter_callsign, comment, now))
+            INSERT INTO community_votes (candidate_id, vote_type, voter_callsign, voter_id, comment, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (candidate_id, vote_type, voter_callsign, voter_id or "", comment, now))
 
         cursor.execute("""
             UPDATE candidates SET upvotes = upvotes + 1 WHERE id = ?
         """, (candidate_id,))
 
         conn.commit()
-        return get_candidate_by_id(candidate_id)
+        updated = get_candidate_by_id(candidate_id)
+        if updated:
+            updated["user_voted"] = True
+        return updated
     finally:
         conn.close()
 
@@ -281,6 +343,7 @@ def delete_candidate(candidate_id: str) -> bool:
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM community_votes WHERE candidate_id = ?", (candidate_id,))
         cursor.execute("DELETE FROM candidates WHERE id = ?", (candidate_id,))
         conn.commit()
         return cursor.rowcount > 0

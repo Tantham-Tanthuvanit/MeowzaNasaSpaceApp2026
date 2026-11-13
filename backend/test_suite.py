@@ -259,6 +259,7 @@ class TestAPIEndpoints(unittest.TestCase):
         vote_payload = {
             "vote_type": "corroborate",
             "voter_callsign": "Peer Reviewer",
+            "voter_id": "test_voter_123",
             "comment": "Confirmed independent motion in difference imaging."
         }
         resp = self.client.post("/api/candidates/SPX-TEST-0099/vote", json=vote_payload)
@@ -266,6 +267,24 @@ class TestAPIEndpoints(unittest.TestCase):
         voted = resp.json()
         self.assertEqual(voted["upvotes"], created["upvotes"] + 1)
         self.assertGreaterEqual(len(voted.get("votes", [])), 1)
+
+        # 4b. Anti-Spam Verification: Second vote by same voter must NOT increment count
+        resp_spam = self.client.post("/api/candidates/SPX-TEST-0099/vote", json=vote_payload)
+        self.assertEqual(resp_spam.status_code, 200)
+        spammed = resp_spam.json()
+        self.assertEqual(spammed["upvotes"], voted["upvotes"], "Anti-spam failed: duplicate vote inflated upvotes")
+        self.assertTrue(spammed.get("already_voted"))
+
+        # 4c. Toggle Unvote Verification: unvoting decrements back
+        unvote_payload = {
+            "vote_type": "unvote",
+            "voter_callsign": "Peer Reviewer",
+            "voter_id": "test_voter_123"
+        }
+        resp_unvote = self.client.post("/api/candidates/SPX-TEST-0099/vote", json=unvote_payload)
+        self.assertEqual(resp_unvote.status_code, 200)
+        unvoted = resp_unvote.json()
+        self.assertEqual(unvoted["upvotes"], created["upvotes"], "Unvoting failed to decrement upvotes")
 
         # 5. Export MPC dossier
         resp = self.client.get("/api/candidates/export-mpc")
