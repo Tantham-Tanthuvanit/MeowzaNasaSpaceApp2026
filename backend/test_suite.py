@@ -136,6 +136,19 @@ class TestDataLoaderAndSimulator(unittest.TestCase):
             res = self.loader.get_sky_patch("08h55m10.831s", "-07d14m42.53s", band_group=f, num_epochs=2)
             self.assertEqual(len(res["epochs"]), 2)
             self.assertTrue(res["epochs"][0]["image_url"].startswith("data:image/png;base64,"))
+            self.assertIn("difference_images", res)
+            self.assertIn("shift_and_add", res)
+
+    def test_shift_and_add_and_image_filters(self):
+        # Test shift-and-add algorithm and spatial post-processing
+        e1 = np.ones((64, 64), dtype=np.float32)
+        e2 = np.ones((64, 64), dtype=np.float32)
+        coadded = image_processor.perform_shift_and_add([e1, e2], shift_x_per_epoch=1.0, shift_y_per_epoch=0.5)
+        self.assertEqual(coadded.shape, (64, 64))
+
+        for mode in ["smooth", "sharpen", "median", "threshold_3sigma"]:
+            filtered = image_processor.apply_image_filter(coadded, filter_mode=mode)
+            self.assertEqual(filtered.shape, (64, 64))
 
 
 class TestAPIEndpoints(unittest.TestCase):
@@ -192,6 +205,14 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("sources", data)
         self.assertIn("total_sources", data)
         self.assertGreater(data["total_sources"], 0)
+
+    def test_shift_and_add_endpoint(self):
+        resp = self.client.get("/api/shift-and-add?ra=08h55m10.831s&dec=-07d14m42.53s&shift_x=1.3&shift_y=0.7&filter_mode=smooth")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("image_url", data)
+        self.assertTrue(data["target_aligned"])
+        self.assertEqual(data["filter_mode"], "smooth")
 
 
 class TestCatalogService(unittest.TestCase):

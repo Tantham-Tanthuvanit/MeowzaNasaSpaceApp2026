@@ -238,16 +238,46 @@ export default function SearchBar({
           <select
             value={bandGroup}
             onChange={(e) => onBandGroupChange(e.target.value)}
-            className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-amber-400"
+            className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-amber-400 font-mono text-xs"
           >
-            <option value="stacked">All 102 Bands Stacked (High SNR)</option>
-            <option value="false_color_rgb">False-Color Composite (Short+Mid+Long IR)</option>
-            <option value="array_1">Array 1: 0.75 - 1.11 μm</option>
-            <option value="array_2">Array 2: 1.11 - 1.64 μm</option>
-            <option value="array_3">Array 3: 1.64 - 2.42 μm</option>
-            <option value="array_4">Array 4: 2.42 - 3.82 μm (CH4/H2O)</option>
-            <option value="array_5">Array 5: 3.82 - 4.42 μm (CO/CO2)</option>
-            <option value="array_6">Array 6: 4.42 - 5.00 μm (Thermal IR)</option>
+            <optgroup label="🔭 Stacks & Composites" className="bg-slate-950 text-cyan-300 font-semibold">
+              <option value="stacked">All 102 Bands Stacked (High SNR)</option>
+              <option value="false_color_rgb">False-Color Composite (Short+Mid+Long IR)</option>
+            </optgroup>
+
+            <optgroup label="🧪 Chemical & Ice Diagnostic Filters" className="bg-slate-950 text-amber-300 font-semibold">
+              <option value="filter_h2o_ice">💧 H₂O Ice Filter (3.05 μm - Sedna / TNOs)</option>
+              <option value="filter_h2o_vapor">💧 H₂O Vapor Filter (1.90 μm - Atmospheres)</option>
+              <option value="filter_ch4_deep">🪐 CH₄ Deep Methane (3.30 μm - Brown Dwarf Drop)</option>
+              <option value="filter_ch4_overtone">🪐 CH₄ Overtone Filter (1.66 μm)</option>
+              <option value="filter_co2_ice">💨 CO₂ Ice Filter (4.25 μm)</option>
+              <option value="filter_co">☁️ CO Carbon Monoxide (4.60 μm)</option>
+              <option value="filter_h_bra">⚡ H Brackett-α (4.05 μm Accretion)</option>
+              <option value="filter_pah_dust">✨ Silicate & PAH Dust (3.40 μm)</option>
+            </optgroup>
+
+            <optgroup label="📊 Spectral Indices & Ratios" className="bg-slate-950 text-emerald-300 font-semibold">
+              <option value="ratio_ch4">CH₄ Absorption Index (F3.30 / F2.15)</option>
+              <option value="ratio_h2o">H₂O Ice Index (F3.05 / F2.15)</option>
+              <option value="diff_hydrogen">H Brackett-α Excess (Line - Continuum)</option>
+            </optgroup>
+
+            <optgroup label="🌌 Cross-Survey Photometric Bands" className="bg-slate-950 text-purple-300 font-semibold">
+              <option value="filter_wise_w1">WISE W1 (3.40 μm)</option>
+              <option value="filter_wise_w2">WISE W2 (4.60 μm - Cold Brown Dwarfs)</option>
+              <option value="filter_j">2MASS J-Band (1.25 μm)</option>
+              <option value="filter_h">2MASS H-Band (1.65 μm)</option>
+              <option value="filter_ks">2MASS Ks-Band (2.15 μm)</option>
+            </optgroup>
+
+            <optgroup label="📐 SPHEREx Detector Arrays (1-6)" className="bg-slate-950 text-slate-300 font-semibold">
+              <option value="array_1">Array 1: 0.75 - 1.11 μm</option>
+              <option value="array_2">Array 2: 1.11 - 1.64 μm</option>
+              <option value="array_3">Array 3: 1.64 - 2.42 μm</option>
+              <option value="array_4">Array 4: 2.42 - 3.82 μm</option>
+              <option value="array_5">Array 5: 3.82 - 4.42 μm</option>
+              <option value="array_6">Array 6: 4.42 - 5.00 μm</option>
+            </optgroup>
           </select>
         </div>
 

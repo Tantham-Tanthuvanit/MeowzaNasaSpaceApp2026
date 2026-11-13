@@ -55,6 +55,14 @@ class TestFlaskEndpoints(unittest.TestCase):
         self.assertIn("sources", data)
         self.assertIn("total_sources", data)
 
+    def test_flask_shift_and_add(self):
+        resp = self.client.get("/api/shift-and-add?ra=08h55m10.831s&dec=-07d14m42.53s&shift_x=1.3&shift_y=0.7&filter_mode=sharpen")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("image_url", data)
+        self.assertTrue(data["target_aligned"])
+        self.assertEqual(data["filter_mode"], "sharpen")
+
 
 if __name__ == "__main__":
     unittest.main()

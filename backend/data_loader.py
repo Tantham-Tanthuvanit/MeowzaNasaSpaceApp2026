@@ -586,13 +586,13 @@ class SPHERExDataLoader:
                 long_plane = bg_noise + star_canvas * 1.5
                 raw_epoch = (short_plane, mid_plane, long_plane)
             elif band_group == "filter_ch4_deep":  # 3.30 μm fundamental methane absorption
-                mult = 0.15 if is_cool_target else 1.0
+                mult = 0.20 if is_tno_target else (0.15 if is_cool_target else 1.0)
                 raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
             elif band_group == "filter_ch4_overtone":  # 1.66 μm overtone
                 mult = 0.40 if is_cool_target else 1.0
                 raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
             elif band_group == "filter_h2o_ice":  # 3.05 μm water ice
-                mult = 0.30 if is_cool_target else (0.70 if is_pulsator else 0.95)
+                mult = 0.25 if is_tno_target else (0.30 if is_cool_target else (0.70 if is_pulsator else 0.95))
                 raw_epoch = (bg_noise + star_canvas * mult).astype(np.float32)
             elif band_group == "filter_h2o_vapor":  # 1.90 μm water vapor
                 mult = 0.45 if is_cool_target else (0.75 if is_pulsator else 0.95)
@@ -629,7 +629,7 @@ class SPHERExDataLoader:
                 plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
                 raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
             elif band_group == "ratio_h2o":  # F(3.05) / F(2.15)
-                plane_num = bg_noise + star_canvas * (0.30 if is_cool_target else 0.95)
+                plane_num = bg_noise + star_canvas * (0.25 if is_tno_target else (0.30 if is_cool_target else 0.95))
                 plane_den = bg_noise + star_canvas * (0.85 if is_cool_target else 1.05)
                 raw_epoch = image_processor.compute_spectral_ratio(plane_num, plane_den)
             elif band_group == "diff_hydrogen":  # F(4.05) - F(3.82)
@@ -689,16 +689,68 @@ class SPHERExDataLoader:
                 "target_pixel_coords": [round(float(tx), 1), round(float(ty), 1)],
             })
 
-        # Compute scientific difference image between Epoch 2 and Epoch 1
-        if band_group == "false_color_rgb":
-            diff_slice_late = epoch_raw_arrays[1][1]
-            diff_slice_early = epoch_raw_arrays[0][1]
-        else:
-            diff_slice_late = epoch_raw_arrays[1]
-            diff_slice_early = epoch_raw_arrays[0]
+        # Compute scientific difference images across multiple epoch pairs
+        diff_images_dict = {}
+        pair_definitions = [
+            ("e2_minus_e1", 0, 1),
+            ("e3_minus_e1", 0, 2),
+            ("e4_minus_e1", 0, 3),
+            ("e3_minus_e2", 1, 2),
+            ("e4_minus_e3", 2, 3),
+        ]
 
-        diff_array = image_processor.compute_difference_image(diff_slice_early, diff_slice_late)
-        diff_uri = image_processor.array_to_base64_data_uri(diff_array, is_difference=True)
+        for pair_key, idx_early, idx_late in pair_definitions:
+            if idx_late < len(epoch_raw_arrays) and idx_early < len(epoch_raw_arrays):
+                if band_group == "false_color_rgb":
+                    slice_late = epoch_raw_arrays[idx_late][1]
+                    slice_early = epoch_raw_arrays[idx_early][1]
+                else:
+                    slice_late = epoch_raw_arrays[idx_late]
+                    slice_early = epoch_raw_arrays[idx_early]
+                d_arr = image_processor.compute_difference_image(slice_early, slice_late)
+                diff_images_dict[pair_key] = image_processor.array_to_base64_data_uri(d_arr, is_difference=True)
+
+        # Primary difference image URL for backward compatibility
+        diff_uri = diff_images_dict.get("e2_minus_e1")
+        if not diff_uri and diff_images_dict:
+            diff_uri = list(diff_images_dict.values())[0]
+        elif not diff_uri:
+            diff_uri = image_processor.array_to_base64_data_uri(
+                np.zeros_like(epoch_raw_arrays[0]), is_difference=True
+            )
+
+        # Shift-and-Add composite search stack (NASA Step 2 engine)
+        if band_group == "false_color_rgb":
+            planes_for_stack = [ep[1] for ep in epoch_raw_arrays]
+        else:
+            planes_for_stack = epoch_raw_arrays
+
+        coadded_stationary = image_processor.perform_shift_and_add(planes_for_stack, 0.0, 0.0)
+        coadded_stat_uri = image_processor.array_to_base64_data_uri(
+            coadded_stationary, colormap=colormap, stretch_type=stretch
+        )
+
+        target_shift_x = 0.0
+        target_shift_y = 0.0
+        if is_cool_target:
+            target_shift_x = 1.3
+            target_shift_y = 0.7
+        elif is_tno_target:
+            target_shift_x = 0.25
+            target_shift_y = 0.15
+
+        coadded_target = image_processor.perform_shift_and_add(planes_for_stack, target_shift_x, target_shift_y)
+        coadded_target_uri = image_processor.array_to_base64_data_uri(
+            coadded_target, colormap=colormap, stretch_type=stretch
+        )
+
+        shift_and_add_data = {
+            "stationary_stack_url": coadded_stat_uri,
+            "target_stack_url": coadded_target_uri,
+            "recommended_vx": target_shift_x,
+            "recommended_vy": target_shift_y,
+            "total_epochs_stacked": len(epoch_raw_arrays)
+        }
 
         # 102-band spectral energy distribution preview
         spectrum = self._generate_102_band_spectrum(matched_target, seed)
@@ -741,6 +793,8 @@ class SPHERExDataLoader:
             },
             "epochs": epochs_data,
             "difference_image_url": diff_uri,
+            "difference_images": diff_images_dict,
+            "shift_and_add": shift_and_add_data,
             "spectrum_preview": spectrum,
             "spherex_detector_arrays": SPHEREX_ARRAYS,
             "catalog_overlay": catalog_stars,
