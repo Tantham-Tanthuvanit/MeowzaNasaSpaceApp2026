@@ -677,7 +677,6 @@ class SPHERExDataLoader:
         # 102-band spectral energy distribution preview
         spectrum = self._generate_102_band_spectrum(matched_target, seed)
 
-<<<<<<< HEAD
         # Generate 2D spatial elemental & molecular density maps
         element_densities = self.generate_element_densities(
             coord_info=coord_info,
@@ -694,7 +693,6 @@ class SPHERExDataLoader:
             "wavelength_um": SPHEREX_WAVELENGTHS[int(band_group.split('_')[1]) - 1] if band_group.startswith("band_") else "custom"
         })
 
-=======
         # Cross-matched Gaia DR3 & AllWISE catalog overlay sources
         catalog_stars = catalog_service.query_catalogs(
             ra_deg=coord_info["ra_deg"],
@@ -702,7 +700,6 @@ class SPHERExDataLoader:
             fov_arcmin=float(fov_arcmin)
         )
 
->>>>>>> test2
         return {
             "target_info": {
                 "ra_deg": coord_info["ra_deg"],
@@ -720,7 +717,7 @@ class SPHERExDataLoader:
             "difference_image_url": diff_uri,
             "spectrum_preview": spectrum,
             "spherex_detector_arrays": SPHEREX_ARRAYS,
-<<<<<<< HEAD
+            "catalog_overlay": catalog_stars,
             "element_densities": element_densities,
             "available_filters": WAVELENGTH_FILTERS
         }
@@ -760,7 +757,4 @@ class SPHERExDataLoader:
             "element": elem_data,
             "all_elements": all_densities["elements"],
             "composition_breakdown": all_densities["composition_breakdown"]
-=======
-            "catalog_overlay": catalog_stars
->>>>>>> test2
         }

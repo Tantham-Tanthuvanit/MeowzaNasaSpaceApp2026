@@ -160,9 +160,10 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("epochs", data)
         self.assertIn("difference_image_url", data)
         self.assertIn("spectrum_preview", data)
-<<<<<<< HEAD
         self.assertIn("element_densities", data)
         self.assertIn("available_filters", data)
+        self.assertIn("catalog_overlay", data)
+        self.assertGreater(len(data["catalog_overlay"]), 0)
 
     def test_element_density_endpoint(self):
         resp = self.client.get("/api/element-density?ra=08h55m10.831s&dec=-07d14m42.53s&element=CH4")
@@ -172,10 +173,6 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(data["element"]["id"], "CH4")
         self.assertTrue(data["element"]["density_map_url"].startswith("data:image/png;base64,"))
         self.assertIn("composition_breakdown", data)
-
-=======
-        self.assertIn("catalog_overlay", data)
-        self.assertGreater(len(data["catalog_overlay"]), 0)
 
     def test_catalog_overlay_endpoint(self):
         resp = self.client.get("/api/catalog-overlay?ra=08h55m10.831s&dec=-07d14m42.53s&fov=5.0")
@@ -203,7 +200,6 @@ class TestCatalogService(unittest.TestCase):
         bd_candidates = [s for s in sources if s.get("is_brown_dwarf_candidate")]
         self.assertGreater(len(bd_candidates), 0)
         self.assertEqual(bd_candidates[0]["catalog"], "AllWISE")
->>>>>>> test2
 
 
 if __name__ == "__main__":

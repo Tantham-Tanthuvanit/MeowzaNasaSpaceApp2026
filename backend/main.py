@@ -17,12 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import coordinates
-<<<<<<< HEAD
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
-=======
-from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
 from catalog_service import catalog_service
->>>>>>> test2
 
 app = FastAPI(
     title="NASA SPHEREx Sky Viewer API",
@@ -87,7 +83,6 @@ def get_bands():
     }
 
 
-<<<<<<< HEAD
 @app.get("/api/element-density")
 def get_element_density(
     ra: str = Query(..., description="Right Ascension in sexagesimal or decimal degrees"),
@@ -103,7 +98,7 @@ def get_element_density(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to calculate element density: {str(e)}")
 
-=======
+
 @app.get("/api/catalog-overlay")
 def get_catalog_overlay(
     ra: str = Query(..., description="Right Ascension"),
@@ -132,7 +127,6 @@ def get_catalog_overlay(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to query catalog overlay: {str(e)}")
->>>>>>> test2
 
 
 @app.get("/api/sky-cutout")
