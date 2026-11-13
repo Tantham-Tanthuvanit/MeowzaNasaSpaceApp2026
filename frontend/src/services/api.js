@@ -76,10 +76,27 @@ export const fetchLightKinds = async () => (await poll('/api/bands')).wavelength
 
 // ---- Things people have flagged (stored in Supabase by the backend) ----
 
+// There is no login, so the backend counts one vote per browser: a random id made once and kept
+// in this browser. It holds nothing about the person. Without storage it lasts until the page closes.
+let voter = null;
+function voterId() {
+  if (voter) return voter;
+  try {
+    voter = localStorage.getItem('skyflip_voter_id');
+    if (!voter) localStorage.setItem('skyflip_voter_id', (voter = crypto.randomUUID()));
+  } catch {
+    voter = voter || crypto.randomUUID();
+  }
+  return voter;
+}
+
 // Flags near a position (within the 5 arcminute picture), or every flag when ra is null.
+// Each has upvotes and user_voted (whether this browser has voted for it).
 export const listCandidates = async (ra, dec) =>
-  (await request(ra == null ? '/api/candidates' : `/api/candidates?ra=${ra}&dec=${dec}&radius_deg=0.06`)).body;
-export const voteCandidate = async (id) => (await request(`/api/candidates/${id}/vote`, sendJson('POST', {}))).body;
+  (await request(`/api/candidates?voter_id=${voterId()}${ra == null ? '' : `&ra=${ra}&dec=${dec}&radius_deg=0.06`}`)).body;
+// Votes for a flag, or takes the vote back with remove = true.
+export const voteCandidate = async (id, remove = false) =>
+  (await request(`/api/candidates/${id}/vote`, sendJson('POST', { voter_id: voterId(), vote_type: remove ? 'unvote' : 'corroborate' }))).body;
 
 // Flags the point (x, y) on the 0-256 picture grid of the picture centred on (ra, dec).
 export async function flagCandidate(ra, dec, x, y, fields) {

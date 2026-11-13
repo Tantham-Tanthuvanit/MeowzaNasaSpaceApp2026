@@ -248,8 +248,18 @@ class TestLive(unittest.TestCase):
         client = TestClient(main.app)
         cand = client.post("/api/candidates", json={"ra_deg": 10.0, "dec_deg": 20.0, "category": "asteroid", "notes": "test"}).json()
         try:
-            voted = client.post(f"/api/candidates/{cand['id']}/vote", json={"comment": "test"}).json()
-            self.assertEqual(voted["upvotes"], 1)
+            vote_url = f"/api/candidates/{cand['id']}/vote"
+            self.assertEqual(client.post(vote_url, json={"comment": "no voter id"}).status_code, 422)
+            voted = client.post(vote_url, json={"voter_id": "test-a", "comment": "test"}).json()
+            self.assertEqual((voted["upvotes"], voted["user_voted"]), (1, True))
+            self.assertNotIn("voter_id", voted["votes"][0])
+            # The same voter again changes nothing; a second voter counts.
+            self.assertEqual(client.post(vote_url, json={"voter_id": "test-a"}).json()["upvotes"], 1)
+            self.assertEqual(client.post(vote_url, json={"voter_id": "test-b"}).json()["upvotes"], 2)
+            listed = {c["id"]: c for c in client.get("/api/candidates", params={"voter_id": "test-a"}).json()}
+            self.assertTrue(listed[cand["id"]]["user_voted"])
+            unvoted = client.post(vote_url, json={"voter_id": "test-a", "vote_type": "unvote"}).json()
+            self.assertEqual((unvoted["upvotes"], unvoted["user_voted"]), (1, False))
             self.assertIn(f"SPX-{cand['id']:06d}", client.get("/api/candidates/export-mpc").text)
         finally:
             self.assertEqual(client.delete(f"/api/candidates/{cand['id']}").status_code, 200)

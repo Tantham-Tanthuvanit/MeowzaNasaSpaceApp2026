@@ -22,7 +22,7 @@ from fastapi import FastAPI, Query, HTTPException, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import coordinates
 import database
@@ -236,7 +236,8 @@ class CandidatePayload(BaseModel):
 
 
 class VotePayload(BaseModel):
-    vote_type: Optional[str] = "corroborate"
+    voter_id: str = Field(min_length=1, max_length=100, description="Random id the voter's browser keeps; one vote per id per candidate")
+    vote_type: Optional[str] = Field("corroborate", description="'corroborate' to vote, 'unvote' to take the vote back")
     voter_callsign: Optional[str] = "Citizen Scientist"
     comment: Optional[str] = ""
 
@@ -246,11 +247,12 @@ def list_candidates(
     category: Optional[str] = Query(None, description="Filter category: planet_x, brown_dwarf, variable_star, asteroid"),
     ra: Optional[float] = Query(None, description="Center RA in degrees for cone search"),
     dec: Optional[float] = Query(None, description="Center Dec in degrees for cone search"),
-    radius_deg: Optional[float] = Query(None, description="Cone search search radius in degrees")
+    radius_deg: Optional[float] = Query(None, description="Cone search search radius in degrees"),
+    voter_id: Optional[str] = Query(None, description="Adds user_voted to each candidate for this voter")
 ):
     """Retrieve community flagged candidates with optional category or spatial radius filtering."""
     try:
-        return database.get_candidates(category=category, ra_deg=ra, dec_deg=dec, radius_deg=radius_deg)
+        return database.get_candidates(category=category, ra_deg=ra, dec_deg=dec, radius_deg=radius_deg, voter_id=voter_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
 
@@ -285,9 +287,10 @@ def get_candidate(candidate_id: int):
 
 @app.post("/api/candidates/{candidate_id}/vote")
 def cast_candidate_vote(candidate_id: int, vote: VotePayload):
-    """Corroborate or peer-review a candidate discovery with a community vote."""
+    """Vote for a candidate, or take the vote back. Each voter_id counts once per candidate."""
     updated = database.vote_candidate(
         candidate_id,
+        voter_id=vote.voter_id,
         vote_type=vote.vote_type or "corroborate",
         voter_callsign=vote.voter_callsign or "Citizen Scientist",
         comment=vote.comment or ""

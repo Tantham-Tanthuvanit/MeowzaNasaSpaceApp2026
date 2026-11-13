@@ -29,7 +29,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
 6. **Saved Projects and Citizen-Science Candidates**
-   - Projects (the markers on the Home sky map), candidates and votes are stored in Supabase and shared by everyone (there is no login yet). The MPC-style export is at `/api/candidates/export-mpc`.
+   - Projects (the markers on the Home sky map), candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
 
 7. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.

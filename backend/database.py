@@ -3,7 +3,7 @@ database.py — Supabase storage for citizen-science discoveries and saved sky p
 
 Tables (see supabase/migrations/):
 - candidates: objects flagged by citizen scientists
-- candidate_votes: community corroboration votes (upvotes = number of votes)
+- candidate_votes: community corroboration votes (upvotes = number of votes; one per voter_id per candidate)
 - projects: saved sky positions shown on the Home map
 
 Also formats the Minor Planet Center (MPC) style dossier export.
@@ -42,14 +42,21 @@ def get_candidates(
     category: Optional[str] = None,
     ra_deg: Optional[float] = None,
     dec_deg: Optional[float] = None,
-    radius_deg: Optional[float] = None
+    radius_deg: Optional[float] = None,
+    voter_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    """Query candidates with optional category or coordinate proximity filters."""
+    """Query candidates with optional category or coordinate proximity filters.
+    With voter_id, each candidate also says whether that voter has voted for it (user_voted)."""
     query = get_client().table("candidates").select("*, candidate_votes(count)")
     if category and category != "all":
         query = query.eq("category", category)
     results = [_with_upvotes(r) for r in query.order("created_at", desc=True).execute().data]
     results.sort(key=lambda c: c["upvotes"], reverse=True)  # stable, so newest first within a vote count
+    if voter_id:
+        mine = {v["candidate_id"] for v in get_client().table("candidate_votes").select("candidate_id")
+                .eq("voter_id", voter_id).execute().data}
+        for c in results:
+            c["user_voted"] = c["id"] in mine
 
     # Spatial distance filtering if center and radius requested
     if ra_deg is not None and dec_deg is not None and radius_deg is not None:
@@ -74,24 +81,34 @@ def get_candidate_by_id(candidate_id: int) -> Optional[Dict[str, Any]]:
         return None
     cand = rows[0]
     cand["votes"] = sorted(cand.pop("candidate_votes", []), key=lambda v: v["created_at"], reverse=True)
+    for v in cand["votes"]:
+        v.pop("voter_id", None)  # private: knowing it would let someone else remove the vote
     cand["upvotes"] = len(cand["votes"])
     return cand
 
 
 def vote_candidate(
     candidate_id: int,
+    voter_id: str,
     vote_type: str = "corroborate",
     voter_callsign: str = "Citizen Scientist",
     comment: str = ""
 ) -> Optional[Dict[str, Any]]:
-    """Cast a community corroboration vote on a candidate."""
+    """Cast a community corroboration vote, or take it back with vote_type "unvote".
+    A voter counts once per candidate: voting again changes nothing (the database enforces it)."""
     if get_candidate_by_id(candidate_id) is None:
         return None
-    get_client().table("candidate_votes").insert({
-        "candidate_id": candidate_id, "vote_type": vote_type,
-        "voter_callsign": voter_callsign, "comment": comment,
-    }).execute()
-    return get_candidate_by_id(candidate_id)
+    votes = get_client().table("candidate_votes")
+    if vote_type == "unvote":
+        votes.delete().eq("candidate_id", candidate_id).eq("voter_id", voter_id).execute()
+    else:
+        votes.upsert({
+            "candidate_id": candidate_id, "voter_id": voter_id, "vote_type": vote_type,
+            "voter_callsign": voter_callsign, "comment": comment,
+        }, on_conflict="candidate_id,voter_id", ignore_duplicates=True).execute()
+    cand = get_candidate_by_id(candidate_id)
+    cand["user_voted"] = vote_type != "unvote"
+    return cand
 
 
 def delete_candidate(candidate_id: int) -> bool:

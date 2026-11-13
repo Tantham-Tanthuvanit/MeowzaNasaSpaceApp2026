@@ -86,10 +86,12 @@ export default function Flags({ ra, dec, flags, point, setPoint, band }) {
               {c.notes && <p className="text-sm leading-relaxed text-body">{c.notes}</p>}
               <span className="font-mono text-[13px] text-muted">RA {fmtRa(c.ra_deg)} · Dec {fmtDec(c.dec_deg)}</span>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
-                  I see it too
+                <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id, c.user_voted), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
+                  {c.user_voted ? 'Take back my vote' : 'I see it too'}
                 </button>
-                <span className="text-sm text-body">{c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}</span>
+                <span className="text-sm text-body">
+                  {c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}{c.user_voted ? ', including you' : ''}
+                </span>
                 {!hasSpot && <Link to={`/viewer?ra=${fmtRa(c.ra_deg, true)}&dec=${encodeURIComponent(fmtDec(c.dec_deg, true))}`} className="ml-auto text-sm font-semibold text-rust underline">Look at this spot</Link>}
               </div>
             </li>
