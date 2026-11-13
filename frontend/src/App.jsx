@@ -3,16 +3,17 @@ import SearchBar from './components/SearchBar';
 import SkyViewer from './components/SkyViewer';
 import TimelineSlider from './components/TimelineSlider';
 import SpectrumChart from './components/SpectrumChart';
+import { fetchPresets, fetchSkyCutout, syncUrlWithQuery, readInitialUrlParams } from './services/api';
 import { Telescope, Satellite, Radio, Info, Compass, Sparkles, AlertCircle } from 'lucide-react';
 
-const API_BASE = '';
-
 export default function App() {
+  const initialParams = readInitialUrlParams();
+
   // Celestial & Query States
-  const [ra, setRa] = useState('08h55m10.831s');
-  const [dec, setDec] = useState('-07d14m42.53s');
-  const [fov, setFov] = useState(5.0);
-  const [bandGroup, setBandGroup] = useState('stacked');
+  const [ra, setRa] = useState(initialParams.ra);
+  const [dec, setDec] = useState(initialParams.dec);
+  const [fov, setFov] = useState(initialParams.fov);
+  const [bandGroup, setBandGroup] = useState(initialParams.band);
   const [stretch, setStretch] = useState('zscale');
   const [colormap, setColormap] = useState('inferno');
 
@@ -28,75 +29,26 @@ export default function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.5);
   const [viewMode, setViewMode] = useState('single'); // 'single', 'diff', 'split'
 
-  // 1. Load Presets & Read Initial URL Parameters
-  useEffect(() => {
-    // Fetch benchmark test targets
-    fetch(`${API_BASE}/api/presets`)
-      .then((res) => res.json())
-      .then((data) => {
-        setPresets(data);
-      })
-      .catch((err) => {
-        console.warn('API presets unavailable, falling back to local defaults:', err);
-      });
-
-    // Check URL parameters (?ra=...&dec=...&fov=...)
-    const params = new URLSearchParams(window.location.search);
-    const urlRa = params.get('ra');
-    const urlDec = params.get('dec');
-    const urlFov = params.get('fov');
-    const urlBand = params.get('band');
-
-    if (urlRa && urlDec) {
-      setRa(urlRa);
-      setDec(urlDec);
-      if (urlFov) setFov(parseFloat(urlFov));
-      if (urlBand) setBandGroup(urlBand);
-      fetchCutout(urlRa, urlDec, urlFov ? parseFloat(urlFov) : 5.0, urlBand || 'stacked', stretch, colormap);
-    } else {
-      // Default to NASA challenge target: WISE 0855
-      fetchCutout('08h55m10.831s', '-07d14m42.53s', 5.0, 'stacked', 'zscale', 'inferno');
-    }
-  }, []);
-
-  // Update browser URL query params without reloading for easy link sharing and embedding
-  const updateUrlParams = (newRa, newDec, newFov, newBand) => {
-    const params = new URLSearchParams(window.location.search);
-    params.set('ra', newRa);
-    params.set('dec', newDec);
-    params.set('fov', newFov.toString());
-    params.set('band', newBand);
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, '', newUrl);
-  };
-
-  // Fetch Sky Cutout Pipeline
-  const fetchCutout = useCallback(
+  // Fetch Cutout Pipeline
+  const loadSkyData = useCallback(
     async (targetRa, targetDec, targetFov, targetBand, targetStretch, targetCmap) => {
       setIsLoading(true);
       setErrorMessage(null);
       try {
-        const query = new URLSearchParams({
+        const data = await fetchSkyCutout({
           ra: targetRa,
           dec: targetDec,
-          fov: targetFov.toString(),
-          band_group: targetBand,
+          fov: targetFov,
+          bandGroup: targetBand,
           stretch: targetStretch,
           colormap: targetCmap,
-          epochs: '4'
+          epochs: 4
         });
-
-        const res = await fetch(`${API_BASE}/api/sky-cutout?${query.toString()}`);
-        if (!res.ok) {
-          const errorJson = await res.json().catch(() => ({}));
-          throw new Error(errorJson.detail || errorJson.error || `HTTP error ${res.status}`);
-        }
-        const data = await res.json();
         setSkyData(data);
         setCurrentEpochIndex(0);
-        updateUrlParams(targetRa, targetDec, targetFov, targetBand);
+        syncUrlWithQuery(targetRa, targetDec, targetFov, targetBand);
       } catch (err) {
-        console.error('Failed to fetch sky cutout:', err);
+        console.error('Failed to load sky data:', err);
         setErrorMessage(err.message || 'Error querying coordinates from SPHEREx archive.');
       } finally {
         setIsLoading(false);
@@ -105,32 +57,50 @@ export default function App() {
     []
   );
 
+  // 1. Initial Load: Presets & Initial Cutout
+  useEffect(() => {
+    // Fetch benchmark test targets
+    fetchPresets().then((data) => {
+      if (Array.isArray(data)) setPresets(data);
+    });
+
+    // Load initial sky patch (from URL params or default WISE 0855)
+    loadSkyData(
+      initialParams.ra,
+      initialParams.dec,
+      initialParams.fov,
+      initialParams.band,
+      'zscale',
+      'inferno'
+    );
+  }, [loadSkyData]);
+
   const handleSearch = (newRa, newDec, newFov) => {
     setRa(newRa);
     setDec(newDec);
     setFov(newFov);
-    fetchCutout(newRa, newDec, newFov, bandGroup, stretch, colormap);
+    loadSkyData(newRa, newDec, newFov, bandGroup, stretch, colormap);
   };
 
   const handleSelectPreset = (preset) => {
     setRa(preset.ra);
     setDec(preset.dec);
-    fetchCutout(preset.ra, preset.dec, fov, bandGroup, stretch, colormap);
+    loadSkyData(preset.ra, preset.dec, fov, bandGroup, stretch, colormap);
   };
 
   const handleBandGroupChange = (newBand) => {
     setBandGroup(newBand);
-    fetchCutout(ra, dec, fov, newBand, stretch, colormap);
+    loadSkyData(ra, dec, fov, newBand, stretch, colormap);
   };
 
   const handleStretchChange = (newStretch) => {
     setStretch(newStretch);
-    fetchCutout(ra, dec, fov, bandGroup, newStretch, colormap);
+    loadSkyData(ra, dec, fov, bandGroup, newStretch, colormap);
   };
 
   const handleColormapChange = (newColormap) => {
     setColormap(newColormap);
-    fetchCutout(ra, dec, fov, bandGroup, stretch, newColormap);
+    loadSkyData(ra, dec, fov, bandGroup, stretch, newColormap);
   };
 
   return (

@@ -2,6 +2,7 @@
 # start.sh — Launch script for NASA SPHEREx Sky Viewer Backend and Frontend
 
 set -e
+export PATH="/opt/homebrew/bin:$PATH"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=========================================================="
