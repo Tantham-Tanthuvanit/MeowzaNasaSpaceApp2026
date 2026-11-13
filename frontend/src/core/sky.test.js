@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, MAP_W, MAP_H } from './sky';
+import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, MAP_W, MAP_H } from './sky';
 
 describe('parseRa', () => {
   it('reads hours, minutes, seconds', () => {
@@ -80,5 +80,19 @@ describe('map projection', () => {
   });
   it('returns null outside the sky oval', () => {
     expect(inverse(5, 5, { rot: 0, tilt: 0, zoom: 1 })).toBeNull();
+  });
+});
+
+describe('skyToPixel', () => {
+  it('puts the centre of the picture at (128, 128)', () => {
+    expect(skyToPixel(133.795129, -7.245147, 133.795129, -7.245147)).toEqual([128, 128]);
+  });
+  it('matches the backend: /api/pixel-to-radec turns (100, 60) into this position', () => {
+    const [x, y] = skyToPixel(133.80431694322306, -7.223011583333333, 133.795129, -7.245147);
+    expect(x).toBeCloseTo(100, 4);
+    expect(y).toBeCloseTo(60, 4);
+  });
+  it('works across RA 0', () => {
+    expect(skyToPixel(0.01, 0, 359.99, 0)[0]).toBeCloseTo(128 - 0.02 * 3072, 6);
   });
 });

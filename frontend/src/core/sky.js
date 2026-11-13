@@ -54,6 +54,14 @@ export function pathFrom(points) {
   return out.trim();
 }
 
+// Where a sky position lands on a 256 x 256 picture centred on (ra0, dec0) that shows `fov`
+// arcminutes. North is up and east is left. The inverse of the backend's /api/pixel-to-radec.
+export function skyToPixel(ra, dec, ra0, dec0, fov = 5) {
+  const perDeg = 256 / (fov / 60);
+  const dRa = ((ra - ra0 + 540) % 360) - 180;
+  return [128 - dRa * Math.cos(dec0 * RAD) * perDeg, 128 - (dec - dec0) * perDeg];
+}
+
 const nums = (s) => (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
 
 // "08h55m10.8s", "08 55 10.8" or decimal degrees -> degrees, or null if not a valid RA.

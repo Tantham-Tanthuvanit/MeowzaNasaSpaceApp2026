@@ -36,17 +36,27 @@ export function useFlipbook(count, resetKey, startPlaying = true) {
 // The flipbook: one square picture plus play controls, scrubber and a thumbnail per frame.
 // frames: [{ image_url, timestamp }] oldest first. progress: null or { cached_images, total_images }
 // while the backend downloads the pictures from NASA. emptyText shows when there is nothing to load.
-export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label }) {
+// caption: set it to show `frames` as one still picture with that caption and no play controls.
+// slowText replaces the "takes a minute or two" line for downloads that take much longer.
+// overlay: SVG content drawn over the picture on its 0-256 pixel grid.
+// onPick(x, y): called with the grid point when the picture is clicked.
+export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick }) {
   const count = frames.length;
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
+
+  const pick = (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    onPick(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
+  };
 
   return (
     <div className="flex w-full max-w-[700px] flex-col gap-3.5">
       <div
         role="img"
-        aria-label={current ? `Sky picture ${frame + 1} of ${count}, taken ${fmtDate(current.timestamp)}. ${label}` : label}
-        className="relative aspect-square w-full overflow-hidden rounded-md border border-soft bg-[#04060D] shadow-[0_8px_24px_rgba(20,26,46,0.12)]"
+        aria-label={current ? `${caption || `Sky picture ${frame + 1} of ${count}, taken ${fmtDate(current.timestamp)}`}. ${label}` : label}
+        onClick={current && onPick ? pick : undefined}
+        className={`${current && onPick ? 'cursor-crosshair ' : ''}relative aspect-square w-full overflow-hidden rounded-md border border-soft bg-[#04060D] shadow-[0_8px_24px_rgba(20,26,46,0.12)]`}
       >
         {current && <img src={current.image_url} alt="" className="absolute inset-0 h-full w-full" />}
 
@@ -55,13 +65,16 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
             <path d="M350 310V330M350 370V390M310 350H330M370 350H390" stroke="#FF8A3D" strokeWidth="1.5" opacity="0.8" />
           </svg>
         )}
+        {current && overlay && (
+          <svg viewBox="0 0 256 256" className={`absolute inset-0 h-full w-full ${onPick ? 'pointer-events-none' : ''}`}>{overlay}</svg>
+        )}
 
         {current && (
           <>
             <div className="absolute left-3 top-3 rounded bg-[rgba(4,6,13,0.75)] px-2 py-1 font-mono text-[13px] text-[#E8ECF5]">
-              Picture {frame + 1} of {count} · {fmtDate(current.timestamp)}
+              {caption || `Picture ${frame + 1} of ${count} · ${fmtDate(current.timestamp)}`}
             </div>
-            <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-[rgba(4,6,13,0.75)] px-3 py-1.5 text-[13px] text-[#E8ECF5]">
+            <div className="absolute left-3 top-11 flex items-center gap-2 rounded-full sm:left-auto sm:right-3 sm:top-3 bg-[rgba(4,6,13,0.75)] px-3 py-1.5 text-[13px] text-[#E8ECF5]">
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: bandDot }} aria-hidden="true" />
               {bandLabel}
             </div>
@@ -82,7 +95,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
             {progress ? (
               <>
                 <p>Downloading picture {progress.cached_images} of {progress.total_images} from NASA…</p>
-                <p className="max-w-[360px] text-[13px] leading-relaxed">The first look at a new spot takes a minute or two. After that it opens straight away.</p>
+                <p className="max-w-[360px] text-[13px] leading-relaxed">{slowText || 'The first look at a new spot takes a minute or two. After that it opens straight away.'}</p>
               </>
             ) : (
               <p>Loading pictures…</p>
@@ -94,7 +107,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      {!caption && <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => show(frame - 1)} disabled={!count} aria-label="Previous picture" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
           <PrevIcon />
         </button>
@@ -123,9 +136,9 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
             <option value="4">Fast</option>
           </select>
         </label>
-      </div>
+      </div>}
 
-      {count > 0 && (
+      {!caption && count > 0 && (
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
           {frames.map((f, i) => (
             <button
