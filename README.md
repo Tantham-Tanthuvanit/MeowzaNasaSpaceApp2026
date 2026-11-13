@@ -91,11 +91,21 @@ NASAspaceApp/
 
 ## 🚀 Quickstart Guide
 
-### 1. Launch Both Backend & Frontend with One Command
+### 1. One-Time Setup (or automatic on first launch)
+
+Run the automated OS environment setup script to create a clean virtual environment and install dependencies suited for your platform (Linux / macOS / WSL):
+
+```bash
+./setup.sh
+```
+
+### 2. Launch Both Backend & Frontend with One Command
 
 ```bash
 ./start.sh
 ```
+*(If `setup.sh` has not been run yet or the venv was created on a different OS, `start.sh` will automatically run `setup.sh` first).*
+
 * Or to run with the Flask backend instead of FastAPI:
 ```bash
 ./start.sh flask

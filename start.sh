@@ -2,12 +2,18 @@
 # start.sh — Launch script for NASA SPHEREx Sky Viewer Backend and Frontend
 
 set -e
-export PATH="/opt/homebrew/bin:$PATH"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=========================================================="
 echo "      NASA SPHEREx Sky Viewer — Launch Sequence           "
 echo "=========================================================="
+
+# 0. Ensure environment and packages are properly set up for current OS
+if [ ! -d "$PROJECT_DIR/backend/venv" ] || ! "$PROJECT_DIR/backend/venv/bin/python" -c "import sys" >/dev/null 2>&1; then
+    echo "Environment not initialized or incompatible with current OS. Running setup.sh..."
+    "$PROJECT_DIR/setup.sh"
+fi
 
 BACKEND_TYPE="${1:-fastapi}" # Defaults to fastapi, or pass 'flask'
 
