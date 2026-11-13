@@ -2,140 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-space: #070a13;
-  --bg-panel: rgba(13, 21, 38, 0.88);
-  --bg-card: rgba(22, 34, 56, 0.8);
-  --border-cyan: rgba(56, 189, 248, 0.25);
-  --border-amber: rgba(245, 158, 11, 0.35);
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --accent-cyan: #38bdf8;
-  --accent-amber: #f59e0b;
-  --accent-violet: #818cf8;
-  --accent-emerald: #10b981;
-  --accent-rose: #f43f5e;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
 body {
-  background-color: var(--bg-space);
-  color: var(--text-main);
-  min-height: 100vh;
-  overflow-x: hidden;
-  background-image: 
-    radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(129, 140, 248, 0.05) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.04) 0%, transparent 50%);
+  @apply bg-page font-sans text-ink antialiased;
 }
 
-code, pre, .mono {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Glassmorphism panel */
-.glass-panel {
-  background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-cyan);
-  border-radius: 14px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-}
-
-.glass-card {
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  transition: all 0.2s ease-in-out;
-}
-
-.glass-card:hover {
-  border-color: var(--border-cyan);
-  transform: translateY(-1px);
-}
-
-/* Glow effects */
-.glow-cyan {
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
-}
-
-.glow-amber {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
-}
-
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(7, 10, 19, 0.6);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(56, 189, 248, 0.3);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(56, 189, 248, 0.6);
-}
-
-/* Pulsing radar dot */
-@keyframes radar-pulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.15); opacity: 0.3; }
-  100% { transform: scale(0.95); opacity: 0.8; }
-}
-
-.radar-dot {
-  animation: radar-pulse 2s infinite ease-in-out;
-}
-
-/* Crosshair overlay */
-.crosshair-reticle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* Custom range slider styling */
-input[type='range'] {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #38bdf8;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-  border: 2px solid #0f172a;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-input[type='range']::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.95);
-}
-
-input[type='range']::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #38bdf8;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-  border: 2px solid #0f172a;
+@layer components {
+  /* Text inputs */
+  .field {
+    @apply h-[52px] w-full rounded-[10px] border border-line bg-white px-4 text-base text-ink;
+  }
+  /* Pill buttons */
+  .btn {
+    @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-[#0B1020];
+  }
+  .btn-plain {
+    @apply btn border border-line bg-white font-medium text-ink;
+  }
+  /* Small round icon button (close, step) */
+  .btn-round {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0F2F7] text-ink;
+  }
+  /* Small uppercase label */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.08em] text-muted;
+  }
 }
