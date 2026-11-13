@@ -1,68 +1,75 @@
-// Saved projects. They live in this browser's localStorage for now; when the backend
-// gains project storage, only this file needs to change.
+// Saved projects, stored in Supabase through the backend's /api/projects. Everyone sees the
+// same list (there is no login yet).
 //
-// Project: { id, name, desc, color, ra, dec, star, kind, bands, created }  (ra/dec in degrees)
+// Project (as the UI uses it): { id, name, desc, color, ra, dec, bands, created }  (ra/dec in degrees)
 
-import { useState } from 'react';
-import { SEED_PROJECTS, ALL_BANDS } from './targets';
+import { useEffect, useState } from 'react';
+import { createProject, listProjects, patchProject, removeProject } from '../services/api';
 
-const KEY = 'skyflip_projects';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY));
-    if (Array.isArray(saved)) return saved;
-  } catch {
-    // Unreadable or blocked storage: fall through to the examples.
-  }
-  return SEED_PROJECTS;
-}
-
-function store(list) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    // Storage full or blocked: the projects still work until the page is closed.
-  }
-}
-
-function today() {
-  const d = new Date();
+function fmtCreated(iso) {
+  const d = new Date(iso);
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// API row -> UI project. Ids are strings so they compare with the ?project= address-bar value.
+function fromApi(p) {
+  return { id: String(p.id), name: p.name, desc: p.description, color: p.color, ra: p.ra_deg, dec: p.dec_deg, bands: p.bands, created: fmtCreated(p.created_at) };
+}
+
+// UI fields -> API fields, leaving out anything not given.
+function toApi(fields) {
+  const names = { name: 'name', desc: 'description', color: 'color', ra: 'ra_deg', dec: 'dec_deg', bands: 'bands' };
+  return Object.fromEntries(Object.entries(names).filter(([k]) => fields[k] !== undefined).map(([k, api]) => [api, fields[k]]));
+}
+
+// The last list we saw, so moving between pages doesn't flash an empty map.
+let known = null;
+
 export function useProjects() {
-  const [projects, setProjects] = useState(load);
+  const [projects, setProjects] = useState(known || []);
+  const [loaded, setLoaded] = useState(known !== null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let current = true;
+    listProjects().then(
+      (rows) => {
+        if (!current) return;
+        known = rows.map(fromApi);
+        setProjects(known);
+        setLoaded(true);
+      },
+      (err) => current && setError(err.message)
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
 
   const save = (list) => {
+    known = list;
     setProjects(list);
-    store(list);
   };
 
   return {
     projects,
-    // fields: { name, desc, color, ra, dec, star?, kind?, bands? }. Returns the new id.
-    addProject(fields) {
-      const id = 'p' + Date.now();
-      save([
-        ...projects,
-        { star: 'Your own spot', kind: 'Custom position', bands: ALL_BANDS, ...fields, id, created: today() },
-      ]);
-      return id;
+    loaded,
+    error,
+    // fields: { name, desc, color, ra, dec, bands? }. Resolves to the new id.
+    async addProject(fields) {
+      const p = fromApi(await createProject(toApi(fields)));
+      save([...(known || []), p]);
+      return p.id;
     },
-    // Moving a project to a new position means it no longer watches its original star.
-    updateProject(id, fields) {
-      save(
-        projects.map((p) => {
-          if (p.id !== id) return p;
-          const moved = Math.abs(p.ra - fields.ra) > 1e-3 || Math.abs(p.dec - fields.dec) > 1e-3;
-          return { ...p, ...fields, ...(moved ? { star: 'Your own spot', kind: 'Custom position' } : {}) };
-        })
-      );
+    async updateProject(id, fields) {
+      const p = fromApi(await patchProject(id, toApi(fields)));
+      save((known || []).map((x) => (x.id === id ? p : x)));
     },
-    deleteProject(id) {
-      save(projects.filter((p) => p.id !== id));
+    async deleteProject(id) {
+      await removeProject(id);
+      save((known || []).filter((x) => x.id !== id));
     },
   };
 }

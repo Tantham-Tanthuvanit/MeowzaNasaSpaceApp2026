@@ -8,14 +8,14 @@ import { CloseIcon, InfoIcon } from './icons';
 
 // A small looping preview of the real pictures for a position.
 function MiniPreview({ ra, dec }) {
-  const { frames, error, loading } = useFrames(ra, dec);
+  const { frames, error, loading, progress } = useFrames(ra, dec);
   const { frame } = useFlipbook(frames.length, `${ra}|${dec}`);
   const current = frames[frame];
   return (
     <div role="img" aria-label={current ? `Preview, picture ${frame + 1} of ${frames.length}` : 'Preview'} className="relative h-[120px] overflow-hidden rounded-[10px] bg-[#04060D]">
       {current && <img src={current.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />}
       <span className="absolute left-2 top-2 rounded bg-[rgba(4,6,13,0.75)] px-1.5 py-0.5 font-mono text-xs text-[#E8ECF5]">
-        {current ? `Picture ${frame + 1} of ${frames.length} · ${fmtDate(current.timestamp)}` : loading ? 'Loading…' : error ? 'Preview unavailable' : ''}
+        {current ? `Picture ${frame + 1} of ${frames.length} · ${fmtDate(current.timestamp)}` : loading ? (progress ? `Downloading ${progress.cached_images} of ${progress.total_images}…` : 'Loading…') : error ? 'Preview unavailable' : ''}
       </span>
     </div>
   );
@@ -31,9 +31,6 @@ export function ProjectCard({ project, onClose, onEdit, onDelete }) {
           <span className="flex items-center gap-2.5">
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: project.color }} aria-hidden="true" />
             <h3 id="project-card-title" className="font-display text-[22px] font-medium leading-tight">{project.name}</h3>
-          </span>
-          <span className="text-sm leading-snug text-muted">
-            Watching <strong className="font-semibold text-ink">{project.star}</strong> · {project.kind}
           </span>
         </div>
         <button type="button" onClick={onClose} aria-label="Close project details" className="btn-round"><CloseIcon /></button>

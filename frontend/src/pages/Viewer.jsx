@@ -4,38 +4,31 @@ import FlipPlayer from '../components/FlipPlayer';
 import ProjectDialog from '../components/ProjectDialog';
 import { CheckIcon, PlusIcon } from '../components/icons';
 import { useProjects } from '../core/projects';
-import { BANDS, ALL_BANDS, DEFAULT_LOOK, toTarget, targetAt } from '../core/targets';
+import { BANDS, ALL_BANDS, DEFAULT_LOOK } from '../core/targets';
 import { parseRa, parseDec, fmtRa, fmtDec } from '../core/sky';
-import { fetchPresets, useFrames } from '../services/api';
-
-// Shown when the page is opened with no position: WISE 0855, the challenge's headline target.
-const START = { ra: 133.795129, dec: -7.245147 };
+import { useFrames } from '../services/api';
 
 export default function Viewer() {
   const [params, setParams] = useSearchParams();
   const { projects, addProject } = useProjects();
-  const [targets, setTargets] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  useEffect(() => {
-    fetchPresets().then((list) => setTargets(list.map(toTarget)), () => setTargets([]));
-  }, []);
-
-  // The position comes from the project, else from the address bar, else the starting star.
+  // The position comes from the project, else from the address bar, else none yet.
   const project = projects.find((p) => p.id === params.get('project')) || null;
   const urlRa = parseRa(params.get('ra')), urlDec = parseDec(params.get('dec'));
-  const { ra, dec } = project || (urlRa !== null && urlDec !== null ? { ra: urlRa, dec: urlDec } : START);
-  const target = targetAt(targets, ra, dec);
+  const { ra, dec } = project || (urlRa !== null && urlDec !== null ? { ra: urlRa, dec: urlDec } : { ra: null, dec: null });
+  const hasSpot = ra !== null && dec !== null;
 
   const bands = BANDS.filter((b) => (project ? project.bands : ALL_BANDS).includes(b.n));
   const band = bands.find((b) => String(b.n) === params.get('band')) || null; // null = all bands together
-  const { frames, error, loading, retry } = useFrames(ra, dec, band ? band.id : 'stacked');
+  const { frames, error, loading, progress, retry } = useFrames(ra, dec, band ? band.id : 'stacked');
 
   // The form holds what the visitor is typing; it follows the position when that changes.
   const [form, setForm] = useState({ ra: '', dec: '' });
   const [formError, setFormError] = useState('');
   useEffect(() => {
-    setForm({ ra: fmtRa(ra, true), dec: fmtDec(dec, true) });
+    setForm(hasSpot ? { ra: fmtRa(ra, true), dec: fmtDec(dec, true) } : { ra: '', dec: '' });
     setFormError('');
   }, [ra, dec]);
 
@@ -58,15 +51,19 @@ export default function Viewer() {
     setParams(next);
   };
 
-  const saveProject = (fields) => {
-    const star = targetAt(targets, fields.ra, fields.dec);
-    const id = addProject({ ...fields, ...(star ? { star: star.name, kind: star.kind } : {}) });
+  const saveProject = async (fields) => {
     setSaving(false);
-    setParams({ project: id });
+    try {
+      const id = await addProject(fields);
+      setSaveError('');
+      setParams({ project: id });
+    } catch (err) {
+      setSaveError(`Couldn’t save the project. ${err.message}`);
+    }
   };
 
-  const title = project ? project.name : target ? target.name : 'Your spot in the sky';
-  const kind = project ? 'Project' : target ? target.kind : 'Your choice';
+  const title = project ? project.name : 'Your spot in the sky';
+  const kind = project ? 'Project' : 'Your choice';
   const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
 
   return (
@@ -89,28 +86,6 @@ export default function Viewer() {
           <button type="submit" className="btn-primary h-[52px] text-base">Show me</button>
         </form>
 
-        {targets.length > 0 && (
-          <div className="flex flex-col gap-3 max-lg:order-2">
-            <h2 className="eyebrow text-[13px] tracking-[0.1em]">Or try one of these</h2>
-            <div className="flex flex-col gap-2">
-              {targets.map((t) => {
-                const on = !project && target && target.id === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => goTo(t.ra, t.dec)}
-                    aria-pressed={!!on}
-                    className={`flex min-h-14 flex-wrap items-center justify-between gap-x-3 rounded-[10px] border px-[18px] py-2 text-left ${on ? 'border-accent bg-[#FFF1E6]' : 'border-soft'}`}
-                  >
-                    <span className="text-base font-medium">{t.name}</span>
-                    <span className="text-[13px] text-muted">{t.kind}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </aside>
 
       <section aria-label="Image player" className="flex min-w-0 flex-col items-center gap-4 max-lg:order-1">
@@ -119,8 +94,10 @@ export default function Viewer() {
           loading={loading}
           error={error}
           onRetry={retry}
+          progress={progress}
+          emptyText={hasSpot ? '' : 'Type a position on the left and press Show me.'}
           resetKey={`${ra}|${dec}`}
-          label={`Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)}`}
+          label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)}` : 'No position chosen yet'}
           bandDot={band ? band.color : '#FFFFFF'}
           bandLabel={band ? `Band ${band.n} · ${band.range} µm` : 'All bands combined'}
         />
@@ -149,26 +126,24 @@ export default function Viewer() {
             {project && <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: project.color }} aria-hidden="true" />}
             {title}
           </h2>
-          {project && (
-            <span className="text-[15px] text-muted">
-              Watching <strong className="font-semibold text-ink">{project.star}</strong> · {project.kind}
-            </span>
-          )}
           {project && project.desc && <p className="text-[15px] leading-relaxed text-body">{project.desc}</p>}
 
-          <div className="flex flex-col gap-1 pt-1.5">
-            <span className="eyebrow">Position · EQ-J2000</span>
-            <span className="font-mono text-sm text-body">RA&nbsp; {fmtRa(ra)}</span>
-            <span className="font-mono text-sm text-body">Dec {fmtDec(dec)}</span>
-          </div>
+          {hasSpot && (
+            <div className="flex flex-col gap-1 pt-1.5">
+              <span className="eyebrow">Position · EQ-J2000</span>
+              <span className="font-mono text-sm text-body">RA&nbsp; {fmtRa(ra)}</span>
+              <span className="font-mono text-sm text-body">Dec {fmtDec(dec)}</span>
+            </div>
+          )}
 
           {project ? (
             <Link to={`/?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
-          ) : (
+          ) : hasSpot && (
             <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-white text-ink">
               <PlusIcon />Save as project
             </button>
           )}
+          {saveError && <p role="alert" className="text-sm font-medium text-danger">{saveError}</p>}
 
           <div className="flex flex-col gap-2 pt-2.5">
             <span className="text-[13px] font-semibold text-muted">Spectral coverage</span>
@@ -185,7 +160,7 @@ export default function Viewer() {
 
         <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
           <h3 className="text-[17px] font-semibold">What to watch for</h3>
-          <p className="text-[15px] leading-relaxed text-muted">{target ? target.look : DEFAULT_LOOK}</p>
+          <p className="text-[15px] leading-relaxed text-muted">{DEFAULT_LOOK}</p>
         </div>
 
         <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
@@ -196,7 +171,7 @@ export default function Viewer() {
         </div>
 
         <p className="text-[13px] leading-relaxed text-muted">
-          SkyFlip is built for pictures from NASA’s SPHEREx space telescope (NASA / Caltech-IPAC). The pictures shown today are simulated while the real ones are being connected.
+          These are real pictures from NASA’s SPHEREx space telescope, from the NASA/IPAC Infrared Science Archive. The first look at a new spot takes a minute or two while the pictures download; after that it opens straight away.
         </p>
       </aside>
 

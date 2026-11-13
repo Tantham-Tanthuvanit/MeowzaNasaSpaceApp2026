@@ -30,6 +30,21 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/viewer" element={<Viewer />} />
       </Routes>
+      <footer className="mt-auto border-t border-[#E1E5EE] bg-white">
+        <div className="mx-auto flex max-w-[1720px] flex-col gap-1.5 px-4 py-5 text-[13px] leading-relaxed text-muted sm:px-8">
+          <h2 className="font-semibold text-body">Data credits</h2>
+          <p>
+            This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of
+            Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California
+            Institute of Technology, and is funded by the National Aeronautics and Space Administration. SPHEREx data from the
+            NASA/IPAC Infrared Science Archive (IRSA).
+          </p>
+          <p>
+            Star catalogues: Gaia DR3 (ESA/Gaia/DPAC, licensed CC BY-NC 3.0 IGO) and AllWISE (Wide-field Infrared Survey Explorer,
+            a joint project of UCLA and JPL/Caltech, funded by NASA), both served by IRSA.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
