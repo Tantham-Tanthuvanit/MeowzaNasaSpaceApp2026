@@ -63,6 +63,13 @@ class TestFlaskEndpoints(unittest.TestCase):
         self.assertTrue(data["target_aligned"])
         self.assertEqual(data["filter_mode"], "sharpen")
 
+    def test_flask_pixel_to_radec(self):
+        resp = self.client.get("/api/pixel-to-radec?pixel_x=128&pixel_y=128&center_ra=133.795&center_dec=-7.245&fov=5.0")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertAlmostEqual(data["ra_deg"], 133.795, places=2)
+        self.assertAlmostEqual(data["dec_deg"], -7.245, places=2)
+
 
 if __name__ == "__main__":
     unittest.main()

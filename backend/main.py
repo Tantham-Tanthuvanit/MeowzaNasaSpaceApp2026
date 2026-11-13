@@ -159,6 +159,31 @@ def get_sky_cutout(
         raise HTTPException(status_code=400, detail=f"Failed to process celestial coordinates or cutouts: {str(e)}")
 
 
+@app.get("/api/pixel-to-radec")
+def get_pixel_to_radec(
+    pixel_x: float = Query(..., description="Canvas X pixel coordinate (0 to 256)"),
+    pixel_y: float = Query(..., description="Canvas Y pixel coordinate (0 to 256)"),
+    center_ra: str = Query(..., description="Field center RA"),
+    center_dec: str = Query(..., description="Field center Dec"),
+    fov: float = Query(5.0, description="Field of View in arcminutes")
+):
+    """
+    Translates a 2D canvas pixel coordinate back to celestial RA/Dec for Citizen Science candidate flagging.
+    """
+    try:
+        center_info = coordinates.parse_coordinates(center_ra, center_dec)
+        astrometry = coordinates.pixel_to_radec(
+            pixel_x=pixel_x,
+            pixel_y=pixel_y,
+            center_ra_deg=center_info["ra_deg"],
+            center_dec_deg=center_info["dec_deg"],
+            fov_arcmin=fov
+        )
+        return astrometry
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to calculate astrometry from pixel: {str(e)}")
+
+
 @app.get("/api/shift-and-add")
 def get_shift_and_add(
     ra: str = Query(..., description="Right Ascension"),

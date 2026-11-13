@@ -16,6 +16,7 @@ Also provides pre-configured test targets specified by the NASA Space Apps Chall
 
 from typing import Dict, Any, List, Optional
 import re
+import math
 import numpy as np
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -214,3 +215,33 @@ def get_preset_by_id(preset_id: str) -> Optional[Dict[str, Any]]:
         if preset["id"] == preset_id:
             return preset
     return None
+
+
+def pixel_to_radec(
+    pixel_x: float,
+    pixel_y: float,
+    center_ra_deg: float,
+    center_dec_deg: float,
+    fov_arcmin: float = 5.0,
+    dim: int = 256
+) -> Dict[str, Any]:
+    """
+    Translates 2D canvas pixel coordinates back into celestial Right Ascension and Declination.
+    Used for citizen science click-to-flag candidate identification and Minor Planet Center dossiers.
+    """
+    center_px = dim / 2.0
+    deg_per_px = (float(fov_arcmin) / 60.0) / float(dim)
+    dx = float(pixel_x) - center_px
+    dy = float(pixel_y) - center_px
+
+    dec_rad = math.radians(center_dec_deg)
+    cos_dec = max(math.cos(dec_rad), 1e-4)
+
+    delta_ra = -(dx * deg_per_px) / cos_dec
+    delta_dec = -(dy * deg_per_px)
+
+    ra_deg = (center_ra_deg + delta_ra) % 360.0
+    dec_deg = max(-90.0, min(90.0, center_dec_deg + delta_dec))
+
+    return parse_coordinates(str(ra_deg), str(dec_deg))
+

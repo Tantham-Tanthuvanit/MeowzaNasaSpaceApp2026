@@ -3,6 +3,7 @@ import SearchBar from './components/SearchBar';
 import SkyViewer from './components/SkyViewer';
 import TimelineSlider from './components/TimelineSlider';
 import SpectrumChart from './components/SpectrumChart';
+import { FlaggedDiscoveriesPanel } from './components/FlaggedDiscoveries';
 import { fetchPresets, fetchSkyCutout, syncUrlWithQuery, readInitialUrlParams } from './services/api';
 import { Telescope, Satellite, Radio, Info, Compass, Sparkles, AlertCircle } from 'lucide-react';
 
@@ -22,6 +23,49 @@ export default function App() {
   const [presets, setPresets] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  // Citizen Science Flagged Candidates State (with LocalStorage persistence)
+  const [flaggedCandidates, setFlaggedCandidates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('spherex_flagged_candidates');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleFlagCandidate = (newCandidate) => {
+    setFlaggedCandidates((prev) => {
+      const updated = [newCandidate, ...prev];
+      try {
+        localStorage.setItem('spherex_flagged_candidates', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to persist flagged candidate:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleDeleteCandidate = (candidateId) => {
+    setFlaggedCandidates((prev) => {
+      const updated = prev.filter((c) => c.id !== candidateId);
+      try {
+        localStorage.setItem('spherex_flagged_candidates', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to update persisted candidates:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleClearAllCandidates = () => {
+    setFlaggedCandidates([]);
+    try {
+      localStorage.removeItem('spherex_flagged_candidates');
+    } catch (err) {
+      console.error('Failed to clear persisted candidates:', err);
+    }
+  };
 
   // Playback & Viewport States
   const [currentEpochIndex, setCurrentEpochIndex] = useState(0);
@@ -195,9 +239,20 @@ export default function App() {
               targetInfo={skyData.target_info}
               fov={fov}
               catalogOverlay={skyData.catalog_overlay || []}
+              candidates={flaggedCandidates}
+              onFlagCandidate={handleFlagCandidate}
+              onDeleteCandidate={handleDeleteCandidate}
               currentEpochIndex={currentEpochIndex}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+            />
+
+            {/* 2.5 Citizen Science Flagged Discoveries Log & NASA Dossier Export */}
+            <FlaggedDiscoveriesPanel
+              candidates={flaggedCandidates}
+              onDeleteCandidate={handleDeleteCandidate}
+              onClearAll={handleClearAllCandidates}
+              targetInfo={skyData.target_info}
             />
 
             {/* 3. Multi-Frame Epoch Timeline Slider & Video Player */}

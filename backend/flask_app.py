@@ -137,6 +137,34 @@ def get_sky_cutout():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/pixel-to-radec")
+def get_pixel_to_radec():
+    """
+    Translates a 2D canvas pixel coordinate back to celestial RA/Dec for Citizen Science candidate flagging.
+    """
+    pixel_x = request.args.get("pixel_x")
+    pixel_y = request.args.get("pixel_y")
+    center_ra = request.args.get("center_ra")
+    center_dec = request.args.get("center_dec")
+    fov = float(request.args.get("fov", 5.0))
+
+    if None in (pixel_x, pixel_y, center_ra, center_dec):
+        return jsonify({"error": "Missing required query parameters: pixel_x, pixel_y, center_ra, center_dec"}), 400
+
+    try:
+        center_info = coordinates.parse_coordinates(center_ra, center_dec)
+        astrometry = coordinates.pixel_to_radec(
+            pixel_x=float(pixel_x),
+            pixel_y=float(pixel_y),
+            center_ra_deg=center_info["ra_deg"],
+            center_dec_deg=center_info["dec_deg"],
+            fov_arcmin=fov
+        )
+        return jsonify(astrometry)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/shift-and-add")
 def get_shift_and_add():
     """

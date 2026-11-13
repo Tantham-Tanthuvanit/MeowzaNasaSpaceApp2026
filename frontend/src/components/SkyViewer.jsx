@@ -19,9 +19,14 @@ import {
   Contrast,
   Sliders,
   Target,
-  Zap
+  Zap,
+  Flag,
+  MapPin,
+  Trash2
 } from 'lucide-react';
 import { fetchShiftAndAdd } from '../services/api';
+import { pixelToRaDec } from '../services/astrometry';
+import { FlagCandidateModal } from './FlaggedDiscoveries';
 
 export default function SkyViewer({
   epochs = [],
@@ -31,6 +36,9 @@ export default function SkyViewer({
   targetInfo,
   fov,
   catalogOverlay = [],
+  candidates = [],
+  onFlagCandidate,
+  onDeleteCandidate,
   currentEpochIndex,
   viewMode, // 'single', 'diff', 'split', or 'shift'
   onViewModeChange
@@ -39,6 +47,11 @@ export default function SkyViewer({
   const [showCatalogOverlay, setShowCatalogOverlay] = useState(true);
   const [hoveredSource, setHoveredSource] = useState(null);
   
+  // Citizen Science Click-to-Flag Candidate State
+  const [isFlaggingActive, setIsFlaggingActive] = useState(false);
+  const [pendingFlag, setPendingFlag] = useState(null);
+  const [hoveredFlag, setHoveredFlag] = useState(null);
+
   // Catalog / Candidate Screening Filter: 'all', 'gaia_dr3', 'allwise', 'optical_dropout', 'high_pm'
   const [catalogFilter, setCatalogFilter] = useState('all');
   
@@ -101,7 +114,7 @@ export default function SkyViewer({
       const res = await fetchShiftAndAdd({
         ra: (targetInfo.ra_hms || targetInfo.ra_deg).toString(),
         dec: (targetInfo.dec_dms || targetInfo.dec_deg).toString(),
-        fov: targetInfo.fov_arcmin || 5.0,
+        fov: currentFov,
         shiftX: vx,
         shiftY: vy,
         bandGroup: targetInfo.band_group || 'stacked',
@@ -121,13 +134,52 @@ export default function SkyViewer({
     }
   };
 
+  // Handle direct click on astronomical canvas to flag a discovery candidate
+  const handleCanvasClick = (e) => {
+    if (!isFlaggingActive) return;
+    // If clicking on an existing source or flag reticle, let the element handle it
+    if (e.target.closest('button[data-flag-pin="true"]') || e.target.closest('button[data-catalog-source="true"]')) {
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // Normalize to 0-256 pixel grid
+    const pixelX = Math.max(0, Math.min(256, (clickX / rect.width) * 256.0));
+    const pixelY = Math.max(0, Math.min(256, (clickY / rect.height) * 256.0));
+
+    const centerRa = targetInfo?.ra_deg || 133.795129;
+    const centerDec = targetInfo?.dec_deg || -7.245147;
+    const fovVal = currentFov || 5.0;
+
+    const astrometry = pixelToRaDec(pixelX, pixelY, centerRa, centerDec, fovVal, 256);
+
+    const activeViewLabel = isShiftMode 
+      ? `Shift & Add (Vx=${shiftVx.toFixed(2)}, Vy=${shiftVy.toFixed(2)})`
+      : isDiffMode 
+      ? `Difference (${diffPair.replace(/_/g, ' ')})`
+      : `Epoch ${currentEpochIndex + 1} (${currentEpoch?.timestamp || '2025-06-15'})`;
+
+    setPendingFlag({
+      pixelX,
+      pixelY,
+      raDeg: astrometry.raDeg,
+      decDeg: astrometry.decDeg,
+      raHms: astrometry.raHms,
+      decDms: astrometry.decDms,
+      epochLabel: activeViewLabel,
+      bandGroup: targetInfo?.band_group || 'stacked'
+    });
+  };
+
   // Filter sources according to active catalog & candidate screening filter
   const visibleSources = catalogOverlay.filter((s) => {
     if (catalogFilter === 'all') return true;
     if (catalogFilter === 'gaia_dr3') return s.catalog === 'Gaia DR3';
     if (catalogFilter === 'allwise') return s.catalog === 'AllWISE';
     if (catalogFilter === 'optical_dropout') {
-      // Planet X / Cold Brown Dwarf Test: Exclude optical Gaia stars, show only infrared / BD candidates
       return s.catalog !== 'Gaia DR3' || s.is_brown_dwarf_candidate;
     }
     if (catalogFilter === 'high_pm') {
@@ -220,7 +272,26 @@ export default function SkyViewer({
             </button>
           </div>
 
-          {/* WiseView Inverted Contrast Toggle (Black stars on white background) */}
+          {/* Citizen Science: Click-to-Flag Candidate Button */}
+          <button
+            onClick={() => setIsFlaggingActive(!isFlaggingActive)}
+            className={`px-3 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 transition-all ${
+              isFlaggingActive
+                ? 'bg-rose-500 text-white border-rose-400 font-semibold shadow-md shadow-rose-500/30 animate-pulse'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-rose-400/50'
+            }`}
+            title="Click to Flag: Activate targeting crosshair and click anywhere on the canvas to log a new discovery"
+          >
+            <Flag className={`w-3.5 h-3.5 ${isFlaggingActive ? 'text-white' : 'text-rose-400'}`} />
+            <span>{isFlaggingActive ? 'Click Image to Pin...' : 'Flag Candidate'}</span>
+            {candidates.length > 0 && (
+              <span className="text-[10px] bg-rose-950 text-rose-300 border border-rose-500/50 px-1.5 py-0.2 rounded-full font-mono font-bold">
+                {candidates.length}
+              </span>
+            )}
+          </button>
+
+          {/* WiseView Inverted Contrast Toggle */}
           <button
             onClick={() => setIsInverted(!isInverted)}
             className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 transition-all ${
@@ -245,7 +316,7 @@ export default function SkyViewer({
             </span>
             {[
               { id: 'normal', label: 'Raw' },
-              { id: 'smooth', label: 'Smooth (Gaussian)' },
+              { id: 'smooth', label: 'Smooth' },
               { id: 'sharpen', label: 'Sharpen' },
               { id: 'high_contrast', label: 'Hi-Contrast' }
             ].map((f) => (
@@ -274,7 +345,7 @@ export default function SkyViewer({
             title="Toggle Gaia DR3 and AllWISE catalog overlay reticles"
           >
             <Satellite className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Catalog Overlays</span>
+            <span>Overlays</span>
             {catalogOverlay.length > 0 && (
               <span className="text-[10px] bg-slate-800 px-1.5 py-0.2 rounded font-mono text-emerald-300">
                 {visibleSources.length}/{catalogOverlay.length}
@@ -332,7 +403,7 @@ export default function SkyViewer({
         </div>
       </div>
 
-      {/* 2. Sub-Toolbar: Epoch Difference Pair Selector (Visible in Diff Mode) */}
+      {/* 2. Sub-Toolbar: Epoch Difference Pair Selector */}
       {isDiffMode && (
         <div className="mt-3 pt-2 pb-1 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
@@ -366,7 +437,7 @@ export default function SkyViewer({
         </div>
       )}
 
-      {/* 3. Sub-Toolbar: Shift-and-Add Search Engine Controls (Visible in Shift Mode) */}
+      {/* 3. Sub-Toolbar: Shift-and-Add Search Engine Controls */}
       {isShiftMode && (
         <div className="mt-3 p-3 bg-slate-900/80 border border-emerald-500/30 rounded-xl flex flex-wrap items-center justify-between gap-4 text-xs">
           <div className="flex flex-wrap items-center gap-4">
@@ -459,8 +530,17 @@ export default function SkyViewer({
 
       {/* 4. Interactive Astronomical Display Canvas */}
       <div className="relative my-4 flex items-center justify-center min-h-[380px] md:min-h-[460px] bg-slate-950/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner">
+        {/* Click-to-Flag Mode Floating Instruction Banner */}
+        {isFlaggingActive && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-rose-950/90 border border-rose-400 text-rose-200 px-4 py-1.5 rounded-full text-xs flex items-center gap-2 backdrop-blur-md shadow-2xl animate-bounce">
+            <Flag className="w-4 h-4 text-rose-400" />
+            <span className="font-semibold">Targeting Mode Active:</span>
+            <span>Click on any moving speck or dipole to pin a discovery</span>
+          </div>
+        )}
+
         {/* Contamination Alert Badge */}
-        {currentEpoch?.contamination_flag && !isDiffMode && !isShiftMode && (
+        {currentEpoch?.contamination_flag && !isDiffMode && !isShiftMode && !isFlaggingActive && (
           <div className="absolute top-3 right-3 z-30 bg-rose-950/80 border border-rose-500/60 text-rose-300 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 backdrop-blur-md shadow-lg animate-pulse">
             <AlertTriangle className="w-4 h-4 text-rose-400" />
             <span>Contamination Flag: Detector artifact or cosmic ray noted</span>
@@ -474,7 +554,7 @@ export default function SkyViewer({
           </div>
           <div>RA: <span className="text-white">{targetInfo?.ra_hms || targetInfo?.ra_deg}</span></div>
           <div>Dec: <span className="text-white">{targetInfo?.dec_dms || targetInfo?.dec_deg}</span></div>
-          <div>FOV: <span className="text-white">{targetInfo?.fov_arcmin}' arcmin</span></div>
+          <div>FOV: <span className="text-white">{Number(currentFov).toFixed(1)}' arcmin</span></div>
           <div className="text-amber-400 font-medium mt-0.5">
             {isShiftMode 
               ? `Shift-and-Add Search: Vx=${shiftVx.toFixed(2)}, Vy=${shiftVy.toFixed(2)}`
@@ -517,6 +597,49 @@ export default function SkyViewer({
             {hoveredSource.notes && (
               <p className="mt-1.5 text-[10px] text-amber-300/90 italic leading-snug border-t border-slate-800/80 pt-1">
                 {hoveredSource.notes}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Hovered Candidate Flag Popover */}
+        {hoveredFlag && (
+          <div
+            className="absolute z-40 bg-slate-950/95 border border-rose-400/80 rounded-xl p-3 text-xs shadow-2xl backdrop-blur-md max-w-[280px] pointer-events-auto animate-fadeIn"
+            style={{
+              left: `${Math.min(Math.max((hoveredFlag.pixelX / 256) * 100, 15), 85)}%`,
+              top: `${Math.max((hoveredFlag.pixelY / 256) * 100 - 15, 10)}%`,
+              transform: 'translate(-50%, -100%)'
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-1.5 border-b border-slate-800 pb-1">
+              <span className="font-semibold text-rose-400 flex items-center gap-1 font-mono">
+                <Flag className="w-3.5 h-3.5" />
+                <span>Candidate Discovery</span>
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteCandidate?.(hoveredFlag.id);
+                  setHoveredFlag(null);
+                }}
+                className="text-slate-400 hover:text-rose-400 p-0.5"
+                title="Remove candidate pin"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="font-mono text-[11px] text-slate-200 mb-1">
+              {hoveredFlag.id} &bull; <strong className="text-cyan-300">{hoveredFlag.category}</strong>
+            </div>
+            <div className="text-slate-400 space-y-0.5 font-mono text-[11px]">
+              <div>RA: <span className="text-white">{hoveredFlag.raHms}</span></div>
+              <div>Dec: <span className="text-white">{hoveredFlag.decDms}</span></div>
+              <div>Confidence: <span className="text-amber-400">{'★'.repeat(hoveredFlag.confidence || 4)}</span></div>
+            </div>
+            {hoveredFlag.notes && (
+              <p className="mt-1.5 text-[10px] text-slate-300 italic border-t border-slate-800 pt-1">
+                "{hoveredFlag.notes}"
               </p>
             )}
           </div>
@@ -568,10 +691,13 @@ export default function SkyViewer({
             </div>
           </div>
         ) : (
-          /* Single Continuous Unified Sky View or Difference Subtraction or Shift-and-Add Stack */
+          /* Single Continuous Sky View OR Difference Subtraction OR Shift-and-Add Stack */
           <div className="relative flex items-center justify-center p-4">
             <div 
-              className="relative rounded-lg overflow-hidden shadow-2xl transition-all duration-200 border border-slate-800"
+              onClick={handleCanvasClick}
+              className={`relative rounded-lg overflow-hidden shadow-2xl transition-all duration-200 border border-slate-800 ${
+                isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400 shadow-rose-500/20' : ''
+              }`}
               style={{ transform: `scale(${zoomLevel})` }}
             >
               <img
@@ -593,6 +719,36 @@ export default function SkyViewer({
                 className="max-h-[440px] aspect-square object-contain block select-none pointer-events-none transition-all duration-150"
               />
 
+              {/* Citizen Science Flagged Candidate Pins */}
+              {candidates.map((cand, idx) => (
+                <button
+                  key={cand.id || idx}
+                  data-flag-pin="true"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHoveredFlag(hoveredFlag?.id === cand.id ? null : cand);
+                  }}
+                  onMouseEnter={() => setHoveredFlag(cand)}
+                  onMouseLeave={() => setHoveredFlag(null)}
+                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2 group focus:outline-none cursor-pointer"
+                  style={{
+                    left: `${(cand.pixelX / 256) * 100}%`,
+                    top: `${(cand.pixelY / 256) * 100}%`
+                  }}
+                  title={`Flag #${idx + 1}: ${cand.category} (${cand.raHms}, ${cand.decDms})`}
+                >
+                  <div className="relative flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full border-2 border-rose-400 bg-rose-500/20 flex items-center justify-center animate-pulse shadow-[0_0_12px_#f43f5e]">
+                      <div className="w-2 h-2 rounded-full bg-rose-400"></div>
+                    </div>
+                    <div className="absolute -top-3.5 -right-3.5 px-1.5 py-0.2 rounded bg-rose-600 border border-white text-white font-mono text-[9px] font-bold shadow-md">
+                      🚩#{idx + 1}
+                    </div>
+                  </div>
+                </button>
+              ))}
+
               {/* Gaia DR3 & AllWISE Catalog Overlays */}
               {showCatalogOverlay && visibleSources.map((source, idx) => {
                 const isGaia = source.catalog === 'Gaia DR3';
@@ -603,9 +759,13 @@ export default function SkyViewer({
                   <button
                     key={source.id || idx}
                     type="button"
+                    data-catalog-source="true"
                     onMouseEnter={() => setHoveredSource(source)}
                     onMouseLeave={() => setHoveredSource(null)}
-                    onClick={() => setHoveredSource(source)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHoveredSource(source);
+                    }}
                     className="absolute z-20 -translate-x-1/2 -translate-y-1/2 group focus:outline-none cursor-pointer"
                     style={{
                       left: `${(source.pixel_x / 256) * 100}%`,
@@ -696,7 +856,7 @@ export default function SkyViewer({
               <span>AllWISE (Infrared)</span>
             </button>
 
-            {/* Optical Dropout Filter: The Planet X / Cold Brown Dwarf Test */}
+            {/* Optical Dropout Filter */}
             <button
               onClick={() => setCatalogFilter(catalogFilter === 'optical_dropout' ? 'all' : 'optical_dropout')}
               className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] mono transition-all border ${
@@ -726,6 +886,19 @@ export default function SkyViewer({
           </div>
         )}
       </div>
+
+      {/* 6. Click-to-Flag Candidate Confirmation Modal */}
+      {pendingFlag && (
+        <FlagCandidateModal
+          pendingFlag={pendingFlag}
+          onSave={(newCand) => {
+            onFlagCandidate?.(newCand);
+            setPendingFlag(null);
+            setIsFlaggingActive(false);
+          }}
+          onCancel={() => setPendingFlag(null)}
+        />
+      )}
     </div>
   );
 }
