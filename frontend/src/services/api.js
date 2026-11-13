@@ -119,6 +119,142 @@ export async function fetchShiftAndAdd({
 }
 
 /**
+ * Normalizes candidate record fields across backend snake_case and frontend camelCase.
+ */
+export function normalizeCandidate(c) {
+  if (!c) return null;
+  return {
+    ...c,
+    id: c.id,
+    raDeg: c.ra_deg !== undefined ? c.ra_deg : c.raDeg,
+    decDeg: c.dec_deg !== undefined ? c.dec_deg : c.decDeg,
+    raHms: c.ra_hms || c.raHms || '',
+    decDms: c.dec_dms || c.decDms || '',
+    pixelX: c.pixel_x !== undefined ? c.pixel_x : (c.pixelX !== undefined ? c.pixelX : 128),
+    pixelY: c.pixel_y !== undefined ? c.pixel_y : (c.pixelY !== undefined ? c.pixelY : 128),
+    category: c.category || 'planet_x',
+    confidence: c.confidence !== undefined ? c.confidence : 4,
+    notes: c.notes || '',
+    observerCallsign: c.observer_callsign || c.observerCallsign || 'Citizen Scientist',
+    targetPreset: c.target_preset || c.targetPreset || '',
+    bandGroup: c.band_group || c.bandGroup || 'stacked',
+    epochLabel: c.epoch_label || c.epochLabel || '',
+    upvotes: c.upvotes !== undefined ? c.upvotes : 1,
+    createdAt: c.created_at || c.createdAt || c.flaggedAt || new Date().toISOString()
+  };
+}
+
+/**
+ * Fetch candidates stored in the embedded SQLite database.
+ */
+export async function fetchCandidatesApi({ category, ra, dec, radiusDeg } = {}) {
+  const query = new URLSearchParams();
+  if (category && category !== 'all') query.set('category', category);
+  if (ra !== undefined && ra !== null) query.set('ra', ra.toString());
+  if (dec !== undefined && dec !== null) query.set('dec', dec.toString());
+  if (radiusDeg !== undefined && radiusDeg !== null) query.set('radius_deg', radiusDeg.toString());
+
+  try {
+    const res = await fetch(`${API_BASE}/api/candidates?${query.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeCandidate) : [];
+  } catch (err) {
+    console.warn('[API Service] Failed to fetch candidates from DB:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Persist a newly flagged candidate to the database.
+ */
+export async function createCandidateApi(candidateData) {
+  const payload = {
+    id: candidateData.id,
+    ra_deg: candidateData.raDeg ?? candidateData.ra_deg,
+    dec_deg: candidateData.decDeg ?? candidateData.dec_deg,
+    ra_hms: candidateData.raHms || candidateData.ra_hms || '',
+    dec_dms: candidateData.decDms || candidateData.dec_dms || '',
+    pixel_x: candidateData.pixelX ?? candidateData.pixel_x ?? 128.0,
+    pixel_y: candidateData.pixelY ?? candidateData.pixel_y ?? 128.0,
+    category: candidateData.category || 'planet_x',
+    confidence: candidateData.confidence ?? 4,
+    notes: candidateData.notes || '',
+    observer_callsign: candidateData.observerCallsign || candidateData.observer_callsign || 'Citizen Scientist',
+    target_preset: candidateData.targetPreset || candidateData.target_preset || '',
+    band_group: candidateData.bandGroup || candidateData.band_group || 'stacked',
+    epoch_label: candidateData.epochLabel || candidateData.epoch_label || '',
+    upvotes: candidateData.upvotes ?? 1
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/candidates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return normalizeCandidate(data);
+  } catch (err) {
+    console.warn('[API Service] Failed to save candidate to DB:', err.message);
+    return normalizeCandidate(payload);
+  }
+}
+
+/**
+ * Cast a community corroboration vote for a candidate.
+ */
+export async function voteCandidateApi(candidateId, { voteType = 'corroborate', voterCallsign = 'Citizen Scientist', comment = '' } = {}) {
+  try {
+    const res = await fetch(`${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vote_type: voteType,
+        voter_callsign: voterCallsign,
+        comment
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return normalizeCandidate(data);
+  } catch (err) {
+    console.warn('[API Service] Failed to record vote:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Delete a candidate from the database.
+ */
+export async function deleteCandidateApi(candidateId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[API Service] Failed to delete candidate:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Fetch official Minor Planet Center (MPC) formatted batch report from database.
+ */
+export async function fetchMpcDossierApi() {
+  try {
+    const res = await fetch(`${API_BASE}/api/candidates/export-mpc`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } catch (err) {
+    console.warn('[API Service] Failed to fetch MPC export:', err.message);
+    return null;
+  }
+}
+
+/**
  * Helper to update browser URL query params without triggering a page reload.
  */
 export function syncUrlWithQuery(ra, dec, fov, band) {

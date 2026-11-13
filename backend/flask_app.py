@@ -9,11 +9,12 @@ Alternative Flask runner implementing identical REST API endpoints:
 """
 
 import os
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 
 import coordinates
 import image_processor
+import database
 import numpy as np
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
 from catalog_service import catalog_service
@@ -247,6 +248,86 @@ def get_shift_and_add():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+# ---------------------------------------------------------------------------
+# Citizen Science Discovery Database Endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/candidates", methods=["GET"])
+def list_candidates():
+    """Retrieve community flagged candidates with optional category or spatial radius filtering."""
+    try:
+        category = request.args.get("category")
+        ra = request.args.get("ra", type=float)
+        dec = request.args.get("dec", type=float)
+        radius_deg = request.args.get("radius_deg", type=float)
+
+        candidates = database.get_candidates(category=category, ra_deg=ra, dec_deg=dec, radius_deg=radius_deg)
+        return jsonify(candidates)
+    except Exception as e:
+        return jsonify({"error": f"Database query failed: {str(e)}"}), 500
+
+
+@app.route("/api/candidates", methods=["POST"])
+def create_candidate():
+    """Store a newly flagged citizen science candidate discovery."""
+    try:
+        payload = request.get_json() or {}
+        if "ra_deg" not in payload or "dec_deg" not in payload:
+            return jsonify({"error": "Missing required fields: ra_deg, dec_deg"}), 400
+
+        created = database.add_candidate(payload)
+        return jsonify(created), 201
+    except Exception as e:
+        return jsonify({"error": f"Failed to record candidate discovery: {str(e)}"}), 400
+
+
+@app.route("/api/candidates/export-mpc", methods=["GET"])
+def export_mpc():
+    """Export all verified candidates formatted for Minor Planet Center (MPC) & NASA submission."""
+    try:
+        dossier = database.export_mpc_dossier()
+        return Response(dossier, mimetype="text/plain; charset=utf-8")
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate MPC export: {str(e)}"}), 500
+
+
+@app.route("/api/candidates/<candidate_id>", methods=["GET"])
+def get_candidate(candidate_id):
+    """Retrieve details and community corroboration history for a specific candidate."""
+    cand = database.get_candidate_by_id(candidate_id)
+    if not cand:
+        return jsonify({"error": f"Candidate {candidate_id} not found"}), 404
+    return jsonify(cand)
+
+
+@app.route("/api/candidates/<candidate_id>/vote", methods=["POST"])
+def cast_candidate_vote(candidate_id):
+    """Corroborate or peer-review a candidate discovery with a community vote."""
+    payload = request.get_json() or {}
+    vote_type = payload.get("vote_type", "corroborate")
+    voter_callsign = payload.get("voter_callsign", "Citizen Scientist")
+    comment = payload.get("comment", "")
+
+    updated = database.vote_candidate(
+        candidate_id,
+        vote_type=vote_type,
+        voter_callsign=voter_callsign,
+        comment=comment
+    )
+    if not updated:
+        return jsonify({"error": f"Candidate {candidate_id} not found"}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/candidates/<candidate_id>", methods=["DELETE"])
+def delete_candidate_endpoint(candidate_id):
+    """Remove a candidate discovery from the database."""
+    success = database.delete_candidate(candidate_id)
+    if not success:
+        return jsonify({"error": f"Candidate {candidate_id} not found"}), 404
+    return jsonify({"status": "deleted", "id": candidate_id})
 
 
 if __name__ == "__main__":

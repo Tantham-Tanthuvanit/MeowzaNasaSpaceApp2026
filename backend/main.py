@@ -11,13 +11,16 @@ Configured with CORS middleware to allow seamless frontend integration.
 """
 
 import os
-from typing import Optional
-from fastapi import FastAPI, Query, HTTPException
+from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, Query, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 import coordinates
 import image_processor
+import database
 import numpy as np
 from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
 from catalog_service import catalog_service
@@ -263,6 +266,101 @@ def get_shift_and_add(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Shift-and-add failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Citizen Science Discovery Database Endpoints
+# ---------------------------------------------------------------------------
+
+class CandidatePayload(BaseModel):
+    id: Optional[str] = None
+    ra_deg: float
+    dec_deg: float
+    ra_hms: Optional[str] = ""
+    dec_dms: Optional[str] = ""
+    pixel_x: Optional[float] = 128.0
+    pixel_y: Optional[float] = 128.0
+    category: Optional[str] = "planet_x"
+    confidence: Optional[int] = 4
+    notes: Optional[str] = ""
+    observer_callsign: Optional[str] = "Citizen Scientist"
+    target_preset: Optional[str] = ""
+    band_group: Optional[str] = "stacked"
+    epoch_label: Optional[str] = ""
+    upvotes: Optional[int] = 1
+    created_at: Optional[str] = None
+
+
+class VotePayload(BaseModel):
+    vote_type: Optional[str] = "corroborate"
+    voter_callsign: Optional[str] = "Citizen Scientist"
+    comment: Optional[str] = ""
+
+
+@app.get("/api/candidates")
+def list_candidates(
+    category: Optional[str] = Query(None, description="Filter category: planet_x, brown_dwarf, variable_star, asteroid"),
+    ra: Optional[float] = Query(None, description="Center RA in degrees for cone search"),
+    dec: Optional[float] = Query(None, description="Center Dec in degrees for cone search"),
+    radius_deg: Optional[float] = Query(None, description="Cone search search radius in degrees")
+):
+    """Retrieve community flagged candidates with optional category or spatial radius filtering."""
+    try:
+        return database.get_candidates(category=category, ra_deg=ra, dec_deg=dec, radius_deg=radius_deg)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
+
+
+@app.post("/api/candidates", status_code=status.HTTP_201_CREATED)
+def create_candidate(candidate: CandidatePayload):
+    """Store a newly flagged citizen science candidate discovery."""
+    try:
+        cand_dict = candidate.model_dump() if hasattr(candidate, "model_dump") else candidate.dict()
+        return database.add_candidate(cand_dict)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to record candidate discovery: {str(e)}")
+
+
+@app.get("/api/candidates/export-mpc")
+def export_mpc():
+    """Export all verified candidates formatted for Minor Planet Center (MPC) & NASA submission."""
+    try:
+        dossier = database.export_mpc_dossier()
+        return PlainTextResponse(content=dossier, media_type="text/plain; charset=utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate MPC export: {str(e)}")
+
+
+@app.get("/api/candidates/{candidate_id}")
+def get_candidate(candidate_id: str):
+    """Retrieve details and community corroboration history for a specific candidate."""
+    cand = database.get_candidate_by_id(candidate_id)
+    if not cand:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+    return cand
+
+
+@app.post("/api/candidates/{candidate_id}/vote")
+def cast_candidate_vote(candidate_id: str, vote: VotePayload):
+    """Corroborate or peer-review a candidate discovery with a community vote."""
+    updated = database.vote_candidate(
+        candidate_id,
+        vote_type=vote.vote_type or "corroborate",
+        voter_callsign=vote.voter_callsign or "Citizen Scientist",
+        comment=vote.comment or ""
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+    return updated
+
+
+@app.delete("/api/candidates/{candidate_id}")
+def delete_candidate_endpoint(candidate_id: str):
+    """Remove a candidate discovery from the database."""
+    success = database.delete_candidate(candidate_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+    return {"status": "deleted", "id": candidate_id}
 
 
 if __name__ == "__main__":

@@ -70,6 +70,57 @@ class TestFlaskEndpoints(unittest.TestCase):
         self.assertAlmostEqual(data["ra_deg"], 133.795, places=2)
         self.assertAlmostEqual(data["dec_deg"], -7.245, places=2)
 
+    def test_flask_candidates_crud_flow(self):
+        # 1. List
+        resp = self.client.get("/api/candidates")
+        self.assertEqual(resp.status_code, 200)
+        initial_list = resp.get_json()
+        self.assertGreaterEqual(len(initial_list), 3)
+
+        # 2. Create
+        payload = {
+            "id": "SPX-FLASK-001",
+            "ra_deg": 162.328,
+            "dec_deg": -53.319,
+            "ra_hms": "10h49m18.720s",
+            "dec_dms": "-53d19m10.10s",
+            "pixel_x": 133.0,
+            "pixel_y": 131.0,
+            "category": "brown_dwarf",
+            "confidence": 5,
+            "notes": "Flask test suite candidate.",
+            "observer_callsign": "Flask Tester"
+        }
+        resp = self.client.post("/api/candidates", json=payload)
+        self.assertEqual(resp.status_code, 201)
+        created = resp.get_json()
+        self.assertEqual(created["id"], "SPX-FLASK-001")
+
+        # 3. Retrieve
+        resp = self.client.get("/api/candidates/SPX-FLASK-001")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["id"], "SPX-FLASK-001")
+
+        # 4. Vote
+        resp = self.client.post("/api/candidates/SPX-FLASK-001/vote", json={
+            "vote_type": "corroborate",
+            "voter_callsign": "Flask Peer",
+            "comment": "Corroborated in test suite"
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["upvotes"], created["upvotes"] + 1)
+
+        # 5. Export MPC
+        resp = self.client.get("/api/candidates/export-mpc")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("COD SPX", resp.get_data(as_text=True))
+        self.assertIn("SPX-FLASK-001", resp.get_data(as_text=True))
+
+        # 6. Delete
+        resp = self.client.delete("/api/candidates/SPX-FLASK-001")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "deleted")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,16 @@ import SkyViewer from './components/SkyViewer';
 import TimelineSlider from './components/TimelineSlider';
 import SpectrumChart from './components/SpectrumChart';
 import { FlaggedDiscoveriesPanel } from './components/FlaggedDiscoveries';
-import { fetchPresets, fetchSkyCutout, syncUrlWithQuery, readInitialUrlParams } from './services/api';
+import { 
+  fetchPresets, 
+  fetchSkyCutout, 
+  syncUrlWithQuery, 
+  readInitialUrlParams,
+  fetchCandidatesApi,
+  createCandidateApi,
+  voteCandidateApi,
+  deleteCandidateApi
+} from './services/api';
 import { Telescope, Satellite, Radio, Info, Compass, Sparkles, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -24,7 +33,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Citizen Science Flagged Candidates State (with LocalStorage persistence)
+  // Citizen Science Flagged Candidates State (with LocalStorage & SQLite database synchronization)
   const [flaggedCandidates, setFlaggedCandidates] = useState(() => {
     try {
       const saved = localStorage.getItem('spherex_flagged_candidates');
@@ -34,9 +43,13 @@ export default function App() {
     }
   });
 
-  const handleFlagCandidate = (newCandidate) => {
+  const handleFlagCandidate = async (newCandidate) => {
+    // 1. Persist to SQLite Database
+    const saved = await createCandidateApi(newCandidate);
+    // 2. Update React State & LocalStorage
     setFlaggedCandidates((prev) => {
-      const updated = [newCandidate, ...prev];
+      const filtered = prev.filter((c) => c.id !== saved.id);
+      const updated = [saved, ...filtered];
       try {
         localStorage.setItem('spherex_flagged_candidates', JSON.stringify(updated));
       } catch (err) {
@@ -46,7 +59,10 @@ export default function App() {
     });
   };
 
-  const handleDeleteCandidate = (candidateId) => {
+  const handleDeleteCandidate = async (candidateId) => {
+    // 1. Remove from SQLite Database
+    await deleteCandidateApi(candidateId);
+    // 2. Update React State & LocalStorage
     setFlaggedCandidates((prev) => {
       const updated = prev.filter((c) => c.id !== candidateId);
       try {
@@ -56,6 +72,22 @@ export default function App() {
       }
       return updated;
     });
+  };
+
+  const handleVoteCandidate = async (candidateId, voteData = {}) => {
+    // 1. Cast corroboration vote in SQLite Database
+    const updated = await voteCandidateApi(candidateId, voteData);
+    if (updated) {
+      setFlaggedCandidates((prev) => {
+        const list = prev.map((c) => (c.id === candidateId ? { ...c, ...updated } : c));
+        try {
+          localStorage.setItem('spherex_flagged_candidates', JSON.stringify(list));
+        } catch (err) {
+          console.error('Failed to update persisted candidates:', err);
+        }
+        return list;
+      });
+    }
   };
 
   const handleClearAllCandidates = () => {
@@ -101,11 +133,23 @@ export default function App() {
     []
   );
 
-  // 1. Initial Load: Presets & Initial Cutout
+  // 1. Initial Load: Presets, Database Candidates & Initial Cutout
   useEffect(() => {
     // Fetch benchmark test targets
     fetchPresets().then((data) => {
       if (Array.isArray(data)) setPresets(data);
+    });
+
+    // Fetch existing discovery candidates from SQLite database
+    fetchCandidatesApi().then((dbCandidates) => {
+      if (Array.isArray(dbCandidates) && dbCandidates.length > 0) {
+        setFlaggedCandidates(dbCandidates);
+        try {
+          localStorage.setItem('spherex_flagged_candidates', JSON.stringify(dbCandidates));
+        } catch (e) {
+          console.warn('Failed to cache db candidates to local storage:', e);
+        }
+      }
     });
 
     // Load initial sky patch (from URL params or default WISE 0855)
@@ -252,6 +296,7 @@ export default function App() {
               candidates={flaggedCandidates}
               onDeleteCandidate={handleDeleteCandidate}
               onClearAll={handleClearAllCandidates}
+              onVoteCandidate={handleVoteCandidate}
               targetInfo={skyData.target_info}
             />
 

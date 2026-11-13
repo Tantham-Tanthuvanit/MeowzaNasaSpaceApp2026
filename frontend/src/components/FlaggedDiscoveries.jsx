@@ -12,9 +12,13 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  AlertCircle
+  AlertCircle,
+  ThumbsUp,
+  User,
+  Database
 } from 'lucide-react';
 import { generateDiscoveryDossier } from '../services/astrometry';
+import { fetchMpcDossierApi } from '../services/api';
 
 export const CANDIDATE_CATEGORIES = [
   { id: 'planet_x', label: 'Planet X / TNO', color: 'from-purple-500 to-indigo-600', badge: 'bg-purple-500/20 text-purple-300 border-purple-400/50', icon: '🪐' },
@@ -35,16 +39,25 @@ export function FlagCandidateModal({
   const [category, setCategory] = useState('planet_x');
   const [notes, setNotes] = useState('');
   const [confidence, setConfidence] = useState(4);
+  const [observerCallsign, setObserverCallsign] = useState(() => {
+    return localStorage.getItem('spherex_observer_callsign') || 'Citizen Scientist';
+  });
 
   if (!pendingFlag) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const callsign = observerCallsign.trim() || 'Citizen Scientist';
+    try {
+      localStorage.setItem('spherex_observer_callsign', callsign);
+    } catch {}
+
     onSave({
-      id: `CAND-${Date.now().toString().slice(-6)}`,
+      id: `SPX-2026-${Date.now().toString().slice(-5)}`,
       category,
       notes: notes.trim(),
       confidence,
+      observerCallsign: callsign,
       pixelX: pendingFlag.pixelX,
       pixelY: pendingFlag.pixelY,
       raDeg: pendingFlag.raDeg,
@@ -139,6 +152,21 @@ export function FlagCandidateModal({
             />
           </div>
 
+          {/* Observer Callsign / Handle */}
+          <div>
+            <label className="block text-slate-300 font-medium mb-1">Citizen Scientist Callsign / Identifier:</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={observerCallsign}
+                onChange={(e) => setObserverCallsign(e.target.value)}
+                placeholder="e.g. Astronomer Alex, Backyard Worlds, SpaceApp#104"
+                className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-cyan-400 pl-8"
+              />
+              <User className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            </div>
+          </div>
+
           {/* Observer Notes */}
           <div>
             <label className="block text-slate-300 font-medium mb-1">Observation Notes (Optional):</label>
@@ -182,6 +210,7 @@ export function FlaggedDiscoveriesPanel({
   onDeleteCandidate,
   onClearAll,
   onSelectCandidate,
+  onVoteCandidate,
   targetInfo = {}
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -197,6 +226,22 @@ export function FlaggedDiscoveriesPanel({
     link.download = `SPHEREx_Discovery_Dossier_${Date.now()}.txt`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadMpc = async () => {
+    try {
+      const mpcText = await fetchMpcDossierApi();
+      if (!mpcText) return;
+      const blob = new Blob([mpcText], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `SPHEREx_MPC_Batch_Dossier_${Date.now()}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export MPC dossier:', err);
+    }
   };
 
   const handleDownloadJson = () => {
@@ -228,24 +273,33 @@ export function FlaggedDiscoveriesPanel({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-white tracking-wide">
-                Flagged Discovery Candidates
+                Community Discovery Database
               </h2>
               <span className="bg-rose-500/20 border border-rose-400/40 text-rose-300 font-mono text-xs px-2 py-0.2 rounded-full font-bold">
                 {candidates.length} {candidates.length === 1 ? 'Object' : 'Objects'}
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Interactive Citizen Science verification log ready for NASA Space Apps & IRSA submission
+              Interactive Citizen Science verification log backed by SQLite & ready for Minor Planet Center / NASA submission
             </p>
           </div>
         </div>
 
-        {/* Action Controls: Export Dossier, JSON, Clear */}
+        {/* Action Controls: Export Dossier, MPC, JSON, Clear */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleDownloadMpc}
+            className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
+            title="Download official Minor Planet Center (MPC) batch format directly from database"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Export MPC Format</span>
+          </button>
+
           <button
             onClick={handleDownloadDossier}
             className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
-            title="Download formatted NASA / MPC Verification Dossier"
+            title="Download formatted NASA / IRSA Verification Dossier"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export NASA Dossier (.txt)</span>
@@ -314,24 +368,40 @@ export function FlaggedDiscoveriesPanel({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Pixel:</span>
-                      <span className="text-slate-300 font-mono">({c.pixelX.toFixed(1)}, {c.pixelY.toFixed(1)})</span>
+                      <span className="text-slate-300 font-mono">({c.pixelX?.toFixed(1) ?? '128.0'}, {c.pixelY?.toFixed(1) ?? '128.0'})</span>
                     </div>
                     <div className="flex items-center justify-between text-amber-400">
                       <span className="text-slate-400">Confidence:</span>
                       <span>{'★'.repeat(c.confidence || 4)}{'☆'.repeat(5 - (c.confidence || 4))}</span>
                     </div>
+                    {c.observerCallsign && (
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800/60 pt-1">
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <User className="w-3 h-3" />
+                          <span>Observer:</span>
+                        </span>
+                        <span className="text-slate-300 font-sans truncate max-w-[130px]">{c.observerCallsign}</span>
+                      </div>
+                    )}
                   </div>
 
                   {c.notes && (
-                    <p className="text-[11px] text-slate-400 italic bg-slate-900/60 p-2 rounded border border-slate-800/80">
+                    <p className="text-[11px] text-slate-400 italic bg-slate-900/60 p-2 rounded border border-slate-800/80 mb-2">
                       "{c.notes}"
                     </p>
                   )}
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                  <span>Flagged at {c.flaggedAt}</span>
-                  <span className="text-cyan-400/80">Candidate #{idx + 1}</span>
+                <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                  <button
+                    onClick={() => onVoteCandidate && onVoteCandidate(c.id, { voteType: 'corroborate' })}
+                    className="flex items-center gap-1.5 px-2 py-0.5 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 rounded text-[11px] font-semibold transition-all shadow-sm"
+                    title="Corroborate this citizen science candidate detection"
+                  >
+                    <ThumbsUp className="w-3 h-3 text-cyan-400" />
+                    <span>Corroborate ({c.upvotes || 1})</span>
+                  </button>
+                  <span className="text-cyan-400/80">{c.id || `Candidate #${idx + 1}`}</span>
                 </div>
               </div>
             );

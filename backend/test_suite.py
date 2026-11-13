@@ -21,6 +21,7 @@ import numpy as np
 import coordinates
 import image_processor
 import data_loader
+import database
 from fastapi.testclient import TestClient
 from main import app
 
@@ -220,6 +221,102 @@ class TestAPIEndpoints(unittest.TestCase):
         data = resp.json()
         self.assertAlmostEqual(data["ra_deg"], 133.795, places=2)
         self.assertAlmostEqual(data["dec_deg"], -7.245, places=2)
+
+    def test_candidate_endpoints_flow(self):
+        # 1. List candidates
+        resp = self.client.get("/api/candidates")
+        self.assertEqual(resp.status_code, 200)
+        initial_list = resp.json()
+        self.assertGreaterEqual(len(initial_list), 3)
+
+        # 2. Create a test candidate
+        payload = {
+            "id": "SPX-TEST-0099",
+            "ra_deg": 133.80,
+            "dec_deg": -7.25,
+            "ra_hms": "08h55m12.000s",
+            "dec_dms": "-07d15m00.00s",
+            "pixel_x": 130.0,
+            "pixel_y": 130.0,
+            "category": "planet_x",
+            "confidence": 5,
+            "notes": "FastAPI test suite verification object.",
+            "observer_callsign": "Test Suite Runner",
+            "target_preset": "WISE 0855",
+            "band_group": "stacked"
+        }
+        resp = self.client.post("/api/candidates", json=payload)
+        self.assertEqual(resp.status_code, 201)
+        created = resp.json()
+        self.assertEqual(created["id"], "SPX-TEST-0099")
+
+        # 3. Retrieve specific candidate
+        resp = self.client.get("/api/candidates/SPX-TEST-0099")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["id"], "SPX-TEST-0099")
+
+        # 4. Cast corroboration vote
+        vote_payload = {
+            "vote_type": "corroborate",
+            "voter_callsign": "Peer Reviewer",
+            "comment": "Confirmed independent motion in difference imaging."
+        }
+        resp = self.client.post("/api/candidates/SPX-TEST-0099/vote", json=vote_payload)
+        self.assertEqual(resp.status_code, 200)
+        voted = resp.json()
+        self.assertEqual(voted["upvotes"], created["upvotes"] + 1)
+        self.assertGreaterEqual(len(voted.get("votes", [])), 1)
+
+        # 5. Export MPC dossier
+        resp = self.client.get("/api/candidates/export-mpc")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("COD SPX", resp.text)
+        self.assertIn("SPX-TEST-0099", resp.text)
+
+        # 6. Delete candidate
+        resp = self.client.delete("/api/candidates/SPX-TEST-0099")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "deleted")
+
+
+class TestDatabaseEngine(unittest.TestCase):
+    """Test embedded SQLite candidate store, spatial distance, and Minor Planet Center export."""
+
+    def test_database_crud(self):
+        cands = database.get_candidates()
+        self.assertGreaterEqual(len(cands), 3)
+
+        # Add
+        test_obj = {
+            "id": "SPX-UNITTEST-1",
+            "ra_deg": 57.0625,
+            "dec_deg": 7.7888,
+            "ra_hms": "03h48m15.000s",
+            "dec_dms": "+07d47m20.00s",
+            "pixel_x": 128.0,
+            "pixel_y": 128.0,
+            "category": "planet_x",
+            "confidence": 4,
+            "observer_callsign": "Sedna Hunter",
+            "notes": "Unit test object"
+        }
+        added = database.add_candidate(test_obj)
+        self.assertEqual(added["id"], "SPX-UNITTEST-1")
+
+        # Query with spatial filter (within 0.1 degree radius of Sedna)
+        spatial = database.get_candidates(ra_deg=57.06, dec_deg=7.78, radius_deg=0.5)
+        self.assertTrue(any(c["id"] == "SPX-UNITTEST-1" for c in spatial))
+
+        # Vote
+        voted = database.vote_candidate("SPX-UNITTEST-1", "corroborate", "Astronomer A", "Verified")
+        self.assertEqual(voted["upvotes"], 2)
+
+        # Export MPC
+        mpc = database.export_mpc_dossier()
+        self.assertIn("SPX-UNITTEST-1", mpc)
+
+        # Delete
+        self.assertTrue(database.delete_candidate("SPX-UNITTEST-1"))
 
 
 class TestCatalogService(unittest.TestCase):
