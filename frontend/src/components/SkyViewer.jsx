@@ -25,6 +25,7 @@ import {
   Trash2,
   ArrowRight,
   MoveHorizontal,
+  Move,
   X,
   Check
 } from 'lucide-react';
@@ -84,8 +85,12 @@ export default function SkyViewer({
   const [showProvenanceModal, setShowProvenanceModal] = useState(false);
 
   const [zoomLevel, setZoomLevel] = useState(1.0);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ startX: 0, startY: 0, initPanX: 0, initPanY: 0, hasDragged: false });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef(null);
+  const canvasViewportRef = useRef(null);
 
   // Active FOV value in arcmin (from prop or targetInfo, fallback to 5.0)
   const currentFov = typeof fov === 'number' ? fov : (targetInfo?.fov_arcmin || 5.0);
@@ -104,9 +109,58 @@ export default function SkyViewer({
     }
   }, [shiftAndAddData]);
 
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(z + 0.25, 3.5));
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(z - 0.25, 0.75));
-  const handleResetZoom = () => setZoomLevel(1.0);
+  const handleZoomIn = () => setZoomLevel((z) => Math.min(Number((z + 0.25).toFixed(2)), 4.0));
+  const handleZoomOut = () => setZoomLevel((z) => Math.max(Number((z - 0.25).toFixed(2)), 0.5));
+  const handleResetZoom = () => {
+    setZoomLevel(1.0);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
+  const handlePointerDown = (e) => {
+    // If flagging mode is active or user clicked a button/input, do not initiate pan
+    if (isFlaggingActive) return;
+    if (e.target.closest('button') || e.target.closest('input')) return;
+
+    setIsPanning(true);
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+
+    panStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      initPanX: panOffset.x,
+      initPanY: panOffset.y,
+      hasDragged: false
+    };
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isPanning) return;
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+
+    const dx = clientX - panStartRef.current.startX;
+    const dy = clientY - panStartRef.current.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      panStartRef.current.hasDragged = true;
+    }
+
+    setPanOffset({
+      x: panStartRef.current.initPanX + dx,
+      y: panStartRef.current.initPanY + dy
+    });
+  };
+
+  const handlePointerUp = () => {
+    setIsPanning(false);
+  };
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+    setZoomLevel((z) => Math.min(Math.max(Number((z * zoomFactor).toFixed(2)), 0.5), 4.5));
+  };
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -150,6 +204,10 @@ export default function SkyViewer({
 
   // Handle direct click on astronomical canvas to flag a discovery candidate
   const handleCanvasClick = (e) => {
+    if (panStartRef.current.hasDragged) {
+      panStartRef.current.hasDragged = false;
+      return;
+    }
     if (!isFlaggingActive) return;
     // If clicking on an existing source or flag reticle, let the element handle it
     if (e.target.closest('button[data-flag-pin="true"]') || e.target.closest('button[data-catalog-source="true"]')) {
@@ -227,6 +285,10 @@ export default function SkyViewer({
   const splitDiffImage = differenceImages[getDiffKey(splitLeftEpoch, splitRightEpoch)] || activeDifferenceUrl;
 
   const handleCanvasClickWithEpoch = (e, epochIdx, customLabel) => {
+    if (panStartRef.current.hasDragged) {
+      panStartRef.current.hasDragged = false;
+      return;
+    }
     if (!isFlaggingActive) return;
     if (e.target.closest('button[data-flag-pin="true"]') || e.target.closest('button[data-catalog-source="true"]')) {
       return;
@@ -435,16 +497,31 @@ export default function SkyViewer({
             <Crosshair className="w-4 h-4" />
           </button>
 
-          {/* Zoom Controls */}
+          {/* Zoom & Pan Controls */}
           <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5">
-            <button onClick={handleZoomOut} className="p-1 hover:text-cyan-400 text-slate-400" title="Zoom Out">
+            <div
+              className={`px-1.5 py-1 flex items-center gap-1 text-[10px] mono border-r border-slate-800 transition-colors ${
+                isPanning ? 'text-cyan-400 font-semibold' : 'text-slate-400'
+              }`}
+              title="Click & drag anywhere on the canvas to pan. Mouse wheel to zoom."
+            >
+              <Move className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden lg:inline">Pan</span>
+            </div>
+            <button onClick={handleZoomOut} className="p-1 hover:text-cyan-400 text-slate-400" title="Zoom Out (or scroll down)">
               <ZoomOut className="w-4 h-4" />
             </button>
             <span className="text-[11px] mono px-1.5 text-slate-300">{Math.round(zoomLevel * 100)}%</span>
-            <button onClick={handleZoomIn} className="p-1 hover:text-cyan-400 text-slate-400" title="Zoom In">
+            <button onClick={handleZoomIn} className="p-1 hover:text-cyan-400 text-slate-400" title="Zoom In (or scroll up)">
               <ZoomIn className="w-4 h-4" />
             </button>
-            <button onClick={handleResetZoom} className="p-1 hover:text-cyan-400 text-slate-400 border-l border-slate-800" title="Reset Zoom">
+            <button
+              onClick={handleResetZoom}
+              className={`p-1 hover:text-cyan-400 border-l border-slate-800 transition-all ${
+                zoomLevel !== 1.0 || panOffset.x !== 0 || panOffset.y !== 0 ? 'text-amber-400 font-bold' : 'text-slate-400'
+              }`}
+              title="Reset Pan & Zoom (Center View)"
+            >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -739,8 +816,21 @@ export default function SkyViewer({
         </div>
       )}
 
-      {/* 4. Interactive Astronomical Display Canvas */}
-      <div className="relative my-4 flex items-center justify-center min-h-[380px] md:min-h-[460px] bg-slate-950/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner">
+      {/* 4. Interactive Astronomical Display Canvas (Pan & Zoom Enabled) */}
+      <div
+        ref={canvasViewportRef}
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onTouchEnd={handlePointerUp}
+        onWheel={handleWheel}
+        className={`relative my-4 flex items-center justify-center min-h-[380px] md:min-h-[460px] bg-slate-950/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner select-none ${
+          isFlaggingActive ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+      >
         {/* Click-to-Flag Mode Floating Instruction Banner */}
         {isFlaggingActive && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-rose-950/90 border border-rose-400 text-rose-200 px-4 py-1.5 rounded-full text-xs flex items-center gap-2 backdrop-blur-md shadow-2xl animate-bounce">
@@ -766,6 +856,13 @@ export default function SkyViewer({
           <div>RA: <span className="text-white">{targetInfo?.ra_hms || targetInfo?.ra_deg}</span></div>
           <div>Dec: <span className="text-white">{targetInfo?.dec_dms || targetInfo?.dec_deg}</span></div>
           <div>FOV: <span className="text-white">{Number(currentFov).toFixed(1)}' arcmin</span></div>
+          {(panOffset.x !== 0 || panOffset.y !== 0 || zoomLevel !== 1.0) && (
+            <div className="text-[10px] text-amber-300 font-semibold flex items-center gap-1.5">
+              <span>Pan: ({Math.round(panOffset.x)}, {Math.round(panOffset.y)})px</span>
+              <span>&bull;</span>
+              <span>Zoom: {Math.round(zoomLevel * 100)}%</span>
+            </div>
+          )}
           <div className="text-amber-400 font-medium mt-0.5">
             {isShiftMode 
               ? `Shift-and-Add Search: Vx=${shiftVx.toFixed(2)}, Vy=${shiftVy.toFixed(2)}`
@@ -893,7 +990,11 @@ export default function SkyViewer({
                     className={`relative rounded-lg overflow-hidden border border-slate-800 shadow-xl transition-all ${
                       isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400' : ''
                     }`}
-                    style={{ transform: `scale(${zoomLevel})` }}
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                    }}
                   >
                     <img
                       src={leftEpoch.image_url}
@@ -970,7 +1071,11 @@ export default function SkyViewer({
                     className={`relative rounded-lg overflow-hidden border border-slate-800 shadow-xl transition-all ${
                       isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400' : ''
                     }`}
-                    style={{ transform: `scale(${zoomLevel})` }}
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                    }}
                   >
                     <img
                       src={rightEpoch.image_url}
@@ -1074,7 +1179,14 @@ export default function SkyViewer({
                   <span className="text-xs font-semibold text-cyan-400 mb-1.5 mono">
                     Epoch {splitLeftEpoch + 1}: {leftEpoch.timestamp || '2025-06-15'}
                   </span>
-                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                  <div
+                    className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md transition-all"
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                    }}
+                  >
                     <img
                       src={leftEpoch.image_url}
                       alt={`Epoch ${splitLeftEpoch + 1}`}
@@ -1105,7 +1217,14 @@ export default function SkyViewer({
                       Dipole Signature
                     </span>
                   </div>
-                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                  <div
+                    className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md transition-all"
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                    }}
+                  >
                     <img
                       src={splitDiffImage}
                       alt="Difference Subtraction Map"
@@ -1149,7 +1268,14 @@ export default function SkyViewer({
                   <span className="text-xs font-semibold text-amber-400 mb-1.5 mono">
                     Epoch {splitRightEpoch + 1}: {rightEpoch.timestamp || '2025-12-15'}
                   </span>
-                  <div className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md">
+                  <div
+                    className="relative rounded-lg overflow-hidden border border-slate-800 shadow-md transition-all"
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                    }}
+                  >
                     <img
                       src={rightEpoch.image_url}
                       alt={`Epoch ${splitRightEpoch + 1}`}
@@ -1180,8 +1306,12 @@ export default function SkyViewer({
                 </div>
 
                 <div 
-                  className="relative rounded-lg overflow-hidden border border-slate-800 shadow-2xl w-[360px] h-[360px]"
-                  style={{ transform: `scale(${zoomLevel})` }}
+                  className="relative rounded-lg overflow-hidden border border-slate-800 shadow-2xl w-[360px] h-[360px] transition-all"
+                  style={{
+                    transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                    transformOrigin: 'center center',
+                    transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+                  }}
                 >
                   {/* Base Image: Epoch B */}
                   <img
@@ -1265,10 +1395,14 @@ export default function SkyViewer({
           <div className="relative flex items-center justify-center p-4">
             <div 
               onClick={handleCanvasClick}
-              className={`relative rounded-lg overflow-hidden shadow-2xl transition-all duration-200 border border-slate-800 ${
+              className={`relative rounded-lg overflow-hidden shadow-2xl transition-all duration-150 border border-slate-800 ${
                 isFlaggingActive ? 'cursor-crosshair ring-2 ring-rose-400 shadow-rose-500/20' : ''
               }`}
-              style={{ transform: `scale(${zoomLevel})` }}
+              style={{
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                transformOrigin: 'center center',
+                transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+              }}
             >
               <img
                 src={
