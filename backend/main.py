@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import coordinates
-from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
 
 app = FastAPI(
     title="NASA SPHEREx Sky Viewer API",
@@ -71,13 +71,32 @@ def get_presets():
 
 @app.get("/api/bands")
 def get_bands():
-    """Returns SPHEREx 6-detector array layout covering 102 near-infrared channels (0.75 - 5.00 um)."""
+    """Returns SPHEREx 6-detector array layout covering 102 near-infrared channels (0.75 - 5.00 um) and wavelength filters."""
     return {
         "mission": "NASA SPHEREx",
         "total_bands": 102,
         "wavelength_range_um": [0.75, 5.00],
-        "detector_arrays": SPHEREX_ARRAYS
+        "detector_arrays": SPHEREX_ARRAYS,
+        "wavelength_filters": WAVELENGTH_FILTERS,
+        "elements": ELEMENT_DEFINITIONS
     }
+
+
+@app.get("/api/element-density")
+def get_element_density(
+    ra: str = Query(..., description="Right Ascension in sexagesimal or decimal degrees"),
+    dec: str = Query(..., description="Declination in sexagesimal or decimal degrees"),
+    element: str = Query("H2O", description="Target molecule/element: H2O, CH4, CO2, CO, H, DUST"),
+    fov: float = Query(5.0, description="Field of View in arcminutes")
+):
+    """
+    Fetches 2D spatial column density map and astrophysical telemetry for a specific element or molecule.
+    """
+    try:
+        return loader.get_element_density(ra_input=ra, dec_input=dec, element=element, fov_arcmin=fov)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to calculate element density: {str(e)}")
+
 
 
 @app.get("/api/sky-cutout")

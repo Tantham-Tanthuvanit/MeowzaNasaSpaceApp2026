@@ -13,7 +13,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 import coordinates
-from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS
+from data_loader import SPHERExDataLoader, SPHEREX_ARRAYS, ELEMENT_DEFINITIONS, WAVELENGTH_FILTERS
 
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
@@ -54,8 +54,28 @@ def get_bands():
         "mission": "NASA SPHEREx",
         "total_bands": 102,
         "wavelength_range_um": [0.75, 5.00],
-        "detector_arrays": SPHEREX_ARRAYS
+        "detector_arrays": SPHEREX_ARRAYS,
+        "wavelength_filters": WAVELENGTH_FILTERS,
+        "elements": ELEMENT_DEFINITIONS
     })
+
+
+@app.route("/api/element-density", methods=["GET"])
+def get_element_density():
+    ra = request.args.get("ra")
+    dec = request.args.get("dec")
+    if not ra or not dec:
+        return jsonify({"error": "Missing required 'ra' or 'dec' query parameter."}), 400
+
+    element = request.args.get("element", "H2O")
+    fov = float(request.args.get("fov", 5.0))
+
+    try:
+        data = loader.get_element_density(ra_input=ra, dec_input=dec, element=element, fov_arcmin=fov)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 
 
 @app.route("/api/sky-cutout", methods=["GET"])

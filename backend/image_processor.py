@@ -193,3 +193,97 @@ def array_to_base64_data_uri(
     )
     b64_str = base64.b64encode(png_bytes).decode("ascii")
     return f"data:image/png;base64,{b64_str}"
+
+
+def compute_spectral_ratio(
+    numerator_band: np.ndarray,
+    denominator_band: np.ndarray,
+    epsilon: float = 1e-4
+) -> np.ndarray:
+    """
+    Computes spectral index or flux ratio between two wavelength bands,
+    e.g. F(3.30 um) / F(2.15 um) for methane absorption diagnostics.
+    """
+    denom = np.where(denominator_band <= epsilon, epsilon, denominator_band)
+    ratio = numerator_band / denom
+    return np.nan_to_num(ratio, nan=1.0, posinf=5.0, neginf=0.0).astype(np.float32)
+
+
+def compute_line_minus_continuum(
+    line_band: np.ndarray,
+    cont_band: np.ndarray
+) -> np.ndarray:
+    """
+    Subtracts baseline unabsorbed continuum flux from a narrow-band spectral line,
+    isolating pure emission features such as Hydrogen Brackett-alpha (4.05 um).
+    """
+    diff = line_band.astype(np.float32) - cont_band.astype(np.float32)
+    return diff
+
+
+def render_density_map_to_png(
+    density_arr: np.ndarray,
+    colormap: str = "viridis",
+    vmin: float = 0.0,
+    vmax: float = 1.0
+) -> bytes:
+    """
+    Renders a 2D elemental or molecular density map into a scientific PNG image.
+    Normalized values in [vmin, vmax] are mapped through the requested colormap.
+    """
+    norm = np.clip((density_arr - vmin) / max(vmax - vmin, 1e-6), 0.0, 1.0)
+    cmap = mpl.colormaps.get(colormap, mpl.colormaps["viridis"])
+    colored = (cmap(norm)[:, :, :3] * 255).astype(np.uint8)
+    img = Image.fromarray(colored, mode="RGB")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def render_density_overlay_rgba(
+    density_arr: np.ndarray,
+    colormap: str = "viridis",
+    alpha_max: float = 0.85,
+    threshold: float = 0.08
+) -> bytes:
+    """
+    Renders an RGBA translucent PNG where background/low density is transparent
+    and peak concentrations glow with high opacity, designed for seamless
+    layering over raw astronomical sky images.
+    """
+    norm = np.clip(density_arr, 0.0, 1.0)
+    cmap = mpl.colormaps.get(colormap, mpl.colormaps["viridis"])
+    rgb = (cmap(norm)[:, :, :3] * 255).astype(np.uint8)
+
+    # Smooth alpha ramp: transparent below threshold, ramping smoothly to alpha_max
+    alpha = np.zeros_like(norm, dtype=np.float32)
+    mask = norm > threshold
+    alpha[mask] = alpha_max * ((norm[mask] - threshold) / (1.0 - threshold)) ** 0.8
+    alpha_uint8 = (np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8)
+
+    rgba = np.dstack([rgb, alpha_uint8])
+    img = Image.fromarray(rgba, mode="RGBA")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def density_array_to_base64(
+    density_arr: np.ndarray,
+    colormap: str = "viridis",
+    is_overlay: bool = False,
+    alpha_max: float = 0.85
+) -> str:
+    """
+    Encodes an elemental column density array into a Base64 PNG data URI.
+    Supports either high-contrast standalone viewing or translucent RGBA overlay.
+    """
+    if is_overlay:
+        png_bytes = render_density_overlay_rgba(density_arr, colormap=colormap, alpha_max=alpha_max)
+    else:
+        png_bytes = render_density_map_to_png(density_arr, colormap=colormap)
+    b64_str = base64.b64encode(png_bytes).decode("ascii")
+    return f"data:image/png;base64,{b64_str}"
+

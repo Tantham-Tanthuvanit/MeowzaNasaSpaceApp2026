@@ -93,6 +93,40 @@ class TestDataLoaderAndSimulator(unittest.TestCase):
         self.assertEqual(len(data_rgb["epochs"]), 4)
 
 
+    def test_element_density_maps_generation(self):
+        # Verify 6 element density maps generated with high-contrast and translucent overlay URIs
+        data = self.loader.get_sky_patch("08h55m10.831s", "-07d14m42.53s")
+        self.assertIn("element_densities", data)
+        densities = data["element_densities"]["elements"]
+        expected_elements = ["H2O", "CH4", "CO2", "CO", "H", "DUST"]
+        for elem in expected_elements:
+            self.assertIn(elem, densities)
+            self.assertTrue(densities[elem]["density_map_url"].startswith("data:image/png;base64,"))
+            self.assertTrue(densities[elem]["overlay_map_url"].startswith("data:image/png;base64,"))
+            self.assertIn("cm⁻²", densities[elem]["peak_column_density"])
+            self.assertGreater(densities[elem]["abundance_pct"], 0)
+
+        # WISE 0855 should have Methane and Water as the dominant components
+        self.assertGreater(densities["CH4"]["abundance_pct"], 25.0)
+        self.assertGreater(densities["H2O"]["abundance_pct"], 25.0)
+
+    def test_diagnostic_and_narrowband_wavelength_filters(self):
+        # Test molecular diagnostics, photometric bands, spectral ratios, and single band
+        filters_to_test = [
+            "filter_ch4_deep",
+            "filter_h2o_ice",
+            "filter_h_bra",
+            "filter_j",
+            "ratio_ch4",
+            "diff_hydrogen",
+            "band_62"
+        ]
+        for f in filters_to_test:
+            res = self.loader.get_sky_patch("08h55m10.831s", "-07d14m42.53s", band_group=f, num_epochs=2)
+            self.assertEqual(len(res["epochs"]), 2)
+            self.assertTrue(res["epochs"][0]["image_url"].startswith("data:image/png;base64,"))
+
+
 class TestAPIEndpoints(unittest.TestCase):
     """Test FastAPI REST endpoints."""
 
@@ -113,7 +147,10 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_bands_endpoint(self):
         resp = self.client.get("/api/bands")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["total_bands"], 102)
+        json_data = resp.json()
+        self.assertEqual(json_data["total_bands"], 102)
+        self.assertIn("wavelength_filters", json_data)
+        self.assertIn("elements", json_data)
 
     def test_sky_cutout_endpoint(self):
         resp = self.client.get("/api/sky-cutout?ra=08h55m10.831s&dec=-07d14m42.53s&fov=5.0")
@@ -123,6 +160,18 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("epochs", data)
         self.assertIn("difference_image_url", data)
         self.assertIn("spectrum_preview", data)
+        self.assertIn("element_densities", data)
+        self.assertIn("available_filters", data)
+
+    def test_element_density_endpoint(self):
+        resp = self.client.get("/api/element-density?ra=08h55m10.831s&dec=-07d14m42.53s&element=CH4")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("element", data)
+        self.assertEqual(data["element"]["id"], "CH4")
+        self.assertTrue(data["element"]["density_map_url"].startswith("data:image/png;base64,"))
+        self.assertIn("composition_breakdown", data)
+
 
 
 if __name__ == "__main__":
