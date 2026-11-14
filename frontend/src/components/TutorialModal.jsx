@@ -120,7 +120,7 @@ export default function TutorialModal({ onClose }) {
                 {
                   n: '2',
                   title: 'Blink and compare NASA’s survey visits',
-                  desc: 'In the Sky Viewer, watch the Flipbook loop across dates (press Space to play/pause, or ← / → arrow keys to step visit by visit). Switch to Split view to put two dates side by side, What changed to subtract visits into a difference map, or Combined to stack faint moving objects along a guessed drift.',
+                  desc: 'In the Sky Viewer, watch the Flipbook loop across dates (press Space to play/pause, or ← / → arrow keys to step visit by visit). Switch to Split view to put two dates side by side, Difference image to subtract visits into a difference map, or Combined to stack faint moving objects along a guessed drift.',
                 },
                 {
                   n: '3',
@@ -149,7 +149,7 @@ export default function TutorialModal({ onClose }) {
           {tab === 'guide' && (
             <div className="flex flex-col gap-6">
               <div className="flex flex-col gap-3">
-                <h3 className="text-[18px] font-semibold text-ink">How to spot real discoveries in “What changed”</h3>
+                <h3 className="text-[18px] font-semibold text-ink">How to spot real discoveries in “Difference image”</h3>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="flex flex-col gap-2 rounded-2xl border border-soft bg-page p-4">
                     <div className="flex items-center gap-1.5">

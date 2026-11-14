@@ -97,7 +97,8 @@ function Loading({ progress, bandLabel, bandDot, slowText }) {
 // overlay: SVG content drawn over the picture on its 0-256 pixel grid.
 // onPick(x, y): called with the grid point when the picture is clicked.
 // colormap: 'inferno' | 'grayscale'. onToggleColormap: toggles between inferno and grayscale.
-export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick, colormap, onToggleColormap }) {
+// onToggleGrid: toggles RA and Dec grid overlay.
+export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick, colormap, onToggleColormap, onToggleGrid }) {
   const count = frames.length;
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
@@ -124,11 +125,17 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
         }
         e.preventDefault();
         if (onToggleColormap) onToggleColormap();
+      } else if (e.key === 'g' || e.key === 'G') {
+        if (target && target.closest('input, textarea, select, [contenteditable]')) {
+          return;
+        }
+        e.preventDefault();
+        if (onToggleGrid) onToggleGrid();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [caption, count, setPlaying, show, onToggleColormap]);
+  }, [caption, count, setPlaying, show, onToggleColormap, onToggleGrid]);
 
   const pick = (e) => {
     const box = e.currentTarget.getBoundingClientRect();

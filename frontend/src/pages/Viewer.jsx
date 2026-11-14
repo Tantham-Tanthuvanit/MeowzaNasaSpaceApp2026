@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import FlipPlayer, { fmtDate } from '../components/FlipPlayer';
 import SplitPlayer from '../components/SplitPlayer';
+import SkyPatchGrid from '../components/SkyPatchGrid';
 import DemoTour, { DEMO_STEPS, DEMO_TARGET } from '../components/DemoTour';
 import Flags from '../components/Flags';
 import SpectrumPanel from '../components/SpectrumChart';
@@ -139,6 +140,9 @@ export default function Viewer() {
     fetchShiftAndAdd(ra, dec, bandId, sent.x, sent.y, fov, colormap, onProgress, isCancelled)
   );
 
+  // Right Ascension and Declination coordinate graticule
+  const [showGrid, setShowGrid] = useState(true);
+
   // Known stars from the Gaia and WISE catalogues, looked up only when asked for (it takes a while).
   const [showStars, setShowStars] = useState(false);
   const [hideContaminated, setHideContaminated] = useState(false);
@@ -257,7 +261,7 @@ export default function Viewer() {
       frames: activeDiffUrl ? [{ image_url: activeDiffUrl }] : [],
       caption: frames.length > 1
         ? `Visit ${diffEarly + 1} (${fmtDate(frames[diffEarly]?.timestamp)}) to Visit ${diffLate + 1} (${fmtDate(frames[diffLate]?.timestamp)})`
-        : 'What changed',
+        : 'Difference image',
       emptyText: frames.length < 2
         ? 'A before-and-after picture needs at least two visits to this spot.'
         : customDiff.loading
@@ -278,6 +282,7 @@ export default function Viewer() {
 
   const overlay = (
     <>
+      {showGrid && hasSpot && <SkyPatchGrid ra={ra} dec={dec} fov={fov} />}
       {showStars && visibleStars.map((s) => <StarMark key={s.id} s={s} selected={source === s} onSelect={setSource} />)}
       {hasSpot && (flags.data || []).map((c, i) => {
         const [x, y] = skyToPixel(c.ra_deg, c.dec_deg, ra, dec, fov);
@@ -481,6 +486,7 @@ export default function Viewer() {
             bandLabel={lightLabel}
             colormap={colormap}
             onToggleColormap={toggleColormap}
+            onToggleGrid={() => setShowGrid((g) => !g)}
           />
         )}
         </div>
@@ -495,7 +501,7 @@ export default function Viewer() {
             {[
               ['flipbook', 'Flipbook'],
               ['split', 'Split view'],
-              ['changes', 'What changed'],
+              ['changes', 'Difference image'],
               ['combine', 'Combined'],
             ].map(([id, name]) => (
               <button
@@ -511,6 +517,17 @@ export default function Viewer() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGrid(!showGrid)}
+              aria-pressed={showGrid}
+              disabled={!hasSpot}
+              title="Toggle Right Ascension & Declination coordinate grid (Shortcut: G)"
+              className={`${tab(showGrid)} self-start disabled:opacity-40`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full border-2 ${showGrid ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
+              RA &amp; Dec grid
+            </button>
             <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
               <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
               Overlay Gaia &amp; WISE stars (Mark known stars)
@@ -570,7 +587,7 @@ export default function Viewer() {
                     }}
                     className="btn-plain h-9 px-3 text-xs font-semibold text-rust"
                   >
-                    Subtract these in What changed →
+                    Subtract these in Difference image →
                   </button>
                 </div>
               )}

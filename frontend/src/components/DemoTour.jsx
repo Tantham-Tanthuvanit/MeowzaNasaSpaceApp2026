@@ -33,7 +33,7 @@ export const DEMO_STEPS = [
   },
   {
     step: 3,
-    label: 'What changed',
+    label: 'Difference image',
     title: '3. Subtract visits to reveal the motion signature',
     view: 'changes',
     band: '6',

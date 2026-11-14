@@ -168,3 +168,118 @@ export function fmtDec(dec, compact = false) {
   if (compact) return `${dec < 0 ? '-' : '+'}${d}d${pad2(m)}m${s}s`;
   return `${dec < 0 ? '−' : '+'}${d}° ${pad2(m)}′ ${s}″`;
 }
+
+// Nice step sizes for Declination in arcseconds
+export const DEC_STEPS_ARCSEC = [1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 300, 600, 900, 1800, 3600];
+
+// Nice step sizes for Right Ascension in seconds of time
+export const RA_STEPS_SEC = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 300, 600, 900, 1800, 3600];
+
+// Clean sexagesimal label for Declination grid lines
+export function fmtDecGrid(dec, stepArcsec = 60) {
+  const sign = dec < -1e-7 ? '−' : '+';
+  const totalTenths = Math.round(Math.abs(dec) * 36000);
+  const totalSec = Math.floor(totalTenths / 10);
+  const tenths = totalTenths % 10;
+  const d = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (stepArcsec >= 60 && s === 0 && tenths === 0) {
+    return `${sign}${pad2(d)}° ${pad2(m)}′`;
+  }
+  if (stepArcsec < 1) {
+    return `${sign}${pad2(d)}° ${pad2(m)}′ ${pad2(s)}.${tenths}″`;
+  }
+  return `${sign}${pad2(d)}° ${pad2(m)}′ ${pad2(s)}″`;
+}
+
+// Clean sexagesimal label for Right Ascension grid lines
+export function fmtRaGrid(ra, stepTimeSec = 5) {
+  const norm = wrap360(ra);
+  const totalTenths = Math.round((norm / 15) * 36000);
+  const totalSec = Math.floor(totalTenths / 10);
+  const tenths = totalTenths % 10;
+  const h = Math.floor(totalSec / 3600) % 24;
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (stepTimeSec >= 60 && s === 0 && tenths === 0) {
+    return `${pad2(h)}h ${pad2(m)}m`;
+  }
+  if (stepTimeSec < 1) {
+    return `${pad2(h)}h ${pad2(m)}m ${pad2(s)}.${tenths}s`;
+  }
+  return `${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`;
+}
+
+// Computes RA and Dec grid lines and pixel positions on a 256x256 sky patch centered at (ra0, dec0) with FOV in arcminutes.
+export function skyPatchGrid(ra0, dec0, fov = 5) {
+  if (typeof ra0 !== 'number' || typeof dec0 !== 'number' || !Number.isFinite(ra0) || !Number.isFinite(dec0)) {
+    return { decLines: [], raLines: [], decStepSec: 60, raStepSec: 5 };
+  }
+  const safeFov = Math.max(0.1, Number(fov) || 5);
+  const perDeg = 256 / (safeFov / 60);
+  const halfDecDeg = (safeFov / 2) / 60;
+  const cosDec0 = Math.max(Math.cos(dec0 * RAD), 0.001);
+  const halfRaDeg = halfDecDeg / cosDec0;
+
+  // 1. Declination lines
+  const totalDecArcsec = safeFov * 60;
+  const targetDecStepSec = totalDecArcsec / 4.5;
+  let decStepSec = DEC_STEPS_ARCSEC[0];
+  let minDecDiff = Math.abs(decStepSec - targetDecStepSec);
+  for (const s of DEC_STEPS_ARCSEC) {
+    const diff = Math.abs(s - targetDecStepSec);
+    if (diff < minDecDiff) {
+      minDecDiff = diff;
+      decStepSec = s;
+    }
+  }
+  const decStepDeg = decStepSec / 3600;
+  const minDec = Math.max(-90, dec0 - halfDecDeg);
+  const maxDec = Math.min(90, dec0 + halfDecDeg);
+
+  const startDec = Math.ceil((minDec - 1e-9) / decStepDeg) * decStepDeg;
+  const decLines = [];
+  for (let d = startDec; d <= maxDec + 1e-9; d += decStepDeg) {
+    const y = 128 - (d - dec0) * perDeg;
+    if (y >= 0 && y <= 256) {
+      decLines.push({
+        dec: Number(d.toFixed(7)),
+        y: Number(y.toFixed(2)),
+        label: `Dec ${fmtDecGrid(d, decStepSec)}`,
+      });
+    }
+  }
+
+  // 2. Right Ascension lines
+  const totalRaSec = totalDecArcsec / (15 * cosDec0);
+  const targetRaStepSec = totalRaSec / 4.5;
+  let raStepSec = RA_STEPS_SEC[0];
+  let minRaDiff = Math.abs(raStepSec - targetRaStepSec);
+  for (const s of RA_STEPS_SEC) {
+    const diff = Math.abs(s - targetRaStepSec);
+    if (diff < minRaDiff) {
+      minRaDiff = diff;
+      raStepSec = s;
+    }
+  }
+  const raStepDeg = raStepSec / 240;
+  const minRa = ra0 - halfRaDeg;
+  const maxRa = ra0 + halfRaDeg;
+
+  const startRa = Math.ceil((minRa - 1e-9) / raStepDeg) * raStepDeg;
+  const raLines = [];
+  for (let r = startRa; r <= maxRa + 1e-9; r += raStepDeg) {
+    const dRa = ((r - ra0 + 540) % 360) - 180;
+    const x = 128 - dRa * cosDec0 * perDeg;
+    if (x >= 0 && x <= 256) {
+      raLines.push({
+        ra: wrap360(r),
+        x: Number(x.toFixed(2)),
+        label: `RA ${fmtRaGrid(r, raStepSec)}`,
+      });
+    }
+  }
+
+  return { decLines, raLines, decStepSec, raStepSec };
+}

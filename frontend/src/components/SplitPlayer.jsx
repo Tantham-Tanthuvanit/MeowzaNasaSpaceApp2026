@@ -122,9 +122,9 @@ export default function SplitPlayer({
               type="button"
               onClick={onCompareDifference}
               className="btn-plain h-8 px-3 text-xs font-medium text-rust"
-              title="Compare these two visits in What changed"
+              title="Compare these two visits in Difference image"
             >
-              Subtract in What changed →
+              Subtract in Difference image →
             </button>
           )}
           {onToggleColormap && (

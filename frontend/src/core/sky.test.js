@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, gridStep, gridLines, randomSkyPoint, MAX_ZOOM, MAP_W, MAP_H } from './sky';
+import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, gridStep, gridLines, randomSkyPoint, MAX_ZOOM, MAP_W, MAP_H, skyPatchGrid, fmtDecGrid, fmtRaGrid } from './sky';
 
 describe('gridLines', () => {
   const onScreen = (d) => (d.match(/[\d.-]+ [\d.-]+/g) || []).some((p) => {
@@ -140,5 +140,67 @@ describe('randomSkyPoint', () => {
     const decs = new Set(points.map((p) => p[1]));
     expect(ras.size).toBe(5);
     expect(decs.size).toBe(5);
+  });
+});
+
+describe('skyPatchGrid and grid formatting', () => {
+  it('formats Declination grid labels with proper sexagesimal units', () => {
+    expect(fmtDecGrid(-7.25, 60)).toBe('−07° 15′');
+    expect(fmtDecGrid(12.5, 60)).toBe('+12° 30′');
+    expect(fmtDecGrid(-7.245, 15)).toBe('−07° 14′ 42″');
+    expect(fmtDecGrid(0, 60)).toBe('+00° 00′');
+  });
+
+  it('formats Right Ascension grid labels with proper sexagesimal units', () => {
+    // 133.791667 deg = 8h 55m 10s
+    expect(fmtRaGrid(133.791667, 5)).toBe('08h 55m 10s');
+    // 133.75 deg = 8h 55m 00s
+    expect(fmtRaGrid(133.75, 60)).toBe('08h 55m');
+  });
+
+  it('generates consistent grid lines for the WISE 0855 target patch', () => {
+    const { decLines, raLines, decStepSec, raStepSec } = skyPatchGrid(133.795129, -7.245147, 5.0);
+    expect(decStepSec).toBe(60);
+    expect(raStepSec).toBe(5);
+    expect(decLines.length).toBeGreaterThanOrEqual(3);
+    expect(decLines.length).toBeLessThanOrEqual(7);
+    expect(raLines.length).toBeGreaterThanOrEqual(3);
+    expect(raLines.length).toBeLessThanOrEqual(7);
+
+    // All line positions must be on-screen [0, 256]
+    for (const line of decLines) {
+      expect(line.y).toBeGreaterThanOrEqual(0);
+      expect(line.y).toBeLessThanOrEqual(256);
+      expect(line.label).toMatch(/^Dec [−+]\d{2}° \d{2}′/);
+    }
+    for (const line of raLines) {
+      expect(line.x).toBeGreaterThanOrEqual(0);
+      expect(line.x).toBeLessThanOrEqual(256);
+      expect(line.label).toMatch(/^RA \d{2}h \d{2}m/);
+    }
+  });
+
+  it('adapts step size cleanly across FOV zoom ranges', () => {
+    for (const fov of [1.0, 3.0, 5.0, 8.0, 15.0, 30.0]) {
+      const { decLines, raLines } = skyPatchGrid(180, 20, fov);
+      expect(decLines.length).toBeGreaterThanOrEqual(2);
+      expect(decLines.length).toBeLessThanOrEqual(8);
+      expect(raLines.length).toBeGreaterThanOrEqual(2);
+      expect(raLines.length).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it('handles celestial edge cases like RA wrapping around 0h', () => {
+    const { raLines } = skyPatchGrid(0.02, 0, 10.0);
+    expect(raLines.length).toBeGreaterThan(0);
+    for (const line of raLines) {
+      expect(line.x).toBeGreaterThanOrEqual(0);
+      expect(line.x).toBeLessThanOrEqual(256);
+    }
+  });
+
+  it('returns empty lines for missing or invalid coordinates', () => {
+    expect(skyPatchGrid(null, null, 5)).toEqual({ decLines: [], raLines: [], decStepSec: 60, raStepSec: 5 });
+    expect(skyPatchGrid(undefined, -7, 5)).toEqual({ decLines: [], raLines: [], decStepSec: 60, raStepSec: 5 });
   });
 });
