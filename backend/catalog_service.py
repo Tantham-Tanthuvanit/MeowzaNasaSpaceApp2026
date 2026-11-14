@@ -20,6 +20,34 @@ import numpy as np
 from astroquery.ipac.irsa import Irsa
 
 
+_WISE_CC_CODES = {
+    "D": "Diffraction spike",
+    "P": "Latent persistence",
+    "H": "Scattered-light halo",
+    "O": "Optical ghost",
+}
+
+
+def decode_wise_cc_flags(cc_flags: Optional[str]) -> Dict[str, Any]:
+    """Decode AllWISE 4-character contamination & confusion flag (W1, W2, W3, W4)."""
+    raw = "" if cc_flags is None or cc_flags is np.ma.masked else str(cc_flags).strip()
+    cc = raw if raw and raw.lower() != "none" else "0000"
+    is_contam = any(ch != "0" for ch in cc[:2])
+    reasons = []
+    for ch in cc:
+        label = _WISE_CC_CODES.get(ch.upper())
+        if label and label not in reasons:
+            reasons.append(label)
+        elif ch != "0" and not label and f"Flag '{ch}'" not in reasons:
+            reasons.append(f"Flag '{ch}'")
+    if is_contam or reasons:
+        detail = ", ".join(reasons) if reasons else "Unclassified artifact"
+        summary = f"Artifact warning ({cc}): {detail}"
+    else:
+        summary = f"Clean ({cc} — no known artifacts)"
+    return {"cc_flags": cc, "is_contaminated": is_contam, "summary": summary}
+
+
 def radec_to_pixel(
     ra_source: float,
     dec_source: float,
@@ -110,7 +138,7 @@ class CatalogService:
         gaia: List[Dict[str, Any]] = []
         if "gaia_dr3" in catalogs or "allwise" in catalogs:
             # Gaia is also needed for AllWISE, to find infrared sources with no optical counterpart.
-            for row in self._cone("gaia_dr3_source", "source_id, ra, dec, phot_g_mean_mag, pmra, pmdec",
+            for row in self._cone("gaia_dr3_source", "source_id, ra, dec, phot_g_mean_mag, pmra, pmdec, parallax, ruwe",
                                   ra_deg, dec_deg, fov_arcmin, "phot_g_mean_mag"):
                 s_ra, s_dec = float(row["ra"]), float(row["dec"])
                 proj = radec_to_pixel(s_ra, s_dec, ra_deg, dec_deg, fov_arcmin)
@@ -119,6 +147,8 @@ class CatalogService:
                 pmra, pmdec = number(row["pmra"]), number(row["pmdec"])
                 pm_total = math.sqrt(pmra ** 2 + pmdec ** 2) if pmra is not None and pmdec is not None else None
                 g_mag = number(row["phot_g_mean_mag"])
+                parallax_val = number(row["parallax"])
+                ruwe_val = number(row["ruwe"])
                 gaia.append({
                     "id": f"Gaia DR3 {row['source_id']}",
                     "catalog": "Gaia DR3",
@@ -129,19 +159,31 @@ class CatalogService:
                     "mag": round(g_mag, 2) if g_mag is not None else None,
                     "mag_band": "G (optical)",
                     "proper_motion_mas_yr": round(pm_total, 1) if pm_total is not None else None,
+                    "parallax_mas": round(parallax_val, 2) if parallax_val is not None else None,
+                    "ruwe": round(ruwe_val, 2) if ruwe_val is not None else None,
+                    "is_contaminated": bool(ruwe_val is not None and ruwe_val >= 1.4),
+                    "contamination_note": (
+                        f"Clean astrometry (RUWE {ruwe_val:.2f})"
+                        if ruwe_val is not None and ruwe_val < 1.4
+                        else (f"Crowded or unresolved binary (RUWE {ruwe_val:.2f} ≥ 1.4)" if ruwe_val is not None else "Standard Gaia DR3 source")
+                    ),
                     "is_high_proper_motion": bool(pm_total is not None and pm_total > 100.0),
                     "is_brown_dwarf_candidate": False
                 })
 
         wise: List[Dict[str, Any]] = []
         if "allwise" in catalogs:
-            for row in self._cone("allwise_p3as_psd", "designation, ra, dec, w1mpro, w2mpro",
+            for row in self._cone("allwise_p3as_psd", "designation, ra, dec, w1mpro, w2mpro, cc_flags, ext_flg, ph_qual",
                                   ra_deg, dec_deg, fov_arcmin, "w1mpro"):
                 s_ra, s_dec = float(row["ra"]), float(row["dec"])
                 proj = radec_to_pixel(s_ra, s_dec, ra_deg, dec_deg, fov_arcmin)
                 if not proj["is_within_bounds"]:
                     continue
                 w1, w2 = number(row["w1mpro"]), number(row["w2mpro"])
+                cc_info = decode_wise_cc_flags(row["cc_flags"])
+                ext_val = number(row["ext_flg"])
+                ph_raw = row["ph_qual"]
+                ph_qual = None if ph_raw is None or ph_raw is np.ma.masked else str(ph_raw).strip()
                 # Brown dwarf candidate: very red in W1-W2 and no Gaia source within 3 arcsec.
                 has_gaia = any(
                     math.hypot((g["ra_deg"] - s_ra) * math.cos(math.radians(s_dec)), g["dec_deg"] - s_dec) * 3600.0 < 3.0
@@ -157,6 +199,11 @@ class CatalogService:
                     "mag": round(w1, 2) if w1 is not None else None,
                     "mag_band": "W1 (3.4 μm)",
                     "w1_w2_color": round(w1 - w2, 2) if w1 is not None and w2 is not None else None,
+                    "cc_flags": cc_info["cc_flags"],
+                    "ph_qual": ph_qual,
+                    "ext_flg": int(ext_val) if ext_val is not None else None,
+                    "is_contaminated": cc_info["is_contaminated"],
+                    "contamination_note": cc_info["summary"],
                     "proper_motion_mas_yr": None,
                     "is_high_proper_motion": False,
                     "is_brown_dwarf_candidate": bool(w1 is not None and w2 is not None and w1 - w2 >= 1.0 and not has_gaia)

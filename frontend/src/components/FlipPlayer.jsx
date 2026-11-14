@@ -9,6 +9,19 @@ export function fmtDate(timestamp) {
   return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : '';
 }
 
+function frameMeta(f) {
+  if (!f) return null;
+  const uris = Array.isArray(f.irsa_uris) ? f.irsa_uris : [];
+  const release = uris.some((u) => u.includes('/dr1/'))
+    ? 'DR1'
+    : uris.some((u) => u.includes('/qr3/'))
+    ? 'QR3'
+    : 'L2B';
+  const mjd = typeof f.mjd === 'number' ? f.mjd.toFixed(2) : null;
+  const imagesUsed = f.images_used || (uris.length ? uris.length : null);
+  return { release, mjd, imagesUsed };
+}
+
 // Steps through frames on a timer. Restarts from the first frame when `resetKey` changes.
 export function useFlipbook(count, resetKey, startPlaying = true) {
   const [frame, setFrame] = useState(0);
@@ -211,6 +224,34 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
           ))}
         </div>
       )}
+
+      {!caption && current && (() => {
+        const meta = frameMeta(current);
+        if (!meta) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-soft bg-page px-3.5 py-2 text-xs text-body">
+            <span>
+              <strong className="font-semibold text-ink">Release:</strong>{' '}
+              <span className="font-mono">{meta.release}</span>
+            </span>
+            {meta.mjd && (
+              <span>
+                <strong className="font-semibold text-ink">MJD:</strong>{' '}
+                <span className="font-mono">{meta.mjd}</span>
+              </span>
+            )}
+            {meta.imagesUsed != null && (
+              <span>
+                <strong className="font-semibold text-ink">Exposures stacked:</strong>{' '}
+                <span className="font-mono">{meta.imagesUsed}</span>
+              </span>
+            )}
+            <span>
+              <strong className="font-semibold text-ink">Calibration:</strong> Zodiacal light removed
+            </span>
+          </div>
+        );
+      })()}
     </div>
   );
 }

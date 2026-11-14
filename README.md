@@ -24,8 +24,10 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 4. **102-Channel Spectrum**
    - `/api/spectrum` bins the centre-pixel brightness of every SPHEREx image of a spot into the 102 SPHEREx channels. Channel wavelengths come from IRSA's DR1 all-sky cube. This is a quick-look spectrum, not calibrated photometry.
 
-5. **Gaia DR3 and AllWISE Overlay**
-   - `/api/catalog-overlay` queries Gaia DR3 and AllWISE through IRSA's TAP service. An AllWISE source with W1−W2 ≥ 1 and no Gaia star within 3″ is flagged as a brown dwarf candidate (WISE 0855 is).
+5. **Gaia DR3 and AllWISE Overlay + Contamination & Observation Metadata**
+   - `/api/catalog-overlay` queries Gaia DR3 (`parallax`, `ruwe`) and AllWISE (`cc_flags`, `ext_flg`, `ph_qual`) through IRSA's TAP service. An AllWISE source with W1−W2 ≥ 1 and no Gaia star within 3″ is flagged as a brown dwarf candidate (WISE 0855 is).
+   - Contamination flags (`cc_flags` decoding diffraction spikes `D`, persistence `P`, halos `H`, and optical ghosts `O`, plus Gaia `RUWE ≥ 1.4`) are shown per source with a **Hide flagged artifacts** filter toggle in the viewer.
+   - Each SPHEREx visit frame in the Flipbook also displays live observation metadata (`Release: DR1/QR3`, `MJD`, `Exposures stacked`, and `Calibration: Zodiacal light removed`).
    - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
 6. **Saved Projects and Citizen-Science Candidates**
@@ -35,7 +37,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
 7. **All of It in the Viewer**
-   - The viewer page shows every feature above: the flipbook, a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), a "Mark known stars" switch (Gaia and AllWISE marks), the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
+   - The viewer page shows every feature above: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
 
 8. **Newcomer Tutorial & Field Guide (`How to use`)**
    - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "What changed", keyboard shortcuts (`Space`, `←` / `→`), and citizen-science flagging.

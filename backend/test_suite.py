@@ -139,6 +139,18 @@ class TestSpherexBookkeeping(unittest.TestCase):
         px = np.asarray(png)
         self.assertGreater(int(px[0, 128]), int(px[-1, 128]))
 
+    def test_decode_wise_cc_flags(self):
+        from catalog_service import decode_wise_cc_flags
+        clean = decode_wise_cc_flags("0000")
+        self.assertFalse(clean["is_contaminated"])
+        self.assertIn("Clean", clean["summary"])
+
+        flagged = decode_wise_cc_flags("D0P0")
+        self.assertTrue(flagged["is_contaminated"])
+        self.assertEqual(flagged["cc_flags"], "D0P0")
+        self.assertIn("Diffraction spike", flagged["summary"])
+        self.assertIn("persistence", flagged["summary"])
+
 
 class TestIrsaRetry(unittest.TestCase):
     """IRSA's occasional 503s are retried; real client errors are not."""

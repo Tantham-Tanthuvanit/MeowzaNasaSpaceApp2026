@@ -112,9 +112,11 @@ export default function Viewer() {
 
   // Known stars from the Gaia and WISE catalogues, looked up only when asked for (it takes a while).
   const [showStars, setShowStars] = useState(false);
+  const [hideContaminated, setHideContaminated] = useState(false);
   const catalog = useRemote(hasSpot && showStars ? `${ra}|${dec}|${fov}` : null, () => fetchCatalog(ra, dec, fov));
   const stars = (!catalog.loading && catalog.data && catalog.data.sources) || [];
-  const dwarfs = stars.filter((s) => s.is_brown_dwarf_candidate);
+  const visibleStars = hideContaminated ? stars.filter((s) => !s.is_contaminated) : stars;
+  const dwarfs = visibleStars.filter((s) => s.is_brown_dwarf_candidate);
   const [source, setSource] = useState(null);
 
   // Judge Demo / Guided Discovery Tour state
@@ -247,7 +249,7 @@ export default function Viewer() {
 
   const overlay = (
     <>
-      {showStars && stars.map((s) => <StarMark key={s.id} s={s} selected={source === s} onSelect={setSource} />)}
+      {showStars && visibleStars.map((s) => <StarMark key={s.id} s={s} selected={source === s} onSelect={setSource} />)}
       {hasSpot && (flags.data || []).map((c, i) => {
         const [x, y] = skyToPixel(c.ra_deg, c.dec_deg, ra, dec, fov);
         return (
@@ -477,7 +479,7 @@ export default function Viewer() {
           </div>
           <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
             <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-white bg-white' : 'border-ink'}`} aria-hidden="true" />
-            Mark known stars
+            Overlay Gaia &amp; WISE stars (Mark known stars)
           </button>
 
           {hasSpot && view === 'split' && (
@@ -648,17 +650,30 @@ export default function Viewer() {
                   <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: STAR_COLORS.gaia }} aria-hidden="true" />
-                      {stars.filter((s) => s.catalog === 'Gaia DR3').length} stars seen in visible light (Gaia)
+                      {visibleStars.filter((s) => s.catalog === 'Gaia DR3').length} stars seen in visible light (Gaia)
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-3 w-3 border-2" style={{ borderColor: STAR_COLORS.wise }} aria-hidden="true" />
-                      {stars.filter((s) => s.catalog !== 'Gaia DR3' && !s.is_brown_dwarf_candidate).length} objects seen in infrared (WISE)
+                      {visibleStars.filter((s) => s.catalog !== 'Gaia DR3' && !s.is_brown_dwarf_candidate).length} objects seen in infrared (WISE)
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2.5 w-2.5 rotate-45 border-2" style={{ borderColor: STAR_COLORS.dwarf }} aria-hidden="true" />
                       {dwarfs.length} possible brown {dwarfs.length === 1 ? 'dwarf' : 'dwarfs'}
                     </span>
                   </p>
+                  {stars.length > 0 && (
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-soft bg-page px-3 py-2 text-xs font-medium text-ink">
+                      <input
+                        type="checkbox"
+                        checked={hideContaminated}
+                        onChange={(e) => setHideContaminated(e.target.checked)}
+                        className="h-4 w-4 accent-[#FF8A3D]"
+                      />
+                      <span>
+                        Hide flagged artifacts ({stars.filter((s) => s.is_contaminated).length})
+                      </span>
+                    </label>
+                  )}
                   {dwarfs.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {dwarfs.map((s, i) => (
@@ -669,8 +684,35 @@ export default function Viewer() {
                     </div>
                   )}
                   {source ? (
-                    <div className="flex flex-col gap-1 rounded-xl border border-soft bg-white p-3.5">
-                      <span className="font-mono text-[13px] text-ink">{source.id}</span>
+                    <div className="flex flex-col gap-1.5 rounded-xl border border-soft bg-white p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-[13px] text-ink">{source.id}</span>
+                        {source.contamination_note && (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                              source.is_contaminated
+                                ? 'bg-[#FFF3CD] text-[#7A4B00]'
+                                : 'bg-[#E6F6EE] text-[#1B6B45]'
+                            }`}
+                          >
+                            {source.is_contaminated ? 'Artifact warning' : 'Clean metadata'}
+                          </span>
+                        )}
+                      </div>
+                      {source.contamination_note && (
+                        <span className={`text-xs font-medium ${source.is_contaminated ? 'text-[#9A5B00]' : 'text-[#1B6B45]'}`}>
+                          {source.contamination_note}
+                        </span>
+                      )}
+                      {(source.cc_flags || source.ph_qual || source.ruwe != null || source.parallax_mas != null) && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-lg bg-page px-2.5 py-1.5 font-mono text-[11px] text-muted">
+                          {source.cc_flags && <span>cc_flags: {source.cc_flags}</span>}
+                          {source.ph_qual && <span>ph_qual: {source.ph_qual}</span>}
+                          {source.ext_flg != null && <span>ext_flg: {source.ext_flg}</span>}
+                          {source.ruwe != null && <span>RUWE: {source.ruwe}</span>}
+                          {source.parallax_mas != null && <span>parallax: {source.parallax_mas} mas</span>}
+                        </div>
+                      )}
                       {source.mag != null && <span>Brightness: magnitude {source.mag} in {source.mag_band}. Smaller numbers are brighter.</span>}
                       {source.proper_motion_mas_yr != null && (
                         <span>
