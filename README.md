@@ -89,6 +89,7 @@ MeowzaNasaSpaceApp2026/
 │       ├── core/                  # Sky projection, sky picture drawing, bands, projects store
 │       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change
+├── docs/API.md                    # Backend API reference
 ├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
 ├── setup.sh, start.sh             # Environment setup and one-command startup (macOS / Linux / Git Bash)
 ├── setup.bat, start.bat           # Windows Command Prompt / PowerShell setup and startup
@@ -144,6 +145,7 @@ copy backend\.env.example backend\.env
 
 - **Frontend Application**: [http://localhost:5173](http://localhost:5173)
 - **Backend API Docs (FastAPI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend API Guide**: [`docs/API.md`](docs/API.md) (every endpoint, parameters, responses, the 202 polling pattern, examples)
 
 ### 3. Manual Startup (Separate Terminals)
 
