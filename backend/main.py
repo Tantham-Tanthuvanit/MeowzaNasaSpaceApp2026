@@ -255,6 +255,7 @@ class CandidatePayload(BaseModel):
     observer_callsign: Optional[str] = "Citizen Scientist"
     band_group: Optional[str] = "stacked"
     epoch_label: Optional[str] = ""
+    voter_id: Optional[str] = Field(None, min_length=1, max_length=100, description="Random id the creator's browser keeps; only this id can delete the candidate")
 
 
 class VotePayload(BaseModel):
@@ -299,9 +300,12 @@ def export_mpc():
 
 
 @app.get("/api/candidates/{candidate_id}")
-def get_candidate(candidate_id: int):
+def get_candidate(
+    candidate_id: int,
+    voter_id: Optional[str] = Query(None, description="Adds user_owned to the candidate for this voter")
+):
     """Retrieve details and community corroboration history for a specific candidate."""
-    cand = database.get_candidate_by_id(candidate_id)
+    cand = database.get_candidate_by_id(candidate_id, voter_id=voter_id)
     if not cand:
         raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
     return cand
@@ -323,11 +327,16 @@ def cast_candidate_vote(candidate_id: int, vote: VotePayload):
 
 
 @app.delete("/api/candidates/{candidate_id}")
-def delete_candidate_endpoint(candidate_id: int):
-    """Remove a candidate discovery from the database."""
-    success = database.delete_candidate(candidate_id)
-    if not success:
+def delete_candidate_endpoint(
+    candidate_id: int,
+    voter_id: Optional[str] = Query(None, min_length=1, max_length=100, description="The creator's voter_id; only the owner can delete a flag")
+):
+    """Remove a candidate discovery from the database (owner only)."""
+    result = database.delete_candidate(candidate_id, voter_id=voter_id)
+    if result == "not_found":
         raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+    if result == "forbidden":
+        raise HTTPException(status_code=403, detail="Only the flag owner can delete this flag")
     return {"status": "deleted", "id": candidate_id}
 
 

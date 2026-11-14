@@ -524,6 +524,7 @@ A candidate is a point someone flagged as possibly interesting. Candidates and v
 | `created_at` | string | ISO timestamp |
 | `upvotes` | int | Number of votes |
 | `user_voted` | bool | Only when `voter_id` was given (list) or after voting |
+| `user_owned` | bool | `true` when `voter_id` matches the flag creator |
 | `distance_arcmin` | float | Only in cone-search results |
 | `votes` | array | Only in single-candidate and vote responses |
 
@@ -533,7 +534,7 @@ A candidate is a point someone flagged as possibly interesting. Candidates and v
 |---|---|---|
 | `category` | string | One of the categories; `all` or omitted = every category |
 | `ra`, `dec`, `radius_deg` | float | Cone search in **decimal degrees**. Applied only when all three are given. Adds `distance_arcmin`. |
-| `voter_id` | string | Adds `user_voted` to each candidate for this voter |
+| `voter_id` | string | Adds `user_voted` and `user_owned` to each candidate for this browser/voter |
 
 Sorted by `upvotes` (most first), then newest first.
 
@@ -552,7 +553,7 @@ curl -s "localhost:8000/api/candidates?ra=133.795&dec=-7.245&radius_deg=0.0625&v
     "observer_callsign": "Citizen Scientist",
     "band_group": "array_6", "epoch_label": "V1 → V4",
     "created_at": "2026-11-14T03:12:44.123+00:00",
-    "upvotes": 3, "user_voted": true, "distance_arcmin": 0.01
+    "upvotes": 3, "user_voted": true, "user_owned": false, "distance_arcmin": 0.01
   }
 ]
 ```
@@ -576,19 +577,20 @@ Body (only `ra_deg` and `dec_deg` are required):
   "notes": "Red dipole in the difference image",
   "observer_callsign": "Citizen Scientist",
   "band_group": "array_6",
-  "epoch_label": "V1 → V4"
+  "epoch_label": "V1 → V4",
+  "voter_id": "3f2b9c1e-..."
 }
 ```
 
-Defaults: `category` `planet_x`, `confidence` 4, `observer_callsign` `Citizen Scientist`, `band_group` `stacked`, strings `""`. Returns the created candidate with `upvotes: 0`.
+Defaults: `category` `planet_x`, `confidence` 4, `observer_callsign` `Citizen Scientist`, `band_group` `stacked`, strings `""`. When `voter_id` (1–100 chars) is included, the browser is recorded as the owner (`user_owned: true` on return) and only that `voter_id` can later delete the flag; `voter_id` is never exposed in public candidate responses. Returns the created candidate with `upvotes: 0`.
 
 The backend does not fill in `ra_hms`/`dec_dms` for you. The usual flow is: call `/api/pixel-to-radec` with the clicked pixel, then post its result plus `pixel_x`/`pixel_y`.
 
-Errors: `400` when the database rejects the row (unknown category, confidence outside 1–5, RA/Dec out of range); `422` wrong types.
+Errors: `400` when the database rejects the row (unknown category, confidence outside 1–5, RA/Dec out of range); `422` wrong types or invalid `voter_id`.
 
 ### `GET /api/candidates/{id}`
 
-One candidate with every vote (newest first). `voter_id` is never returned, so nobody can remove someone else's vote.
+One candidate with every vote (newest first). Accepts optional `?voter_id=...` to populate `user_owned`. `voter_id` is never returned in candidate or vote objects, so nobody can remove someone else's flag or vote.
 
 ```json
 {
@@ -623,14 +625,17 @@ Returns the updated candidate (same shape as `GET /api/candidates/{id}`) plus `u
 
 ### `DELETE /api/candidates/{id}`
 
-Deletes the candidate and its votes.
+Deletes the candidate and its votes if `?voter_id=...` matches the flag creator (`user_owned: true`).
+
+```bash
+curl -s -X DELETE "localhost:8000/api/candidates/12?voter_id=3f2b9c1e-..."
+```
 
 ```json
 { "status": "deleted", "id": 12 }
 ```
 
-> [!CAUTION]
-> There is no authentication, so anyone can delete any candidate. The current UI does not expose deletion. Only delete rows you created yourself (for example test rows).
+Errors: `403` when `voter_id` is missing or does not match the flag owner; `404` if not found; `422` invalid `voter_id`.
 
 ### `GET /api/candidates/export-mpc`
 

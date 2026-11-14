@@ -18,6 +18,26 @@ from supabase_client import get_client
 CANDIDATE_FIELDS = ("ra_deg", "dec_deg", "ra_hms", "dec_dms", "pixel_x", "pixel_y", "category", "confidence",
                     "notes", "observer_callsign", "band_group", "epoch_label")
 PROJECT_FIELDS = ("name", "description", "color", "ra_deg", "dec_deg", "bands")
+OWNER_PREFIX = "__owner__:"
+
+
+def _pack_epoch_owner(epoch_label: Optional[str], voter_id: Optional[str]) -> str:
+    clean_epoch = (epoch_label or "").strip()
+    clean_voter = (voter_id or "").strip()
+    if not clean_voter:
+        return clean_epoch
+    return f"{OWNER_PREFIX}{clean_voter}\n{clean_epoch}"
+
+
+def _unpack_owner(row: Dict[str, Any]) -> Optional[str]:
+    """Extract the private owner voter_id from the candidate row and restore epoch_label."""
+    raw = row.get("epoch_label") or ""
+    if raw.startswith(OWNER_PREFIX):
+        rest = raw[len(OWNER_PREFIX):]
+        owner_id, _, epoch = rest.partition("\n")
+        row["epoch_label"] = epoch
+        return owner_id or None
+    return None
 
 
 def _with_upvotes(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -32,9 +52,13 @@ def _with_upvotes(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def add_candidate(data: Dict[str, Any]) -> Dict[str, Any]:
     """Store a newly flagged candidate discovery."""
+    voter_id = (data.get("voter_id") or "").strip() or None
     row = {k: data[k] for k in CANDIDATE_FIELDS if data.get(k) is not None}
+    row["epoch_label"] = _pack_epoch_owner(row.get("epoch_label", ""), voter_id)
     created = get_client().table("candidates").insert(row).execute().data[0]
+    _unpack_owner(created)
     created["upvotes"] = 0
+    created["user_owned"] = bool(voter_id)
     return created
 
 
@@ -46,16 +70,21 @@ def get_candidates(
     voter_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Query candidates with optional category or coordinate proximity filters.
-    With voter_id, each candidate also says whether that voter has voted for it (user_voted)."""
+    With voter_id, each candidate also says whether that voter has voted for it (user_voted)
+    and owns it (user_owned)."""
     query = get_client().table("candidates").select("*, candidate_votes(count)")
     if category and category != "all":
         query = query.eq("category", category)
     results = [_with_upvotes(r) for r in query.order("created_at", desc=True).execute().data]
     results.sort(key=lambda c: c["upvotes"], reverse=True)  # stable, so newest first within a vote count
+    mine = set()
     if voter_id:
         mine = {v["candidate_id"] for v in get_client().table("candidate_votes").select("candidate_id")
                 .eq("voter_id", voter_id).execute().data}
-        for c in results:
+    for c in results:
+        owner_id = _unpack_owner(c)
+        c["user_owned"] = bool(voter_id and owner_id and owner_id == voter_id)
+        if voter_id:
             c["user_voted"] = c["id"] in mine
 
     # Spatial distance filtering if center and radius requested
@@ -73,13 +102,15 @@ def get_candidates(
     return results
 
 
-def get_candidate_by_id(candidate_id: int) -> Optional[Dict[str, Any]]:
+def get_candidate_by_id(candidate_id: int, voter_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full candidate details and community votes by ID."""
     rows = (get_client().table("candidates").select("*, candidate_votes(*)")
             .eq("id", candidate_id).execute().data)
     if not rows:
         return None
     cand = rows[0]
+    owner_id = _unpack_owner(cand)
+    cand["user_owned"] = bool(voter_id and owner_id and owner_id == voter_id)
     cand["votes"] = sorted(cand.pop("candidate_votes", []), key=lambda v: v["created_at"], reverse=True)
     for v in cand["votes"]:
         v.pop("voter_id", None)  # private: knowing it would let someone else remove the vote
@@ -106,14 +137,23 @@ def vote_candidate(
             "candidate_id": candidate_id, "voter_id": voter_id, "vote_type": vote_type,
             "voter_callsign": voter_callsign, "comment": comment,
         }, on_conflict="candidate_id,voter_id", ignore_duplicates=True).execute()
-    cand = get_candidate_by_id(candidate_id)
+    cand = get_candidate_by_id(candidate_id, voter_id=voter_id)
     cand["user_voted"] = vote_type != "unvote"
     return cand
 
 
-def delete_candidate(candidate_id: int) -> bool:
-    """Remove a candidate discovery (its votes go with it)."""
-    return bool(get_client().table("candidates").delete().eq("id", candidate_id).execute().data)
+def delete_candidate(candidate_id: int, voter_id: Optional[str] = None) -> str:
+    """Remove a candidate discovery (its votes go with it) if `voter_id` matches its owner.
+    Returns 'deleted', 'not_found', or 'forbidden'."""
+    rows = get_client().table("candidates").select("id, epoch_label").eq("id", candidate_id).execute().data
+    if not rows:
+        return "not_found"
+    owner_id = _unpack_owner(rows[0])
+    clean_voter = (voter_id or "").strip()
+    if not clean_voter or not owner_id or owner_id != clean_voter:
+        return "forbidden"
+    get_client().table("candidates").delete().eq("id", candidate_id).execute()
+    return "deleted"
 
 
 def export_mpc_dossier() -> str:

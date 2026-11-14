@@ -250,6 +250,24 @@ class TestApiMapping(unittest.TestCase):
         self.assertEqual(len(body["detector_arrays"]), 6)
         self.assertNotIn("elements", body)
 
+    def test_delete_candidate_requires_owner(self):
+        with mock.patch.object(main.database, "delete_candidate", return_value="forbidden") as delete_fn:
+            res_no_id = self.client.delete("/api/candidates/99")
+            res_other = self.client.delete("/api/candidates/99", params={"voter_id": "other-user"})
+        self.assertEqual(res_no_id.status_code, 403)
+        self.assertEqual(res_other.status_code, 403)
+        self.assertEqual(delete_fn.call_count, 2)
+
+        with mock.patch.object(main.database, "delete_candidate", return_value="deleted") as delete_fn:
+            res_owner = self.client.delete("/api/candidates/99", params={"voter_id": "owner-user"})
+        self.assertEqual(res_owner.status_code, 200)
+        self.assertEqual(res_owner.json(), {"status": "deleted", "id": 99})
+        delete_fn.assert_called_once_with(99, voter_id="owner-user")
+
+        with mock.patch.object(main.database, "delete_candidate", return_value="not_found"):
+            res_missing = self.client.delete("/api/candidates/99", params={"voter_id": "owner-user"})
+        self.assertEqual(res_missing.status_code, 404)
+
 
 @unittest.skipUnless(LIVE, "set LIVE_TESTS=1 to query IRSA and Supabase")
 class TestLive(unittest.TestCase):
@@ -268,23 +286,32 @@ class TestLive(unittest.TestCase):
 
     def test_candidate_and_project_round_trip(self):
         client = TestClient(main.app)
-        cand = client.post("/api/candidates", json={"ra_deg": 10.0, "dec_deg": 20.0, "category": "asteroid", "notes": "test"}).json()
+        cand = client.post("/api/candidates", json={"ra_deg": 10.0, "dec_deg": 20.0, "category": "asteroid", "notes": "test", "voter_id": "test-owner"}).json()
         try:
+            self.assertTrue(cand["user_owned"])
+            self.assertEqual(cand["epoch_label"], "")
+            self.assertNotIn("__owner__", str(cand))
             vote_url = f"/api/candidates/{cand['id']}/vote"
             self.assertEqual(client.post(vote_url, json={"comment": "no voter id"}).status_code, 422)
             voted = client.post(vote_url, json={"voter_id": "test-a", "comment": "test"}).json()
-            self.assertEqual((voted["upvotes"], voted["user_voted"]), (1, True))
+            self.assertEqual((voted["upvotes"], voted["user_voted"], voted["user_owned"]), (1, True, False))
             self.assertNotIn("voter_id", voted["votes"][0])
             # The same voter again changes nothing; a second voter counts.
             self.assertEqual(client.post(vote_url, json={"voter_id": "test-a"}).json()["upvotes"], 1)
             self.assertEqual(client.post(vote_url, json={"voter_id": "test-b"}).json()["upvotes"], 2)
-            listed = {c["id"]: c for c in client.get("/api/candidates", params={"voter_id": "test-a"}).json()}
-            self.assertTrue(listed[cand["id"]]["user_voted"])
+            listed_owner = {c["id"]: c for c in client.get("/api/candidates", params={"voter_id": "test-owner"}).json()}
+            listed_other = {c["id"]: c for c in client.get("/api/candidates", params={"voter_id": "test-a"}).json()}
+            self.assertTrue(listed_owner[cand["id"]]["user_owned"])
+            self.assertFalse(listed_other[cand["id"]]["user_owned"])
+            self.assertTrue(listed_other[cand["id"]]["user_voted"])
+            # Non-owners and callers without voter_id are blocked from deleting.
+            self.assertEqual(client.delete(f"/api/candidates/{cand['id']}").status_code, 403)
+            self.assertEqual(client.delete(f"/api/candidates/{cand['id']}", params={"voter_id": "test-a"}).status_code, 403)
             unvoted = client.post(vote_url, json={"voter_id": "test-a", "vote_type": "unvote"}).json()
             self.assertEqual((unvoted["upvotes"], unvoted["user_voted"]), (1, False))
             self.assertIn(f"SPX-{cand['id']:06d}", client.get("/api/candidates/export-mpc").text)
         finally:
-            self.assertEqual(client.delete(f"/api/candidates/{cand['id']}").status_code, 200)
+            self.assertEqual(client.delete(f"/api/candidates/{cand['id']}", params={"voter_id": "test-owner"}).status_code, 200)
 
         proj = client.post("/api/projects", json={"name": "test", "color": "#FF8A3D", "ra_deg": 10.0, "dec_deg": 20.0}).json()
         try:

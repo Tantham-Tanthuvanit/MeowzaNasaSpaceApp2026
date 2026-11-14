@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtRa, fmtDec } from '../core/sky';
-import { flagCandidate, voteCandidate } from '../services/api';
+import { deleteCandidate, flagCandidate, voteCandidate } from '../services/api';
 import { fmtDate } from './FlipPlayer';
 import { PlusIcon } from './icons';
 
@@ -22,6 +22,7 @@ export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0
   const hasSpot = ra !== null;
   const [form, setForm] = useState({ category: KINDS[0].id, confidence: 3, notes: '', name: '' });
   const [busy, setBusy] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [error, setError] = useState('');
   const list = flags.data || [];
 
@@ -116,8 +117,15 @@ export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0
             <li key={c.id} className="flex flex-col gap-1.5 rounded-xl border border-soft bg-surface p-3.5">
               <div className="flex items-start gap-2.5">
                 {hasSpot && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-[13px] font-semibold text-[#0B1020]">{i + 1}</span>}
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-[15px] font-semibold">{kindLabel(c.category)}</span>
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[15px] font-semibold">{kindLabel(c.category)}</span>
+                    {c.user_owned && (
+                      <span className="rounded-full border border-accent/30 bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                        Your flag
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[13px] text-muted">
                     {SURE[c.confidence - 1]}, says {c.observer_callsign}, {fmtDate(String(c.created_at).slice(0, 10))}
                   </span>
@@ -125,15 +133,46 @@ export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0
               </div>
               {c.notes && <p className="text-sm leading-relaxed text-body">{c.notes}</p>}
               <span className="font-mono text-[13px] text-muted">RA {fmtRa(c.ra_deg)} · Dec {fmtDec(c.dec_deg)}</span>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id, c.user_voted), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
-                  {c.user_voted ? 'Take back my vote' : 'I see it too'}
-                </button>
-                <span className="text-sm text-body">
-                  {c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}{c.user_voted ? ', including you' : ''}
-                </span>
-                {!hasSpot && <Link to={`/viewer?ra=${fmtRa(c.ra_deg, true)}&dec=${encodeURIComponent(fmtDec(c.dec_deg, true))}`} className="ml-auto text-sm font-semibold text-rust underline">Look at this spot</Link>}
-              </div>
+              {confirmDeleteId === c.id ? (
+                <div role="alert" className="mt-1 flex flex-col gap-2 rounded-xl bg-[#FFF4F2] p-3 text-[#7A1D12] dark:bg-[#33181A] dark:text-[#FECACA]">
+                  <span className="text-sm font-semibold">Delete your flag?</span>
+                  <span className="text-xs leading-snug">This will remove your flag and its votes. This can’t be undone.</span>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button type="button" disabled={busy} onClick={() => setConfirmDeleteId(null)} className="btn-plain h-9 px-3 text-xs">Cancel</button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => act(async () => {
+                        await deleteCandidate(c.id);
+                        setConfirmDeleteId(null);
+                      }, 'Couldn’t delete the flag.')}
+                      className="btn h-9 bg-[#D92D20] px-3 text-xs text-white disabled:opacity-50"
+                    >
+                      Delete flag
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id, c.user_voted), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
+                    {c.user_voted ? 'Take back my vote' : 'I see it too'}
+                  </button>
+                  <span className="text-sm text-body">
+                    {c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}{c.user_voted ? ', including you' : ''}
+                  </span>
+                  {c.user_owned && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirmDeleteId(c.id)}
+                      className="btn border border-[#F1C9C4] dark:border-[#5C2626] bg-surface h-10 px-3.5 text-sm font-medium text-danger disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  {!hasSpot && <Link to={`/viewer?ra=${fmtRa(c.ra_deg, true)}&dec=${encodeURIComponent(fmtDec(c.dec_deg, true))}`} className="ml-auto text-sm font-semibold text-rust underline">Look at this spot</Link>}
+                </div>
+              )}
             </li>
           ))}
         </ol>

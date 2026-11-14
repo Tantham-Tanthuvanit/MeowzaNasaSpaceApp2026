@@ -124,8 +124,12 @@ export const voteCandidate = async (id, remove = false) =>
 export async function flagCandidate(ra, dec, x, y, fields, fov = 5.0) {
   const where = (await request(`/api/pixel-to-radec?pixel_x=${x}&pixel_y=${y}&center_ra=${ra}&center_dec=${dec}&fov=${fov}`)).body;
   const { ra_deg, dec_deg, ra_hms, dec_dms } = where;
-  return (await request('/api/candidates', sendJson('POST', { ra_deg, dec_deg, ra_hms, dec_dms, pixel_x: x, pixel_y: y, ...fields }))).body;
+  return (await request('/api/candidates', sendJson('POST', { ra_deg, dec_deg, ra_hms, dec_dms, pixel_x: x, pixel_y: y, voter_id: voterId(), ...fields }))).body;
 }
+
+// Deletes a flag created by this browser (only the owner's voter_id is allowed).
+export const deleteCandidate = async (id) =>
+  (await request(`/api/candidates/${id}?voter_id=${encodeURIComponent(voterId())}`, { method: 'DELETE' })).body;
 
 // ---- Loading hooks ----
 
