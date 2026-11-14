@@ -36,19 +36,32 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
-7. **All of It in the Viewer (+ Dark Mode)**
-   - The top navigation bar includes a persistent **Dark / Light** theme toggle (`localStorage` `skyflip_theme`) that adapts all surfaces, borders, text, dialogs, and SVG chart colors for high-contrast viewing day or night.
-   - The viewer page shows every feature above: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
+7. **Monkeytype-Style UI Theme Settings & Palettes**
+   - The top navigation bar includes a **Theme Settings modal** (`🎨 Themes`) modeled after Monkeytype's popular theme system, complete with:
+     - **Live theme search** and category filter chips (`All`, `Dark`, `Light`).
+     - **Five-color palette swatches** (`[Background] [Surface] [Text] [Subtext] [Accent]`) on every theme card for instant visual reference.
+     - **Miniature UI previews** inside each card depicting a simulated flipbook layout.
+     - **Random Theme shuffle** button (`ShuffleIcon`) to quickly cycle through palettes.
+     - **Curated community & astronomical palettes**, including:
+       1. **Deep Spruce** (Coolors [#01161e-#124559-#598392-#aec3b0-#eff6e0](https://coolors.co/palette/01161e-124559-598392-aec3b0-eff6e0)) — Rich boreal teal dark mode with ~17:1 text contrast.
+       2. **Retro Sunset** (Coolors [#0081a7-#00afb9-#fdfcdc-#fed9b7-#f07167](https://coolors.co/palette/0081a7-00afb9-fdfcdc-fed9b7-f07167)) — Warm cream and coral vintage light mode.
+       3. **Ocean Coral** (Coolors #2 Dark Variant) — Deep cerulean dark mode with coral accents.
+       4. **Midnight SPHEREx**, **SkyFlip Light**, **Nordic Frost**, **Cyberpunk Neon**, **Solarized Light**, and **Monokai Infrared**.
+     - Instant CSS custom property updates (`--color-page`, `--color-surface`, `--color-ink`, `--color-accent`, etc.) with persistence in `localStorage` (`skyflip_theme_id`).
+   - A dedicated **Keyboard & Controls** tab inside the modal outlines all flipbook shortcuts (`Space`, `←`/`→`, `1`-`6`, `D`, `S`, `Esc`).
 
-8. **Newcomer Tutorial & Field Guide (`How to use`)**
+8. **All of It in the Viewer**
+   - The viewer page brings all capabilities together: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
+
+9. **Newcomer Tutorial & Field Guide (`How to use`)**
    - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "What changed", keyboard shortcuts (`Space`, `←` / `→`), and citizen-science flagging.
    - Accessible anytime via **How to use** in the header or **New here? How to use SkyFlip** on the Sky Map page.
 
-9. **Guided Demo Mode (5-Step Interactive Walkthrough)**
+10. **Guided Demo Mode (5-Step Interactive Walkthrough)**
    - Clicking **Guided demo** in the header (or **Start guided demo (WISE 0855)** in the viewer) launches an interactive 5-step tour on the cached WISE 0855 brown dwarf target (`RA 08h55m10.831s, Dec -07°14′42.53″`).
    - Steps automatically walk through: (1) Infrared Flipbook in Band 6 (`4.42 µm`), (2) Side-by-Side Split View (`V1` vs `V4`), (3) Difference Imaging ("What changed" dipole signature), (4) Shift-and-Add Co-addition ("Combined"), and (5) Gaia/AllWISE Catalogue Overlay + SPHEREx 102-channel Spectrum.
 
-10. **Query Sky Patches via URL**
+11. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
 
 ---

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
-import { BookIcon, CompassIcon, InfoIcon, MoonIcon, SunIcon } from './components/icons';
+import { BookIcon, CompassIcon, InfoIcon, MoonIcon, SunIcon, PaletteIcon } from './components/icons';
 import { DEMO_TARGET } from './components/DemoTour';
 import TutorialModal from './components/TutorialModal';
+import SettingsModal from './components/SettingsModal';
+import { getInitialTheme, getTheme, applyTheme } from './core/themes';
 import Home from './pages/Home';
 import Viewer from './pages/Viewer';
 
@@ -60,22 +62,20 @@ export default function App() {
   const [params] = useSearchParams();
   const inDemo = Boolean(params.get('demo'));
   const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
-  const [dark, setDark] = useState(() => {
-    try {
-      return localStorage.getItem('skyflip_theme') === 'dark';
-    } catch {
-      return false;
-    }
-  });
+
+  const [themeId, setThemeId] = useState(() => getInitialTheme().id);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('themes');
+  const theme = getTheme(themeId);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    try {
-      localStorage.setItem('skyflip_theme', dark ? 'dark' : 'light');
-    } catch {
-      // ignore storage errors
-    }
-  }, [dark]);
+    applyTheme(themeId);
+  }, [themeId]);
+
+  const toggleQuickDark = () => {
+    const nextThemeId = theme.type === 'dark' ? 'retro-sunset' : 'deep-spruce';
+    setThemeId(nextThemeId);
+  };
 
   const [showTutorial, setShowTutorial] = useState(() => {
     try {
@@ -99,7 +99,7 @@ export default function App() {
       <header className="border-b border-soft bg-surface">
         <div className="mx-auto flex min-h-[72px] max-w-[1720px] flex-wrap items-center justify-between gap-x-6 px-4 sm:px-8">
           <NavLink to="/" className="flex items-center gap-2.5" aria-label="SkyFlip home">
-            <svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="#FF8A3D" strokeWidth="2.2" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="var(--color-accent, #FF8A3D)" strokeWidth="2.2" aria-hidden="true">
               <rect x="4" y="4" width="18" height="18" rx="2" />
               <rect x="10" y="10" width="18" height="18" rx="2" />
             </svg>
@@ -124,8 +124,8 @@ export default function App() {
               to={demoHref}
               className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-semibold transition-colors ${
                 inDemo
-                  ? 'border-[#FF8A3D] bg-[#FF8A3D] text-[#0B1020]'
-                  : 'border-[#FF8A3D] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]'
+                  ? 'border-accent bg-accent text-[var(--color-accent-text,#0B1020)]'
+                  : 'border-accent bg-surface text-ink hover:bg-page'
               }`}
               title="Interactive 5-step walkthrough on real NASA SPHEREx data of brown dwarf WISE 0855"
             >
@@ -134,14 +134,31 @@ export default function App() {
             </Link>
             <button
               type="button"
-              onClick={() => setDark((d) => !d)}
-              aria-pressed={dark}
-              aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-ink"
+              onClick={() => {
+                setSettingsTab('themes');
+                setShowSettings(true);
+              }}
+              aria-label="Theme settings (Monkeytype style)"
+              title={`Active theme: ${theme.name}. Click to open Theme Settings`}
+              className="flex h-10 items-center gap-2 rounded-full border border-line bg-surface px-3 text-[14px] font-medium text-ink transition-colors hover:border-ink"
             >
-              {dark ? <SunIcon /> : <MoonIcon />}
-              <span className="hidden sm:inline">{dark ? 'Light' : 'Dark'}</span>
+              <PaletteIcon />
+              <span className="hidden md:inline font-medium">{theme.name}</span>
+              <span className="flex items-center gap-0.5" aria-hidden="true">
+                <span className="h-2.5 w-2.5 rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: theme.palette[0] }} />
+                <span className="h-2.5 w-2.5 rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: theme.palette[4] }} />
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={toggleQuickDark}
+              aria-pressed={theme.type === 'dark'}
+              aria-label={theme.type === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={theme.type === 'dark' ? 'Quick toggle: Light theme' : 'Quick toggle: Dark theme'}
+              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[14px] font-medium text-ink transition-colors hover:border-ink"
+            >
+              {theme.type === 'dark' ? <SunIcon /> : <MoonIcon />}
+              <span className="hidden xl:inline">{theme.type === 'dark' ? 'Light' : 'Dark'}</span>
             </button>
             <Credits />
           </nav>
@@ -152,6 +169,17 @@ export default function App() {
         <Route path="/viewer" element={<Viewer />} />
       </Routes>
       {showTutorial && !inDemo && <TutorialModal onClose={closeTutorial} />}
+      {showSettings && (
+        <SettingsModal
+          currentThemeId={themeId}
+          onSelectTheme={(id) => {
+            setThemeId(id);
+            applyTheme(id);
+          }}
+          onClose={() => setShowSettings(false)}
+          initialTab={settingsTab}
+        />
+      )}
     </div>
   );
 }
