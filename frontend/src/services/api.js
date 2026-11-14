@@ -56,12 +56,17 @@ const spot = (ra, dec, more = {}) => {
   const fov = more.fov != null ? String(more.fov) : '5.0';
   return new URLSearchParams({ ra: ra.toFixed(6), dec: dec.toFixed(6), fov, ...more }).toString();
 };
-const LOOK = { stretch: 'zscale', colormap: 'grayscale' };
+const LOOK = { stretch: 'zscale', colormap: 'inferno' };
 
 // The time series of pictures for one sky position, plus difference_image_url.
 // `band` is any band_group the backend knows: 'stacked', 'array_1'..'array_6', or an id from fetchLightKinds().
-export const fetchSkyCutout = (ra, dec, band = 'stacked', fov = 5.0, onProgress, isCancelled) =>
-  poll(`/api/sky-cutout?${spot(ra, dec, { band_group: band, ...LOOK, fov, epochs: '4' })}`, onProgress, isCancelled);
+// `colormap` is 'inferno' (default) or 'grayscale' (or 'viridis', 'magma').
+export const fetchSkyCutout = (ra, dec, band = 'stacked', fov = 5.0, colormapOrOnProgress = 'inferno', onProgressOrCancelled, isCancelled) => {
+  const colormap = typeof colormapOrOnProgress === 'string' ? colormapOrOnProgress : 'inferno';
+  const onProgress = typeof colormapOrOnProgress === 'function' ? colormapOrOnProgress : onProgressOrCancelled;
+  const cancelled = typeof colormapOrOnProgress === 'function' ? onProgressOrCancelled : isCancelled;
+  return poll(`/api/sky-cutout?${spot(ra, dec, { band_group: band, stretch: 'zscale', colormap, fov, epochs: '4' })}`, onProgress, cancelled);
+};
 
 // { unit, channels: [{ channel, detector, wavelength_um, flux_mjy_sr, n_measurements }] }.
 // Needs every picture of the spot, so the first request can report progress for 15 minutes or more.
@@ -73,12 +78,18 @@ export const fetchCatalog = (ra, dec, fov = 5.0) =>
   poll(`/api/catalog-overlay?${spot(ra, dec, { fov })}`);
 
 // All pictures of the spot added together after sliding each one by (shiftX, shiftY) pixels per visit.
-export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, fov = 5.0, onProgress, isCancelled) =>
-  poll(`/api/shift-and-add?${spot(ra, dec, { band_group: band, shift_x: shiftX, shift_y: shiftY, fov, ...LOOK })}`, onProgress, isCancelled);
+export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, fov = 5.0, colormapOrOnProgress = 'inferno', onProgressOrCancelled, isCancelled) => {
+  const colormap = typeof colormapOrOnProgress === 'string' ? colormapOrOnProgress : 'inferno';
+  const onProgress = typeof colormapOrOnProgress === 'function' ? colormapOrOnProgress : onProgressOrCancelled;
+  const cancelled = typeof colormapOrOnProgress === 'function' ? onProgressOrCancelled : isCancelled;
+  return poll(`/api/shift-and-add?${spot(ra, dec, { band_group: band, shift_x: shiftX, shift_y: shiftY, fov, stretch: 'zscale', colormap })}`, onProgress, cancelled);
+};
 
 // Difference image between two chosen survey visits (lateIdx minus earlyIdx).
-export const fetchDifferenceImage = (ra, dec, band = 'stacked', earlyIdx = 0, lateIdx = 1, fov = 5.0) =>
-  poll(`/api/difference-image?${spot(ra, dec, { band_group: band, ...LOOK, early_idx: earlyIdx, late_idx: lateIdx, fov })}`);
+export const fetchDifferenceImage = (ra, dec, band = 'stacked', earlyIdx = 0, lateIdx = 1, fov = 5.0, colormap = 'inferno') => {
+  const cmap = typeof colormap === 'string' ? colormap : 'inferno';
+  return poll(`/api/difference-image?${spot(ra, dec, { band_group: band, stretch: 'zscale', colormap: cmap, early_idx: earlyIdx, late_idx: lateIdx, fov })}`);
+};
 
 // Every kind of light the backend can show: { id: { name, category, description } }.
 export const fetchLightKinds = async () => (await poll('/api/bands')).wavelength_filters;
@@ -149,9 +160,9 @@ export function useRemote(key, load) {
 // Loads the pictures for a position. Returns { frames, difference, error, loading, progress, retry }.
 // frames: [{ image_url, timestamp }] oldest first. difference: picture URL or null.
 // progress: null or { cached_images, total_images }. Pass ra = null to load nothing.
-export function useFrames(ra, dec, band = 'stacked', fov = 5.0) {
-  const { data, ...rest } = useRemote(ra == null || dec == null ? null : `${ra}|${dec}|${band}|${fov}`, (onProgress, isCancelled) =>
-    fetchSkyCutout(ra, dec, band, fov, onProgress, isCancelled)
+export function useFrames(ra, dec, band = 'stacked', fov = 5.0, colormap = 'inferno') {
+  const { data, ...rest } = useRemote(ra == null || dec == null ? null : `${ra}|${dec}|${band}|${fov}|${colormap}`, (onProgress, isCancelled) =>
+    fetchSkyCutout(ra, dec, band, fov, colormap, onProgress, isCancelled)
   );
   return {
     frames: (data && data.epochs) || [],

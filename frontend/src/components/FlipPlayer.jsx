@@ -83,33 +83,39 @@ function Loading({ progress, bandLabel, bandDot, slowText }) {
 // slowText replaces the "takes a minute or two" line for downloads that take much longer.
 // overlay: SVG content drawn over the picture on its 0-256 pixel grid.
 // onPick(x, y): called with the grid point when the picture is clicked.
-export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick }) {
+// colormap: 'inferno' | 'grayscale'. onToggleColormap: toggles between inferno and grayscale.
+export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick, colormap, onToggleColormap }) {
   const count = frames.length;
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
 
   useEffect(() => {
-    if (caption || count < 2) return undefined;
     const onKeyDown = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target && typeof e.target.closest === 'function' ? e.target : null;
-      if ((e.code === 'Space' || e.key === ' ') && !e.repeat) {
+      if ((e.code === 'Space' || e.key === ' ') && !e.repeat && !caption && count >= 2) {
         if (target && target.closest('input, textarea, select, button, a, [contenteditable]')) {
           return;
         }
         e.preventDefault();
         setPlaying((p) => !p);
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !caption && count >= 2) {
         if (target && target.closest('input, textarea, select, [contenteditable]')) {
           return;
         }
         e.preventDefault();
         show((f) => (e.key === 'ArrowLeft' ? f - 1 : f + 1));
+      } else if (e.key === 'c' || e.key === 'C') {
+        if (target && target.closest('input, textarea, select, [contenteditable]')) {
+          return;
+        }
+        e.preventDefault();
+        if (onToggleColormap) onToggleColormap();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [caption, count, setPlaying, show]);
+  }, [caption, count, setPlaying, show, onToggleColormap]);
 
   const pick = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -192,6 +198,29 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
             <option value="4">Fast</option>
           </select>
         </label>
+        {onToggleColormap && (
+          <button
+            type="button"
+            onClick={onToggleColormap}
+            title={colormap === 'inferno' ? 'Switch to grayscale (Shortcut: C)' : 'Switch to inferno color (Shortcut: C)'}
+            aria-label={`Toggle colormap. Current: ${colormap === 'inferno' ? 'Inferno' : 'Grayscale'}`}
+            className={`flex h-11 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              colormap === 'inferno'
+                ? 'border-[#EE7F22] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE]'
+                : 'border-line bg-white text-ink hover:border-ink'
+            }`}
+          >
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                colormap === 'inferno'
+                  ? 'bg-gradient-to-tr from-[#000004] via-[#bb3754] to-[#fcffa4] ring-1 ring-[#EE7F22]'
+                  : 'bg-gradient-to-tr from-[#111827] via-[#9CA3AF] to-[#F9FAFB] ring-1 ring-line'
+              }`}
+              aria-hidden="true"
+            />
+            <span>{colormap === 'inferno' ? 'Inferno' : 'Grayscale'}</span>
+          </button>
+        )}
       </div>}
 
       {!caption && count > 0 && (

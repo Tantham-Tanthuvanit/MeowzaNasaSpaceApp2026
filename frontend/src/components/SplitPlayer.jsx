@@ -17,6 +17,8 @@ export default function SplitPlayer({
   bandDot,
   bandLabel,
   label,
+  colormap,
+  onToggleColormap,
 }) {
   const count = frames.length;
   const left = frames[leftIdx] || frames[0];
@@ -123,6 +125,29 @@ export default function SplitPlayer({
               title="Compare these two visits in What changed"
             >
               Subtract in What changed →
+            </button>
+          )}
+          {onToggleColormap && (
+            <button
+              type="button"
+              onClick={onToggleColormap}
+              title={colormap === 'inferno' ? 'Switch to grayscale' : 'Switch to inferno color'}
+              aria-label={`Toggle colormap. Current: ${colormap === 'inferno' ? 'Inferno' : 'Grayscale'}`}
+              className={`h-8 px-3 text-xs rounded-full border flex items-center gap-1.5 transition-colors ${
+                colormap === 'inferno'
+                  ? 'border-[#EE7F22] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE]'
+                  : 'border-line bg-white text-ink hover:border-ink'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  colormap === 'inferno'
+                    ? 'bg-gradient-to-tr from-[#000004] via-[#bb3754] to-[#fcffa4]'
+                    : 'bg-[#6B7280]'
+                }`}
+                aria-hidden="true"
+              />
+              <span>{colormap === 'inferno' ? 'Inferno' : 'Grayscale'}</span>
             </button>
           )}
         </div>
