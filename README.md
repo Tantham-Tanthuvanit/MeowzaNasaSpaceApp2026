@@ -14,8 +14,8 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
 2. **Caching in Supabase (download once)**
    - A cutout takes about 10–15 s to download from IRSA. Each is downloaded once (4 at a time, as a courtesy to IRSA), then stored in Supabase Storage with a row in `sky_cutouts`. Finished responses are stored in `sky_results`.
-   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "Downloading picture N of M from NASA…" and polls.
-   - The flipbook for a new spot is ready in about 1–2 minutes. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
+   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "N of M pictures are here" with one slot per picture, and polls.
+   - The viewer opens a spot in one band (Band 1, `array_1`), which needs one picture per visit (up to 4) and is ready in under a minute. "All bands combined" (`stacked`, `?band=all`) needs up to 24 and takes a few minutes the first time. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
 
 3. **Difference Imaging and Shift-and-Add**
    - The difference image (last visit − first visit) uses a bipolar colormap, so moving objects show a dipole.

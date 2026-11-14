@@ -6,7 +6,7 @@ import SpectrumPanel from '../components/SpectrumChart';
 import ProjectDialog from '../components/ProjectDialog';
 import { CheckIcon, PlusIcon } from '../components/icons';
 import { useProjects } from '../core/projects';
-import { BANDS, ALL_BANDS, DEFAULT_LOOK } from '../core/targets';
+import { BANDS, ALL_BANDS, DEFAULT_BAND, DEFAULT_LOOK } from '../core/targets';
 import { parseRa, parseDec, fmtRa, fmtDec, skyToPixel } from '../core/sky';
 import { fetchCatalog, fetchLightKinds, fetchShiftAndAdd, listCandidates, useFrames, useRemote } from '../services/api';
 
@@ -55,12 +55,15 @@ export default function Viewer() {
   const hasSpot = ra !== null && dec !== null;
 
   const bands = BANDS.filter((b) => (project ? project.bands : ALL_BANDS).includes(b.n));
-  const band = bands.find((b) => String(b.n) === params.get('band')) || null; // null = all bands together
+  // ?band= is a band number, 'all' for every band together, or another kind of light. With none,
+  // the spot opens in one band, so only that band's pictures are downloaded.
+  const asked = params.get('band');
+  const band = (asked ? bands.find((b) => String(b.n) === asked) : bands.find((b) => b.n === DEFAULT_BAND) || bands[0]) || null;
 
   // Every other kind of light the backend offers (colour picture, narrow filters, comparisons).
   const kinds = useRemote('kinds', fetchLightKinds).data || {};
   const extras = Object.entries(kinds).filter(([id]) => id !== 'stacked' && !id.startsWith('array_'));
-  const extraId = !band && extras.some(([id]) => id === params.get('band')) ? params.get('band') : null;
+  const extraId = extras.some(([id]) => id === asked) ? asked : null;
   const bandId = band ? band.id : extraId || 'stacked';
   const { frames, difference, error, loading, progress, retry } = useFrames(ra, dec, bandId);
 
@@ -232,7 +235,7 @@ export default function Viewer() {
           </div>
 
           <p className="text-[13px] leading-relaxed text-muted">
-            These are real pictures from NASA’s SPHEREx space telescope, from the NASA/IPAC Infrared Science Archive. The first look at a new spot takes a minute or two while the pictures download; after that it opens straight away.
+            These are real pictures from NASA’s SPHEREx space telescope, from the NASA/IPAC Infrared Science Archive. The first look at a new spot takes up to a minute while the pictures of one band download; after that it opens straight away.
           </p>
         </div>
       </aside>
@@ -367,20 +370,23 @@ export default function Viewer() {
         <div className="flex flex-col gap-3">
           <h2 className="text-[15px] font-semibold">Light</h2>
           <div role="group" aria-label="Which light to show" className="grid grid-cols-3 gap-1.5 lg:grid-cols-2 xl:grid-cols-3">
-            <button type="button" onClick={() => pickBand(null)} aria-pressed={!band && !extraId} className={`${bandCell(!band && !extraId)} col-span-full`}>
+            <button type="button" onClick={() => pickBand('all')} aria-pressed={!band && !extraId} className={`${bandCell(!band && !extraId)} col-span-full`}>
               <span className="text-sm font-medium">All bands combined</span>
-              <span className="text-xs opacity-80">Every band together</span>
+              <span className="text-xs opacity-80">A clearer picture, with six times the downloads</span>
             </button>
             {bands.map((b) => (
               <button key={b.n} type="button" onClick={() => pickBand(b.n)} aria-pressed={band === b} className={bandCell(band === b)}>
                 <span className="flex items-center gap-1.5 text-sm font-medium">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} aria-hidden="true" />
+                  <span className={`h-2.5 w-2.5 rounded-full ${band === b && loading ? 'motion-safe:animate-pulse' : ''}`} style={{ background: b.color }} aria-hidden="true" />
                   Band {b.n}
                 </span>
                 <span className="font-mono text-xs opacity-80">{b.range} µm</span>
               </button>
             ))}
           </div>
+          {band && !loading && frames.length === 1 && (
+            <p className="text-sm leading-relaxed text-body">NASA has only one picture of this spot in this band, so there is nothing to flip through. Try another band, or All bands combined.</p>
+          )}
           <p className="text-[13px] leading-relaxed text-muted">Each band is one slice of infrared light, from shorter to longer waves (µm is a millionth of a metre). Cooler things glow more in the longer bands.</p>
             {extras.length > 0 && (
               <select
