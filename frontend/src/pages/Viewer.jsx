@@ -66,12 +66,41 @@ export default function Viewer() {
   const urlFov = parseFloat(params.get('fov'));
   const fov = Number.isFinite(urlFov) && urlFov > 0 ? urlFov : 5.0;
 
+  // Colormap toggle state: 'inferno' (astronomy default) or 'grayscale'
+  const [colormap, setColormap] = useState(() => {
+    const urlCmap = params.get('colormap');
+    if (urlCmap === 'inferno' || urlCmap === 'grayscale') return urlCmap;
+    try {
+      const saved = localStorage.getItem('skyflip_colormap');
+      if (saved === 'inferno' || saved === 'grayscale') return saved;
+    } catch {}
+    return 'inferno';
+  });
+
+  const toggleColormap = () => {
+    const nextColormap = colormap === 'inferno' ? 'grayscale' : 'inferno';
+    setColormap(nextColormap);
+    try {
+      localStorage.setItem('skyflip_colormap', nextColormap);
+    } catch {}
+    const next = new URLSearchParams(params);
+    next.set('colormap', nextColormap);
+    setParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    const urlCmap = params.get('colormap');
+    if ((urlCmap === 'inferno' || urlCmap === 'grayscale') && urlCmap !== colormap) {
+      setColormap(urlCmap);
+    }
+  }, [params.get('colormap')]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Every other kind of light the backend offers (colour picture, narrow filters, comparisons).
   const kinds = useRemote('kinds', fetchLightKinds).data || {};
   const extras = Object.entries(kinds).filter(([id]) => id !== 'stacked' && !id.startsWith('array_'));
   const extraId = extras.some(([id]) => id === asked) ? asked : null;
   const bandId = band ? band.id : extraId || 'stacked';
-  const { frames, difference, differenceImages = {}, error, loading, progress, retry } = useFrames(ra, dec, bandId, fov);
+  const { frames, difference, differenceImages = {}, error, loading, progress, retry } = useFrames(ra, dec, bandId, fov, colormap);
 
   // What the player shows: the flipbook, the side-by-side split view, the before-and-after picture, or all pictures combined.
   const oneColour = bandId !== 'false_color_rgb'; // the colour picture has neither of the other two
@@ -99,15 +128,15 @@ export default function Viewer() {
 
   const diffPairKey = `${diffEarly}_${diffLate}`;
   const customDiffKey = hasSpot && view === 'changes' && !differenceImages[diffPairKey] && diffEarly !== diffLate && !(diffEarly === 0 && diffLate === frames.length - 1 && difference)
-    ? `${ra}|${dec}|${bandId}|${fov}|${diffEarly}|${diffLate}`
+    ? `${ra}|${dec}|${bandId}|${fov}|${diffEarly}|${diffLate}|${colormap}`
     : null;
-  const customDiff = useRemote(customDiffKey, () => fetchDifferenceImage(ra, dec, bandId, diffEarly, diffLate, fov));
+  const customDiff = useRemote(customDiffKey, () => fetchDifferenceImage(ra, dec, bandId, diffEarly, diffLate, fov, colormap));
   const activeDiffUrl = differenceImages[diffPairKey] || (diffEarly === 0 && diffLate === frames.length - 1 ? difference : null) || (customDiff.data && customDiff.data.difference_image_url);
 
   const [drift, setDrift] = useState(NO_DRIFT); // what the sliders say
   const [sent, setSent] = useState(NO_DRIFT); // what the combined picture was made with
-  const combined = useRemote(hasSpot && view === 'combine' ? `${ra}|${dec}|${bandId}|${sent.x}|${sent.y}|${fov}` : null, (onProgress, isCancelled) =>
-    fetchShiftAndAdd(ra, dec, bandId, sent.x, sent.y, fov, onProgress, isCancelled)
+  const combined = useRemote(hasSpot && view === 'combine' ? `${ra}|${dec}|${bandId}|${sent.x}|${sent.y}|${fov}|${colormap}` : null, (onProgress, isCancelled) =>
+    fetchShiftAndAdd(ra, dec, bandId, sent.x, sent.y, fov, colormap, onProgress, isCancelled)
   );
 
   // Known stars from the Gaia and WISE catalogues, looked up only when asked for (it takes a while).
@@ -431,6 +460,8 @@ export default function Viewer() {
             bandDot={band ? band.color : '#FFFFFF'}
             bandLabel={lightLabel}
             label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
+            colormap={colormap}
+            onToggleColormap={toggleColormap}
           />
         ) : (
           <FlipPlayer
@@ -448,6 +479,8 @@ export default function Viewer() {
             label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
             bandDot={band ? band.color : '#FFFFFF'}
             bandLabel={lightLabel}
+            colormap={colormap}
+            onToggleColormap={toggleColormap}
           />
         )}
         </div>
@@ -477,10 +510,38 @@ export default function Viewer() {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
-            <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
-            Overlay Gaia &amp; WISE stars (Mark known stars)
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
+              <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
+              Overlay Gaia &amp; WISE stars (Mark known stars)
+            </button>
+            <button
+              type="button"
+              onClick={toggleColormap}
+              aria-label={`Current colormap: ${colormap === 'inferno' ? 'Inferno color' : 'Grayscale'}. Click to toggle.`}
+              title={`Switch to ${colormap === 'inferno' ? 'grayscale' : 'inferno color'} colormap (Shortcut: C)`}
+              className={`flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-all ${
+                colormap === 'inferno'
+                  ? 'border-[#EE7F22] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]'
+                  : 'border-line bg-surface text-ink hover:border-ink'
+              }`}
+            >
+              <span
+                className={`h-3 w-3 rounded-full transition-transform ${
+                  colormap === 'inferno'
+                    ? 'bg-gradient-to-tr from-[#000004] via-[#bb3754] to-[#fcffa4] ring-2 ring-[#EE7F22]/30'
+                    : 'bg-gradient-to-tr from-[#111827] via-[#9CA3AF] to-[#F9FAFB] ring-1 ring-line'
+                }`}
+                aria-hidden="true"
+              />
+              <span className="font-semibold">
+                {colormap === 'inferno' ? 'Inferno color' : 'Grayscale'}
+              </span>
+              <span className="text-xs text-muted font-normal">
+                ⇄ {colormap === 'inferno' ? 'Grayscale' : 'Inferno'}
+              </span>
+            </button>
+          </div>
 
           {hasSpot && view === 'split' && (
             <div className="flex w-full flex-col gap-2.5">
