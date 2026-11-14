@@ -51,11 +51,11 @@ void main() {
   float x1 = x2 * cos(t) - z2 * sin(t);
   float z1 = x2 * sin(t) + z2 * cos(t);
   
-  float ra = mod(atan(y2, x1) + u_rot, 2.0 * PI);
+  float angle = atan(y2, x1) + u_rot;
   float dec = asin(clamp(z1, -1.0, 1.0));
   
-  float u = ra / (2.0 * PI);
-  float v = 0.5 - (dec / PI);
+  float u = fract(angle / (2.0 * PI));
+  float v = clamp(0.5 - (dec / PI), 0.0, 1.0);
   
   vec4 star = texture2D(u_sky, vec2(u, v));
   // Boost contrast slightly for beautiful deep sky display
@@ -81,6 +81,9 @@ export default function SkyCanvas({ view }) {
   const glRef = useRef(null);
   const uniformsRef = useRef(null);
   const loadedRef = useRef(false);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const renderRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -88,7 +91,9 @@ export default function SkyCanvas({ view }) {
 
     let gl = null;
     try {
-      gl = canvas.getContext('webgl', { alpha: false, antialias: true, powerPreference: 'high-performance' });
+      gl = canvas.getContext('webgl2', { alpha: false, antialias: true, powerPreference: 'high-performance' })
+        || canvas.getContext('webgl', { alpha: false, antialias: true, powerPreference: 'high-performance' })
+        || canvas.getContext('experimental-webgl', { alpha: false, antialias: true });
     } catch {
       return;
     }
@@ -96,9 +101,11 @@ export default function SkyCanvas({ view }) {
     glRef.current = gl;
 
     let program;
+    let vs;
+    let fs;
     try {
-      const vs = createShader(gl, gl.VERTEX_SHADER, VS);
-      const fs = createShader(gl, gl.FRAGMENT_SHADER, FS);
+      vs = createShader(gl, gl.VERTEX_SHADER, VS);
+      fs = createShader(gl, gl.FRAGMENT_SHADER, FS);
       program = gl.createProgram();
       gl.attachShader(program, vs);
       gl.attachShader(program, fs);
@@ -129,7 +136,7 @@ export default function SkyCanvas({ view }) {
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-    uniformsRef.current = {
+    const uniforms = {
       u_res: gl.getUniformLocation(program, 'u_res'),
       u_center: gl.getUniformLocation(program, 'u_center'),
       u_radii: gl.getUniformLocation(program, 'u_radii'),
@@ -138,67 +145,76 @@ export default function SkyCanvas({ view }) {
       u_tilt: gl.getUniformLocation(program, 'u_tilt'),
       u_sky: gl.getUniformLocation(program, 'u_sky'),
     };
+    uniformsRef.current = uniforms;
+
+    const render = () => {
+      if (!glRef.current || !uniformsRef.current) return;
+      const g = glRef.current;
+      const u = uniformsRef.current;
+      const v = viewRef.current;
+
+      g.viewport(0, 0, MAP_W, MAP_H);
+      g.uniform2f(u.u_res, MAP_W, MAP_H);
+      g.uniform2f(u.u_center, MAP_W / 2, MAP_H / 2);
+      g.uniform2f(u.u_radii, MAP_RX, MAP_RY);
+      g.uniform1f(u.u_zoom, v.zoom);
+      g.uniform1f(u.u_rot, (v.rot * Math.PI) / 180);
+      g.uniform1f(u.u_tilt, (v.tilt * Math.PI) / 180);
+
+      g.drawArrays(g.TRIANGLES, 0, 6);
+    };
+    renderRef.current = render;
 
     // Load texture
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     // Placeholder 1x1 dark blue pixel while loading
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([11, 18, 48, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = '/skymap_equatorial.webp';
     img.onload = () => {
       if (!glRef.current) return;
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       loadedRef.current = true;
       render();
     };
-
-    const render = () => {
-      if (!glRef.current || !uniformsRef.current) return;
-      const g = glRef.current;
-      const u = uniformsRef.current;
-
-      g.viewport(0, 0, MAP_W, MAP_H);
-      g.uniform2f(u.u_res, MAP_W, MAP_H);
-      g.uniform2f(u.u_center, MAP_W / 2, MAP_H / 2);
-      g.uniform2f(u.u_radii, MAP_RX, MAP_RY);
-      g.uniform1f(u.u_zoom, view.zoom);
-      g.uniform1f(u.u_rot, (view.rot * Math.PI) / 180);
-      g.uniform1f(u.u_tilt, (view.tilt * Math.PI) / 180);
-
-      g.drawArrays(gl.TRIANGLES, 0, 6);
+    img.onerror = () => {
+      if (!img.src.endsWith('.jpg')) {
+        img.src = '/skymap_equatorial.jpg';
+      }
     };
+    img.src = '/skymap_equatorial.webp';
 
     render();
 
     return () => {
+      if (gl) {
+        gl.deleteTexture(texture);
+        gl.deleteBuffer(buf);
+        gl.deleteProgram(program);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+      }
       glRef.current = null;
       loadedRef.current = false;
+      renderRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-render when view changes
   useEffect(() => {
-    if (!glRef.current || !uniformsRef.current || !loadedRef.current) return;
-    const gl = glRef.current;
-    const u = uniformsRef.current;
-
-    gl.viewport(0, 0, MAP_W, MAP_H);
-    gl.uniform2f(u.u_res, MAP_W, MAP_H);
-    gl.uniform2f(u.u_center, MAP_W / 2, MAP_H / 2);
-    gl.uniform2f(u.u_radii, MAP_RX, MAP_RY);
-    gl.uniform1f(u.u_zoom, view.zoom);
-    gl.uniform1f(u.u_rot, (view.rot * Math.PI) / 180);
-    gl.uniform1f(u.u_tilt, (view.tilt * Math.PI) / 180);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    if (loadedRef.current && renderRef.current) {
+      renderRef.current();
+    }
   }, [view.rot, view.tilt, view.zoom]);
 
   return (

@@ -367,6 +367,22 @@ def delete_project(project_id: int):
     return {"status": "deleted", "id": project_id}
 
 
+@app.get("/{filename:path}")
+def serve_frontend_dist(filename: str):
+    """Serves frontend root static assets (like skymap images) and handles SPA fallback."""
+    if filename.startswith("api/") or filename == "api":
+        raise HTTPException(status_code=404, detail="Not Found")
+    file_path = os.path.join(frontend_dist_dir, filename)
+    if os.path.isfile(file_path):
+        from fastapi.responses import FileResponse
+        return FileResponse(file_path)
+    index_file = os.path.join(frontend_dist_dir, "index.html")
+    if os.path.exists(index_file):
+        from fastapi.responses import FileResponse
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404, detail="Not Found")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
