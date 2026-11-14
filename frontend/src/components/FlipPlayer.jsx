@@ -34,8 +34,9 @@ export function useFlipbook(count, resetKey, startPlaying = true) {
 }
 
 // The flipbook: one square picture plus play controls, scrubber and a thumbnail per frame.
-// frames: [{ image_url, timestamp }] oldest first.
-export default function FlipPlayer({ frames, loading, error, onRetry, resetKey, bandLabel, bandDot, label }) {
+// frames: [{ image_url, timestamp }] oldest first. progress: null or { cached_images, total_images }
+// while the backend downloads the pictures from NASA. emptyText shows when there is nothing to load.
+export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label }) {
   const count = frames.length;
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
@@ -65,7 +66,7 @@ export default function FlipPlayer({ frames, loading, error, onRetry, resetKey, 
               {bandLabel}
             </div>
             <div className="absolute bottom-3 right-3 rounded bg-[rgba(4,6,13,0.75)] px-2 py-1 text-xs text-[#C5CDE0]">
-              Simulated pictures · real telescope pictures will show here
+              NASA SPHEREx · IRSA
             </div>
           </>
         )}
@@ -77,7 +78,19 @@ export default function FlipPlayer({ frames, loading, error, onRetry, resetKey, 
           </div>
         )}
         {loading && !current && (
-          <div className="absolute inset-0 flex items-center justify-center text-[15px] text-[#C5CDE0]">Loading pictures…</div>
+          <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-[15px] text-[#C5CDE0]">
+            {progress ? (
+              <>
+                <p>Downloading picture {progress.cached_images} of {progress.total_images} from NASA…</p>
+                <p className="max-w-[360px] text-[13px] leading-relaxed">The first look at a new spot takes a minute or two. After that it opens straight away.</p>
+              </>
+            ) : (
+              <p>Loading pictures…</p>
+            )}
+          </div>
+        )}
+        {emptyText && !loading && !current && !error && (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-[15px] text-[#C5CDE0]">{emptyText}</div>
         )}
       </div>
 

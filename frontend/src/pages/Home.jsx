@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import SkyMap from '../components/SkyMap';
 import ProjectDialog from '../components/ProjectDialog';
@@ -11,7 +11,7 @@ const START_VIEW = { rot: 0, tilt: 0, zoom: 1 };
 const centredOn = (p) => ({ rot: p.ra, tilt: p.dec, zoom: 1 });
 
 export default function Home() {
-  const { projects, addProject, updateProject, deleteProject } = useProjects();
+  const { projects, loaded, error, addProject, updateProject, deleteProject } = useProjects();
   const [params] = useSearchParams();
 
   // Coming back from the viewer with ?project=id opens that project on the map.
@@ -21,6 +21,15 @@ export default function Home() {
   const [pin, setPin] = useState(null);
   const [draftName, setDraftName] = useState('');
   const [dialog, setDialog] = useState(null); // null | { editId, initial }
+  const [actionError, setActionError] = useState('');
+
+  // The project list loads from the server, so ?project=id may only resolve once it arrives.
+  useEffect(() => {
+    if (loaded && arrived && selectedId === null) {
+      setSelectedId(arrived.id);
+      setView(centredOn(arrived));
+    }
+  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = projects.find((p) => p.id === selectedId) || null;
   // The open card docks on the side of the map away from the marker or pin it describes.
@@ -43,15 +52,31 @@ export default function Home() {
   const openEdit = (p) =>
     setDialog({ editId: p.id, initial: { name: p.name, desc: p.desc, ra: fmtRa(p.ra, true), dec: fmtDec(p.dec, true), color: p.color } });
 
-  const submitDialog = (fields) => {
-    let id = dialog.editId;
-    if (id) updateProject(id, fields);
-    else id = addProject(fields);
+  const submitDialog = async (fields) => {
+    const editId = dialog.editId;
     setDialog(null);
-    setDraftName('');
-    setPin(null);
-    setSelectedId(id);
-    setView((v) => ({ ...v, rot: fields.ra, tilt: fields.dec }));
+    try {
+      let id = editId;
+      if (id) await updateProject(id, fields);
+      else id = await addProject(fields);
+      setActionError('');
+      setDraftName('');
+      setPin(null);
+      setSelectedId(id);
+      setView((v) => ({ ...v, rot: fields.ra, tilt: fields.dec }));
+    } catch (err) {
+      setActionError(`Couldn’t save the project. ${err.message}`);
+    }
+  };
+
+  const removeSelected = async () => {
+    try {
+      await deleteProject(selected.id);
+      setActionError('');
+      setSelectedId(null);
+    } catch (err) {
+      setActionError(`Couldn’t delete the project. ${err.message}`);
+    }
   };
 
   const card = selected ? (
@@ -60,7 +85,7 @@ export default function Home() {
       project={selected}
       onClose={() => setSelectedId(null)}
       onEdit={() => openEdit(selected)}
-      onDelete={() => { deleteProject(selected.id); setSelectedId(null); }}
+      onDelete={removeSelected}
     />
   ) : pin ? (
     <PinCard pin={pin} onClose={() => setPin(null)} onSave={() => openCreate('')} />
@@ -91,6 +116,10 @@ export default function Home() {
           </div>
         </form>
       </div>
+
+      {(error || actionError) && (
+        <p role="alert" className="text-sm font-medium text-danger">{actionError || `Couldn’t load the saved projects. ${error}`}</p>
+      )}
 
       <SkyMap
         view={view}
