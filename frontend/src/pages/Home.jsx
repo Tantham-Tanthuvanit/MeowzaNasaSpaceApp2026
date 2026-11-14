@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import SkyMap from '../components/SkyMap';
 import ProjectDialog from '../components/ProjectDialog';
 import { ProjectCard, PinCard, CoordInfo } from '../components/MapCards';
 import { DEMO_TARGET } from '../components/DemoTour';
 import { BookIcon, CompassIcon, ShuffleIcon } from '../components/icons';
-import { useProjects } from '../core/projects';
+import { useProjects, isUserProject, isOfficialProject } from '../core/projects';
 import { MARKER_COLORS } from '../core/targets';
 import { MAP_W, MAX_ZOOM, project, clamp, fmtRa, fmtDec, randomSkyPoint } from '../core/sky';
 
@@ -17,6 +17,41 @@ export default function Home({ onOpenTutorial }) {
   const [params] = useSearchParams();
   const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
 
+  // Toggle for user-created projects and official benchmark targets
+  const [showUserProjects, setShowUserProjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem('skyflip_show_user_projects');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [showOfficialProjects, setShowOfficialProjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem('skyflip_show_official_projects');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('skyflip_show_user_projects', String(showUserProjects));
+    } catch {
+      // ignore
+    }
+  }, [showUserProjects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('skyflip_show_official_projects', String(showOfficialProjects));
+    } catch {
+      // ignore
+    }
+  }, [showOfficialProjects]);
+
   // Coming back from the viewer with ?project=id opens that project on the map.
   const arrived = projects.find((p) => p.id === params.get('project'));
   const [view, setView] = useState(arrived ? centredOn(arrived) : START_VIEW);
@@ -26,15 +61,38 @@ export default function Home({ onOpenTutorial }) {
   const [dialog, setDialog] = useState(null); // null | { editId, initial }
   const [actionError, setActionError] = useState('');
 
+  // Counts of user-created vs official projects
+  const userProjectsCount = useMemo(() => projects.filter(isUserProject).length, [projects]);
+  const officialProjectsCount = useMemo(() => projects.filter(isOfficialProject).length, [projects]);
+
+  // Filter projects shown on the sky map based on user toggles
+  const visibleProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const isUser = isUserProject(p);
+      if (isUser && !showUserProjects) return false;
+      if (!isUser && !showOfficialProjects) return false;
+      return true;
+    });
+  }, [projects, showUserProjects, showOfficialProjects]);
+
   // The project list loads from the server, so ?project=id may only resolve once it arrives.
   useEffect(() => {
     if (loaded && arrived && selectedId === null) {
+      if (isUserProject(arrived) && !showUserProjects) setShowUserProjects(true);
       setSelectedId(arrived.id);
       setView(centredOn(arrived));
     }
   }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = projects.find((p) => p.id === selectedId) || null;
+
+  // If a selected user project is hidden by the toggle, close its card
+  useEffect(() => {
+    if (selected && isUserProject(selected) && !showUserProjects) {
+      setSelectedId(null);
+    }
+  }, [selected, showUserProjects]);
+
   // The open card docks on the side of the map away from the marker or pin it describes.
   const spot = selected ? [selected.ra, selected.dec] : pin;
   const cardSide = spot && project(spot[0], spot[1], view)[0] > MAP_W / 2 ? 'left-4' : 'right-4';
@@ -58,6 +116,12 @@ export default function Home({ onOpenTutorial }) {
   const openFound = (p) => {
     setQuery('');
     setPin(null);
+    if (isUserProject(p) && !showUserProjects) {
+      setShowUserProjects(true);
+    }
+    if (isOfficialProject(p) && !showOfficialProjects) {
+      setShowOfficialProjects(true);
+    }
     setSelectedId(p.id);
     setView(centredOn(p));
   };
@@ -82,6 +146,8 @@ export default function Home({ onOpenTutorial }) {
       else id = await addProject(fields);
       setActionError('');
       setPin(null);
+      // Ensure user projects are visible so newly created project is visible on map
+      setShowUserProjects(true);
       setSelectedId(id);
       setView((v) => ({ ...v, rot: fields.ra, tilt: fields.dec }));
     } catch (err) {
@@ -172,6 +238,48 @@ export default function Home({ onOpenTutorial }) {
               Random patch
             </button>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs sm:text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-muted">Show on map:</span>
+              <button
+                type="button"
+                onClick={() => setShowUserProjects((v) => !v)}
+                aria-pressed={showUserProjects}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all ${
+                  showUserProjects
+                    ? 'border-accent bg-accent/15 text-ink'
+                    : 'border-line bg-surface/60 text-muted hover:border-ink hover:text-ink'
+                }`}
+                title={showUserProjects ? 'Hide user-created projects on sky map' : 'Show user-created projects on sky map'}
+              >
+                <span className={`h-2 w-2 rounded-full ${showUserProjects ? 'bg-accent' : 'bg-muted'}`} />
+                User projects ({userProjectsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOfficialProjects((v) => !v)}
+                aria-pressed={showOfficialProjects}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all ${
+                  showOfficialProjects
+                    ? 'border-sky-500/50 bg-sky-500/15 text-ink'
+                    : 'border-line bg-surface/60 text-muted hover:border-ink hover:text-ink'
+                }`}
+                title={showOfficialProjects ? 'Hide official benchmark targets on sky map' : 'Show official benchmark targets on sky map'}
+              >
+                <span className={`h-2 w-2 rounded-full ${showOfficialProjects ? 'bg-sky-400' : 'bg-muted'}`} />
+                Official targets ({officialProjectsCount})
+              </button>
+            </div>
+            {(!showUserProjects || !showOfficialProjects) && (
+              <button
+                type="button"
+                onClick={() => { setShowUserProjects(true); setShowOfficialProjects(true); }}
+                className="text-xs text-accent underline hover:opacity-80"
+              >
+                Show all
+              </button>
+            )}
+          </div>
           {q && (
             <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-surface p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
               {!loaded && !error ? (
@@ -184,7 +292,15 @@ export default function Home({ onOpenTutorial }) {
                     <button type="button" onClick={() => openFound(p)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-[#EEF1F8] focus:bg-[#EEF1F8] dark:hover:bg-[#1E294A] dark:focus:bg-[#1E294A] focus:outline-none">
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden="true" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold">{p.name}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[15px] font-semibold">{p.name}</span>
+                          <span className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${p.isOfficial ? 'bg-sky-500/15 text-sky-400' : 'bg-accent/15 text-accent'}`}>
+                            {p.isOfficial ? 'Official' : 'User'}
+                          </span>
+                          {((p.isUser && !showUserProjects) || (p.isOfficial && !showOfficialProjects)) && (
+                            <span className="text-[11px] text-muted">(hidden on map)</span>
+                          )}
+                        </span>
                         {p.desc && <span className="block truncate text-sm text-muted">{p.desc}</span>}
                       </span>
                     </button>
@@ -206,12 +322,32 @@ export default function Home({ onOpenTutorial }) {
       <SkyMap
         view={view}
         onView={setView}
-        projects={projects}
+        projects={visibleProjects}
         selectedId={selectedId}
         onSelect={(id) => { setSelectedId(id); setPin(null); }}
         pin={pin}
         onPin={(spot) => { setPin(spot); setSelectedId(null); }}
       >
+        <div
+          data-map-ui
+          className={`absolute ${cardSide === 'left-4' && card ? 'right-4' : 'left-4'} top-4 z-[8] hidden items-center gap-2 rounded-full border border-soft bg-surface/90 px-3 py-1.5 shadow-md backdrop-blur lg:flex`}
+        >
+          <span className="text-xs font-semibold text-muted">User projects:</span>
+          <button
+            type="button"
+            onClick={() => setShowUserProjects((v) => !v)}
+            aria-pressed={showUserProjects}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
+              showUserProjects
+                ? 'bg-accent text-[var(--color-accent-text,#0B1020)] shadow-sm'
+                : 'bg-soft text-muted hover:text-ink'
+            }`}
+            title={showUserProjects ? 'Click to hide user-created projects' : 'Click to show user-created projects'}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${showUserProjects ? 'bg-[var(--color-accent-text,#0B1020)]' : 'bg-muted'}`} />
+            {showUserProjects ? 'Showing' : 'Hidden'} ({userProjectsCount})
+          </button>
+        </div>
         {card && (
           <div data-map-ui className={`absolute ${cardSide} top-4 z-10 hidden max-h-[calc(100%-2rem)] w-[380px] cursor-default overflow-y-auto rounded-[18px] lg:block`}>
             {card}

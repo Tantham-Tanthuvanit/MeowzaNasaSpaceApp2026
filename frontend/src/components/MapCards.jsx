@@ -28,9 +28,18 @@ export function ProjectCard({ project, onClose, onEdit, onDelete }) {
     <div role="dialog" aria-labelledby="project-card-title" className="flex flex-col gap-3.5 rounded-[18px] border border-soft bg-surface p-5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-2.5">
+          <span className="flex flex-wrap items-center gap-2">
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: project.color }} aria-hidden="true" />
             <h3 id="project-card-title" className="font-display text-[22px] font-medium leading-tight">{project.name}</h3>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                project.isOfficial
+                  ? 'border border-sky-500/30 bg-sky-500/15 text-sky-400'
+                  : 'border border-accent/30 bg-accent/15 text-accent'
+              }`}
+            >
+              {project.isOfficial ? 'Official target' : 'User project'}
+            </span>
           </span>
         </div>
         <button type="button" onClick={onClose} aria-label="Close project details" className="btn-round"><CloseIcon /></button>
