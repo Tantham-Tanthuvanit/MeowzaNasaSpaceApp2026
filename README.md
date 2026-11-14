@@ -31,7 +31,12 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 6. **Saved Projects and Citizen-Science Candidates**
    - Projects (the markers on the Home sky map), candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
 
-7. **Query Sky Patches via URL**
+   - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
+
+7. **All of It in the Viewer**
+   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
+
+8. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.
 
 ---
@@ -55,10 +60,13 @@ MeowzaNasaSpaceApp2026/
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Home (sky map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, FlipPlayer, MapCards, ProjectDialog
+│       ├── components/            # SkyMap, FlipPlayer, SpectrumChart, Flags, MapCards, ProjectDialog
 │       ├── core/                  # Sky projection, bands, projects store
 │       └── services/api.js        # Backend calls (polls while pictures download)
+├── logs/                          # One entry per code change
+├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
 ├── setup.sh, start.sh             # Environment setup and one-command startup
+├── CLAUDE.md                      # Working rules for AI coding sessions
 └── README.md
 ```
 
