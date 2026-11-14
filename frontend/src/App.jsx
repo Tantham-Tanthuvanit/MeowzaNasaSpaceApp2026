@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
-import { BookIcon, CompassIcon, InfoIcon } from './components/icons';
+import { BookIcon, CompassIcon, InfoIcon, MoonIcon, SunIcon } from './components/icons';
 import { DEMO_TARGET } from './components/DemoTour';
 import TutorialModal from './components/TutorialModal';
 import Home from './pages/Home';
 import Viewer from './pages/Viewer';
 
 const navClass = ({ isActive }) =>
-  `flex h-11 items-center rounded-full px-4 text-[15px] ${isActive ? 'bg-[#FFF1E6] font-semibold text-ink' : 'text-body hover:text-ink'}`;
+  `flex h-11 items-center rounded-full px-4 text-[15px] ${isActive ? 'bg-[#FFF1E6] dark:bg-[#2A2019] font-semibold text-ink' : 'text-body hover:text-ink'}`;
 
 // Data credits, behind a small info button in the header so they never take room from the page.
 function Credits() {
@@ -33,12 +33,12 @@ function Credits() {
         aria-controls="data-credits"
         aria-label="Data credits"
         title="Data credits"
-        className={`flex h-11 w-11 items-center justify-center rounded-full ${open ? 'bg-[#FFF1E6] text-ink' : 'text-body hover:text-ink'}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-full ${open ? 'bg-[#FFF1E6] dark:bg-[#2A2019] text-ink' : 'text-body hover:text-ink'}`}
       >
         <InfoIcon />
       </button>
       {open && (
-        <section id="data-credits" aria-labelledby="data-credits-title" className="absolute right-0 top-[calc(100%+8px)] z-50 flex max-h-[70vh] w-[440px] max-w-[calc(100vw-2rem)] flex-col gap-2 overflow-y-auto rounded-2xl border border-soft bg-white p-5 text-[13px] leading-relaxed text-muted shadow-[0_12px_32px_rgba(20,26,46,0.18)]">
+        <section id="data-credits" aria-labelledby="data-credits-title" className="absolute right-0 top-[calc(100%+8px)] z-50 flex max-h-[70vh] w-[440px] max-w-[calc(100vw-2rem)] flex-col gap-2 overflow-y-auto rounded-2xl border border-soft bg-surface p-5 text-[13px] leading-relaxed text-body shadow-[0_12px_32px_rgba(20,26,46,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.6)]">
           <h2 id="data-credits-title" className="text-[15px] font-semibold text-ink">Data credits</h2>
           <p>
             This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of
@@ -60,6 +60,23 @@ export default function App() {
   const [params] = useSearchParams();
   const inDemo = Boolean(params.get('demo'));
   const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
+  const [dark, setDark] = useState(() => {
+    try {
+      return localStorage.getItem('skyflip_theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem('skyflip_theme', dark ? 'dark' : 'light');
+    } catch {
+      // ignore storage errors
+    }
+  }, [dark]);
+
   const [showTutorial, setShowTutorial] = useState(() => {
     try {
       return !localStorage.getItem('skyflip_tutorial_seen');
@@ -79,7 +96,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
-      <header className="border-b border-[#E1E5EE] bg-white">
+      <header className="border-b border-soft bg-surface">
         <div className="mx-auto flex min-h-[72px] max-w-[1720px] flex-wrap items-center justify-between gap-x-6 px-4 sm:px-8">
           <NavLink to="/" className="flex items-center gap-2.5" aria-label="SkyFlip home">
             <svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="#FF8A3D" strokeWidth="2.2" aria-hidden="true">
@@ -97,7 +114,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setShowTutorial(true)}
-              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-ink"
+              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-ink"
               title="Learn how to read infrared sky images and spot moving objects"
             >
               <BookIcon />
@@ -108,13 +125,24 @@ export default function App() {
               className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-semibold transition-colors ${
                 inDemo
                   ? 'border-[#FF8A3D] bg-[#FF8A3D] text-[#0B1020]'
-                  : 'border-[#FF8A3D] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE]'
+                  : 'border-[#FF8A3D] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]'
               }`}
               title="Interactive 5-step walkthrough on real NASA SPHEREx data of brown dwarf WISE 0855"
             >
               <CompassIcon />
               Guided demo
             </Link>
+            <button
+              type="button"
+              onClick={() => setDark((d) => !d)}
+              aria-pressed={dark}
+              aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-ink"
+            >
+              {dark ? <SunIcon /> : <MoonIcon />}
+              <span className="hidden sm:inline">{dark ? 'Light' : 'Dark'}</span>
+            </button>
             <Credits />
           </nav>
         </div>

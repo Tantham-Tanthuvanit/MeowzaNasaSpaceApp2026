@@ -132,7 +132,7 @@ export default function Home({ onOpenTutorial }) {
               <button
                 type="button"
                 onClick={onOpenTutorial}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-sm font-medium text-ink transition-colors hover:border-ink"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-sm font-medium text-ink transition-colors hover:border-ink"
               >
                 <BookIcon />
                 New here? How to use SkyFlip
@@ -140,7 +140,7 @@ export default function Home({ onOpenTutorial }) {
             )}
             <Link
               to={demoHref}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
               Try Guided Demo
@@ -173,7 +173,7 @@ export default function Home({ onOpenTutorial }) {
             </button>
           </div>
           {q && (
-            <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-white p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
+            <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-surface p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
               {!loaded && !error ? (
                 <li className="px-3 py-2.5 text-[15px] text-muted">Loading the saved projects…</li>
               ) : matches.length === 0 ? (
@@ -181,7 +181,7 @@ export default function Home({ onOpenTutorial }) {
               ) : (
                 matches.map((p) => (
                   <li key={p.id}>
-                    <button type="button" onClick={() => openFound(p)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-[#EEF1F8] focus:bg-[#EEF1F8] focus:outline-none">
+                    <button type="button" onClick={() => openFound(p)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-[#EEF1F8] focus:bg-[#EEF1F8] dark:hover:bg-[#1E294A] dark:focus:bg-[#1E294A] focus:outline-none">
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden="true" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-semibold">{p.name}</span>

@@ -177,13 +177,13 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
       </div>
 
       {!caption && <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => show(frame - 1)} disabled={!count} aria-label="Previous picture" title="Previous picture (←)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
+        <button type="button" onClick={() => show(frame - 1)} disabled={!count} aria-label="Previous picture" title="Previous picture (←)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink disabled:opacity-40">
           <PrevIcon />
         </button>
         <button type="button" onClick={() => setPlaying(!playing)} disabled={!count} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (Space)' : 'Play (Space)'} className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-accent text-[#0B1020] disabled:opacity-40">
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
-        <button type="button" onClick={() => show(frame + 1)} disabled={!count} aria-label="Next picture" title="Next picture (→)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
+        <button type="button" onClick={() => show(frame + 1)} disabled={!count} aria-label="Next picture" title="Next picture (→)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink disabled:opacity-40">
           <NextIcon />
         </button>
         <input
@@ -199,7 +199,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
         />
         <label className="flex items-center gap-2 text-sm text-muted">
           Speed
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className="h-11 rounded-lg border border-line bg-white px-2.5 text-sm text-ink">
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className="h-11 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink">
             <option value="1">Slow</option>
             <option value="2">Medium</option>
             <option value="4">Fast</option>
@@ -216,7 +216,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
               onClick={() => show(i)}
               aria-label={`Show picture ${i + 1}, ${fmtDate(f.timestamp)}`}
               aria-pressed={i === frame}
-              className={`flex min-h-11 flex-col items-center justify-center rounded-lg border px-1 py-1 font-mono text-sm ${i === frame ? 'border-accent bg-accent text-[#0B1020]' : 'border-line text-body'}`}
+              className={`flex min-h-11 flex-col items-center justify-center rounded-lg border px-1 py-1 font-mono text-sm ${i === frame ? 'border-accent bg-accent text-[#0B1020]' : 'border-line bg-surface text-body'}`}
             >
               {i + 1}
               <span className="hidden text-[11px] sm:block">{fmtDate(f.timestamp)}</span>

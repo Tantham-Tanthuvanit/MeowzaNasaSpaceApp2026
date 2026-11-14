@@ -268,8 +268,8 @@ export default function Viewer() {
     </>
   );
 
-  const bandCell = (on) => `flex min-h-[52px] flex-col items-start justify-center rounded-xl border px-3 py-1.5 text-left ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
-  const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
+  const bandCell = (on) => `flex min-h-[52px] flex-col items-start justify-center rounded-xl border px-3 py-1.5 text-left ${on ? 'border-ink bg-ink text-white dark:text-[#0B1020]' : 'border-line bg-surface text-ink'}`;
+  const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white dark:text-[#0B1020]' : 'border-line bg-surface text-ink'}`;
 
   return (
     <main className="mx-auto grid w-full max-w-[1720px] gap-8 px-4 py-6 sm:px-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:gap-6 lg:overflow-hidden xl:grid-cols-[340px_minmax(0,1fr)_360px] xl:gap-10">
@@ -290,7 +290,7 @@ export default function Viewer() {
           <div className="flex flex-col gap-1.5 text-sm font-medium text-body">
             <div className="flex items-center justify-between">
               <span>Field of view (FOV)</span>
-              <span className="font-mono text-xs font-semibold text-rust bg-[#FFF1E6] px-2 py-0.5 rounded-full">
+              <span className="font-mono text-xs font-semibold text-rust bg-[#FFF1E6] dark:bg-[#2A2019] px-2 py-0.5 rounded-full">
                 {fov.toFixed(1)}′ ({Math.round(fov * 60)}″)
               </span>
             </div>
@@ -306,8 +306,8 @@ export default function Viewer() {
                   aria-pressed={fov === val}
                   className={`h-8 rounded-full px-3 text-xs font-medium transition-colors ${
                     fov === val
-                      ? 'bg-ink text-white font-semibold'
-                      : 'border border-line bg-white text-ink hover:border-ink'
+                      ? 'bg-ink text-white dark:text-[#0B1020] font-semibold'
+                      : 'border border-line bg-surface text-ink hover:border-ink'
                   }`}
                 >
                   {val}′
@@ -344,7 +344,7 @@ export default function Viewer() {
             <button
               type="button"
               onClick={() => goToDemoStep(0)}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE]"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
               Start guided demo (WISE 0855)
@@ -357,7 +357,7 @@ export default function Viewer() {
             <div className="flex items-center gap-2.5">
               <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-rust">{kind}</p>
               {project && (
-                <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-[#E6F6EE] px-2.5 text-[13px] font-semibold text-[#1B6B45]">
+                <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-[#E6F6EE] px-2.5 text-[13px] font-semibold text-[#1B6B45] dark:bg-[#133225] dark:text-[#6EE7B7]">
                   <CheckIcon />Saved
                 </span>
               )}
@@ -371,7 +371,7 @@ export default function Viewer() {
             {project ? (
               <Link to={`/?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
             ) : hasSpot && (
-              <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-white text-ink">
+              <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-surface text-ink">
                 <PlusIcon />Save as project
               </button>
             )}
@@ -381,12 +381,12 @@ export default function Viewer() {
 
           <Flags ra={ra} dec={dec} flags={flags} point={point} setPoint={setPoint} band={bandId} fov={fov} />
 
-          <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
+          <div className="flex flex-col gap-2.5 border-t border-soft pt-7">
             <h3 className="text-[17px] font-semibold">What to watch for</h3>
             <p className="text-[15px] leading-relaxed text-muted">{DEFAULT_LOOK}</p>
           </div>
 
-          <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
+          <div className="flex flex-col gap-2.5 border-t border-soft pt-7">
             <h3 className="text-[17px] font-semibold">How it works</h3>
             <p className="text-[15px] leading-relaxed text-muted">
               A NASA space telescope called SPHEREx takes pictures of the whole sky, over and over. We put the pictures of your spot in order, oldest to newest, and play them like a flipbook. Most stars stay still, so anything that moves or gets brighter or dimmer is easy to spot.
@@ -458,7 +458,7 @@ export default function Viewer() {
       <aside aria-label="What to show" className="flex flex-col gap-7 max-lg:order-2 lg:overflow-y-auto">
         <div className="flex flex-col gap-3">
           <h2 className="text-[15px] font-semibold">Show</h2>
-          <div role="group" aria-label="What to show" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-white p-1">
+          <div role="group" aria-label="What to show" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-surface p-1">
             {[
               ['flipbook', 'Flipbook'],
               ['split', 'Split view'],
@@ -471,14 +471,14 @@ export default function Viewer() {
                 onClick={() => setView(id)}
                 aria-pressed={view === id}
                 disabled={id !== 'flipbook' && (!hasSpot || !oneColour || (frames.length < 2 && (id === 'split' || id === 'changes')))}
-                className={`h-10 rounded-full px-1 text-[12px] font-medium xl:text-sm disabled:opacity-40 ${view === id ? 'bg-ink text-white font-semibold' : 'text-ink'}`}
+                className={`h-10 rounded-full px-1 text-[12px] font-medium xl:text-sm disabled:opacity-40 ${view === id ? 'bg-ink text-white dark:text-[#0B1020] font-semibold' : 'text-ink'}`}
               >
                 {name}
               </button>
             ))}
           </div>
           <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
-            <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-white bg-white' : 'border-ink'}`} aria-hidden="true" />
+            <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
             Overlay Gaia &amp; WISE stars (Mark known stars)
           </button>
 
@@ -520,7 +520,7 @@ export default function Viewer() {
             <div className="flex w-full flex-col gap-3">
               {frames.length > 1 ? (
                 <>
-                  <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-white p-3.5 shadow-sm">
+                  <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3.5 shadow-sm">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted">Choose visits to subtract</span>
                     <div className="grid grid-cols-2 gap-2.5">
                       <label className="flex flex-col gap-1 text-xs font-medium text-body">
@@ -559,7 +559,7 @@ export default function Viewer() {
                         <button
                           type="button"
                           onClick={() => { setDiffEarly(0); setDiffLate(frames.length - 1); }}
-                          className={`h-7 px-2.5 rounded-full text-xs font-medium border ${diffEarly === 0 && diffLate === frames.length - 1 ? 'border-ink bg-ink text-white font-semibold' : 'border-line bg-white text-body hover:border-ink'}`}
+                          className={`h-7 px-2.5 rounded-full text-xs font-medium border ${diffEarly === 0 && diffLate === frames.length - 1 ? 'border-ink bg-ink text-white dark:text-[#0B1020] font-semibold' : 'border-line bg-surface text-body hover:border-ink'}`}
                         >
                           Full span (V1 → V{frames.length})
                         </button>
@@ -568,7 +568,7 @@ export default function Viewer() {
                             key={i}
                             type="button"
                             onClick={() => { setDiffEarly(i); setDiffLate(i + 1); }}
-                            className={`h-7 px-2 rounded-full text-xs font-medium border ${diffEarly === i && diffLate === i + 1 ? 'border-ink bg-ink text-white font-semibold' : 'border-line bg-white text-body hover:border-ink'}`}
+                            className={`h-7 px-2 rounded-full text-xs font-medium border ${diffEarly === i && diffLate === i + 1 ? 'border-ink bg-ink text-white dark:text-[#0B1020] font-semibold' : 'border-line bg-surface text-body hover:border-ink'}`}
                           >
                             V{i + 1} → V{i + 2}
                           </button>
@@ -684,15 +684,15 @@ export default function Viewer() {
                     </div>
                   )}
                   {source ? (
-                    <div className="flex flex-col gap-1.5 rounded-xl border border-soft bg-white p-3.5">
+                    <div className="flex flex-col gap-1.5 rounded-xl border border-soft bg-surface p-3.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-mono text-[13px] text-ink">{source.id}</span>
                         {source.contamination_note && (
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                               source.is_contaminated
-                                ? 'bg-[#FFF3CD] text-[#7A4B00]'
-                                : 'bg-[#E6F6EE] text-[#1B6B45]'
+                                ? 'bg-[#FFF3CD] text-[#7A4B00] dark:bg-[#3B2A0A] dark:text-[#FCD34D]'
+                                : 'bg-[#E6F6EE] text-[#1B6B45] dark:bg-[#133225] dark:text-[#6EE7B7]'
                             }`}
                           >
                             {source.is_contaminated ? 'Artifact warning' : 'Clean metadata'}
@@ -700,7 +700,7 @@ export default function Viewer() {
                         )}
                       </div>
                       {source.contamination_note && (
-                        <span className={`text-xs font-medium ${source.is_contaminated ? 'text-[#9A5B00]' : 'text-[#1B6B45]'}`}>
+                        <span className={`text-xs font-medium ${source.is_contaminated ? 'text-[#9A5B00] dark:text-[#FBBF24]' : 'text-[#1B6B45] dark:text-[#6EE7B7]'}`}>
                           {source.contamination_note}
                         </span>
                       )}
@@ -761,12 +761,12 @@ export default function Viewer() {
                 aria-label="More kinds of light"
                 value={extraId || ''}
                 onChange={(e) => pickBand(e.target.value || null)}
-                className={`h-11 w-full rounded-full border px-4 text-sm font-medium ${extraId ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`}
+                className={`h-11 w-full rounded-full border px-4 text-sm font-medium ${extraId ? 'border-ink bg-ink text-white dark:text-[#0B1020]' : 'border-line bg-surface text-ink'}`}
               >
-                <option value="">More kinds of light…</option>
+                <option value="" className="bg-surface text-ink">More kinds of light…</option>
                 {KIND_GROUPS.map(([category, heading]) => (
-                  <optgroup key={category} label={heading}>
-                    {extras.filter(([, k]) => k.category === category).map(([id, k]) => <option key={id} value={id}>{cleanName(k.name)}</option>)}
+                  <optgroup key={category} label={heading} className="bg-surface text-ink">
+                    {extras.filter(([, k]) => k.category === category).map(([id, k]) => <option key={id} value={id} className="bg-surface text-ink">{cleanName(k.name)}</option>)}
                   </optgroup>
                 ))}
               </select>

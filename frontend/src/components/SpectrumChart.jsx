@@ -74,14 +74,14 @@ function Chart({ channels, unit }) {
         >
           {ticks.map((v) => (
             <g key={v}>
-              <path d={`M${LEFT} ${yOf(v)}H${W - RIGHT}`} stroke={Math.abs(v) < step / 2 ? '#8A93A8' : '#E1E5EE'} strokeWidth="1" />
-              <text x={LEFT - 8} y={yOf(v) + 4} textAnchor="end" fontSize="12" fill="#5A6580" className="font-mono">{v.toFixed(digits)}</text>
+              <path d={`M${LEFT} ${yOf(v)}H${W - RIGHT}`} stroke={Math.abs(v) < step / 2 ? 'var(--color-muted)' : 'var(--color-soft)'} strokeWidth="1" />
+              <text x={LEFT - 8} y={yOf(v) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)" className="font-mono">{v.toFixed(digits)}</text>
             </g>
           ))}
           {[1, 2, 3, 4, 5].map((um) => (
             <g key={um}>
-              <path d={`M${xOf(um)} ${TOP + PLOT_H}v5`} stroke="#8A93A8" strokeWidth="1" />
-              <text x={xOf(um)} y={TOP + PLOT_H + 19} textAnchor={um === 5 ? 'end' : 'middle'} fontSize="12" fill="#5A6580" className="font-mono">{um} µm</text>
+              <path d={`M${xOf(um)} ${TOP + PLOT_H}v5`} stroke="var(--color-muted)" strokeWidth="1" />
+              <text x={xOf(um)} y={TOP + PLOT_H + 19} textAnchor={um === 5 ? 'end' : 'middle'} fontSize="12" fill="var(--color-muted)" className="font-mono">{um} µm</text>
             </g>
           ))}
           {/* Which detector band each stretch of the chart comes from. */}
@@ -90,14 +90,14 @@ function Chart({ channels, unit }) {
             return (
               <g key={b.n}>
                 <rect x={xOf(from) + 1} y={H - 30} width={xOf(to) - xOf(from) - 2} height="6" rx="3" fill={b.color} />
-                <text x={(xOf(from) + xOf(to)) / 2} y={H - 9} textAnchor="middle" fontSize="12" fill="#3A4560">Band {b.n}</text>
+                <text x={(xOf(from) + xOf(to)) / 2} y={H - 9} textAnchor="middle" fontSize="12" fill="var(--color-body)">Band {b.n}</text>
               </g>
             );
           })}
-          <path d={line} fill="none" stroke="#141A2E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          <path d={line} fill="none" stroke="var(--color-ink)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           {sel && (
             <>
-              <path d={`M${xOf(sel.wavelength_um)} ${TOP}V${TOP + PLOT_H}`} stroke="#8A93A8" strokeWidth="1" />
+              <path d={`M${xOf(sel.wavelength_um)} ${TOP}V${TOP + PLOT_H}`} stroke="var(--color-muted)" strokeWidth="1" />
               <circle cx={xOf(sel.wavelength_um)} cy={yOf(sel.flux_mjy_sr)} r="5" fill="#FF8A3D" stroke="#FFFFFF" strokeWidth="2" />
             </>
           )}
@@ -108,9 +108,9 @@ function Chart({ channels, unit }) {
       </p>
       <details className="text-sm text-body">
         <summary className="cursor-pointer py-2 font-medium text-ink">Show the numbers as a table</summary>
-        <div className="max-h-[320px] overflow-auto rounded-lg border border-soft bg-white">
+        <div className="max-h-[320px] overflow-auto rounded-lg border border-soft bg-surface">
           <table className="w-full text-left font-mono text-[13px]">
-            <thead className="sticky top-0 bg-white font-sans text-muted">
+            <thead className="sticky top-0 bg-surface font-sans text-muted">
               <tr>
                 <th className="px-3 py-2 font-semibold">Colour</th>
                 <th className="px-3 py-2 font-semibold">Wavelength (µm)</th>
@@ -144,7 +144,7 @@ export default function SpectrumPanel({ ra, dec, fov = 5.0 }) {
   );
 
   return (
-    <section aria-labelledby="spectrum-title" className="flex w-full player-w flex-col gap-3 border-t border-[#E1E5EE] pt-7">
+    <section aria-labelledby="spectrum-title" className="flex w-full player-w flex-col gap-3 border-t border-soft pt-7">
       <h2 id="spectrum-title" className="font-display text-[22px] font-medium">The light here, split into 102 colours</h2>
       <p className="text-[15px] leading-relaxed text-muted">
         SPHEREx sees 102 shades of infrared light. This chart shows how bright the centre of the picture, under the orange cross, is in each one. Astronomers call it a spectrum. Its shape hints at what is there and how hot it is.

@@ -33,10 +33,10 @@ export default function TutorialModal({ onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-title"
-        className="m-auto flex max-h-[90vh] w-full max-w-[780px] flex-col overflow-hidden rounded-3xl border border-soft bg-white text-ink shadow-2xl"
+        className="m-auto flex max-h-[90vh] w-full max-w-[780px] flex-col overflow-hidden rounded-3xl border border-soft bg-surface text-ink shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-soft bg-[#FFF9F4] px-6 py-5 sm:px-8">
+        <div className="flex items-start justify-between gap-4 border-b border-soft bg-[#FFF9F4] dark:bg-[#1A223D] px-6 py-5 sm:px-8">
           <div className="flex flex-col gap-1">
             <span className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rust">
               <BookIcon />
@@ -64,8 +64,8 @@ export default function TutorialModal({ onClose }) {
                 onClick={() => setTab(t.id)}
                 className={`h-9 rounded-full px-4 text-sm font-medium transition-colors ${
                   active
-                    ? 'bg-ink font-semibold text-white'
-                    : 'border border-line bg-white text-body hover:border-ink hover:text-ink'
+                    ? 'bg-ink font-semibold text-white dark:text-[#0B1020]'
+                    : 'border border-line bg-surface text-body hover:border-ink hover:text-ink'
                 }`}
               >
                 {t.label}
@@ -86,7 +86,7 @@ export default function TutorialModal({ onClose }) {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2 rounded-2xl border border-soft bg-white p-5">
+                <div className="flex flex-col gap-2 rounded-2xl border border-soft bg-surface p-5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-rust">Why infrared matters</p>
                   <h4 className="text-[17px] font-semibold text-ink">Hidden, freezing worlds</h4>
                   <p className="text-[14px] leading-relaxed text-body">
@@ -94,7 +94,7 @@ export default function TutorialModal({ onClose }) {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2 rounded-2xl border border-soft bg-white p-5">
+                <div className="flex flex-col gap-2 rounded-2xl border border-soft bg-surface p-5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-rust">Why your eyes matter</p>
                   <h4 className="text-[17px] font-semibold text-ink">Computers miss faint movers</h4>
                   <p className="text-[14px] leading-relaxed text-body">
@@ -103,7 +103,7 @@ export default function TutorialModal({ onClose }) {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#F3DEC9] bg-[#FFF5EB] p-4 text-[14px] leading-relaxed text-ink">
+              <div className="rounded-2xl border border-[#F3DEC9] bg-[#FFF5EB] dark:border-[#4A3423] dark:bg-[#261D17] p-4 text-[14px] leading-relaxed text-ink">
                 <strong className="font-semibold text-rust">Good to know:</strong> Famous projects already cached (like <strong>WISE 0855</strong>) open straight away. Brand-new coordinates download live from NASA/IPAC IRSA and take ~20–40 seconds the first time anyone explores that spot.
               </div>
             </div>
@@ -134,7 +134,7 @@ export default function TutorialModal({ onClose }) {
                 },
               ].map((step) => (
                 <div key={step.n} className="flex items-start gap-4 rounded-2xl border border-soft bg-page p-4 sm:p-5">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-sm font-bold text-white">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-sm font-bold text-white dark:text-[#0B1020]">
                     {step.n}
                   </span>
                   <div className="flex flex-col gap-1">
@@ -198,7 +198,7 @@ export default function TutorialModal({ onClose }) {
                     ['FOV (3′ – 15′)', 'Zoom the cutout field of view in or out'],
                     ['Map Drag & Scroll', 'Rotate the whole-sky globe and zoom to 20,000%'],
                   ].map(([k, desc]) => (
-                    <div key={k} className="flex items-center gap-3 rounded-xl border border-soft bg-white px-3.5 py-2.5">
+                    <div key={k} className="flex items-center gap-3 rounded-xl border border-soft bg-surface px-3.5 py-2.5">
                       <kbd className="shrink-0 rounded-md border border-line bg-page px-2 py-1 font-mono text-xs font-semibold text-ink">
                         {k}
                       </kbd>
@@ -240,7 +240,7 @@ export default function TutorialModal({ onClose }) {
             <Link
               to={demoHref}
               onClick={onClose}
-              className="flex h-10 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE]"
+              className="flex h-10 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
               Try 5-step Guided Demo (WISE 0855)

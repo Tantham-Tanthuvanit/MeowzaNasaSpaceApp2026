@@ -55,20 +55,20 @@ export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0
   };
 
   return (
-    <div className="flex flex-col gap-4 border-t border-[#E1E5EE] pt-7">
+    <div className="flex flex-col gap-4 border-t border-soft pt-7">
       <h3 className="text-[17px] font-semibold">{hasSpot ? 'Flagged in this picture' : 'Flagged by people'}</h3>
       <p className="text-[15px] leading-relaxed text-muted">
         Seen a dot that moves, appears or changes brightness? Flag it so others can check. Flags are public and anyone can add one.
       </p>
 
       {hasSpot && !point && (
-        <button type="button" onClick={() => setPoint({ x: 128, y: 128 })} className="btn self-start border border-ink bg-white text-ink">
+        <button type="button" onClick={() => setPoint({ x: 128, y: 128 })} className="btn self-start border border-ink bg-surface text-ink">
           <PlusIcon />Flag something here
         </button>
       )}
 
       {hasSpot && point && (
-        <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border border-ink bg-white p-4">
+        <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border border-ink bg-surface p-4">
           <p className="text-sm leading-relaxed text-body">
             The orange ring on the picture marks your flag. It starts on the centre. Click the picture to move it.
           </p>
@@ -113,7 +113,7 @@ export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0
       {list.length > 0 && (
         <ol className="flex flex-col gap-3">
           {list.map((c, i) => (
-            <li key={c.id} className="flex flex-col gap-1.5 rounded-xl border border-soft bg-white p-3.5">
+            <li key={c.id} className="flex flex-col gap-1.5 rounded-xl border border-soft bg-surface p-3.5">
               <div className="flex items-start gap-2.5">
                 {hasSpot && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-[13px] font-semibold text-[#0B1020]">{i + 1}</span>}
                 <div className="flex min-w-0 flex-col">

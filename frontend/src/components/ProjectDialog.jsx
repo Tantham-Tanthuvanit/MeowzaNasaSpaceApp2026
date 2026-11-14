@@ -33,13 +33,13 @@ export default function ProjectDialog({ title, sub, submitLabel, hint, initial, 
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[rgba(11,16,32,0.55)] p-4">
+    <div className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[rgba(11,16,32,0.55)] dark:bg-[rgba(4,6,13,0.75)] p-4">
       <form
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-dialog-title"
-        className="m-auto flex w-full max-w-[640px] flex-col gap-5 rounded-3xl bg-white p-5 shadow-2xl sm:p-8"
+        className="m-auto flex w-full max-w-[640px] flex-col gap-5 rounded-3xl border border-soft bg-surface p-5 text-ink shadow-2xl sm:p-8"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1.5">
@@ -82,7 +82,7 @@ export default function ProjectDialog({ title, sub, submitLabel, hint, initial, 
               onClick={() => setForm({ ...form, color: c.color })}
               aria-label={`${c.label} marker`}
               aria-pressed={form.color === c.color}
-              className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] bg-white ${form.color === c.color ? 'border-ink' : 'border-transparent'}`}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] bg-surface ${form.color === c.color ? 'border-ink' : 'border-transparent'}`}
             >
               <span className="h-7 w-7 rounded-full" style={{ background: c.color }} />
             </button>

@@ -73,7 +73,7 @@ export default function DemoTour({ stepIndex, onStep, onExit }) {
   return (
     <aside
       aria-label="Guided discovery tour"
-      className="flex w-full player-w flex-col gap-3 rounded-2xl border-2 border-[#FF8A3D] bg-[#FFF9F4] p-4 text-ink shadow-[0_8px_24px_rgba(20,26,46,0.08)]"
+      className="flex w-full player-w flex-col gap-3 rounded-2xl border-2 border-[#FF8A3D] bg-[#FFF9F4] dark:bg-[#182038] p-4 text-ink shadow-[0_8px_24px_rgba(20,26,46,0.08)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -96,8 +96,8 @@ export default function DemoTour({ stepIndex, onStep, onExit }) {
               title={s.title}
               className={`h-7 rounded-full px-2.5 text-xs font-medium transition-colors ${
                 idx === stepIndex
-                  ? 'bg-ink text-white font-semibold'
-                  : 'border border-line bg-white text-body hover:border-ink'
+                  ? 'bg-ink text-white dark:text-[#0B1020] font-semibold'
+                  : 'border border-line bg-surface text-body hover:border-ink'
               }`}
             >
               {s.step}. {s.label}
@@ -108,7 +108,7 @@ export default function DemoTour({ stepIndex, onStep, onExit }) {
             onClick={onExit}
             aria-label="Exit guided demo"
             title="Exit guided demo"
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-white text-body hover:border-ink hover:text-ink"
+            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface text-body hover:border-ink hover:text-ink"
           >
             <CloseIcon />
           </button>
@@ -118,7 +118,7 @@ export default function DemoTour({ stepIndex, onStep, onExit }) {
       <div className="flex flex-col gap-1.5">
         <h2 className="font-display text-lg font-semibold leading-snug text-ink">{current.title}</h2>
         <p className="text-[14px] leading-relaxed text-body">{current.summary}</p>
-        <p className="rounded-xl border border-[#F3DEC9] bg-white px-3 py-2 text-[13px] font-medium text-ink">
+        <p className="rounded-xl border border-[#F3DEC9] dark:border-[#4A3423] bg-surface px-3 py-2 text-[13px] font-medium text-ink">
           <span className="font-semibold text-rust">Try this: </span>
           {current.prompt}
         </p>

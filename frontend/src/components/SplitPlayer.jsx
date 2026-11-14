@@ -41,10 +41,10 @@ export default function SplitPlayer({
               title={`Switch to Visit ${i + 1} (${fmtDate(frameItem.timestamp)})`}
               className={`h-7 px-2.5 rounded-full text-xs font-mono transition-colors ${
                 i === idx
-                  ? 'bg-ink text-white font-bold'
+                  ? 'bg-ink text-white dark:text-[#0B1020] font-bold'
                   : i === otherIdx
-                  ? 'border border-soft text-muted bg-[#F5F7FB] hover:border-ink'
-                  : 'border border-line bg-white text-body hover:border-ink'
+                  ? 'border border-soft text-muted bg-page hover:border-ink'
+                  : 'border border-line bg-surface text-body hover:border-ink'
               }`}
             >
               V{i + 1}

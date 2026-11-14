@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-ink: #141A2E;
+  --color-body: #3A4560;
+  --color-muted: #5A6580;
+  --color-page: #F5F7FB;
+  --color-surface: #FFFFFF;
+  --color-line: #CCD3E0;
+  --color-soft: #DDE2EC;
+  --color-rust: #B4460F;
+  --color-danger: #B42318;
+  color-scheme: light;
+}
+
+html.dark {
+  --color-ink: #F0F4FC;
+  --color-body: #CBD5E8;
+  --color-muted: #94A3B8;
+  --color-page: #0B1020;
+  --color-surface: #131B33;
+  --color-line: #2E3B5E;
+  --color-soft: #232E4D;
+  --color-rust: #FF9F5A;
+  --color-danger: #F97066;
+  color-scheme: dark;
+}
+
 body {
   @apply bg-page font-sans text-ink antialiased;
 }
@@ -9,7 +35,7 @@ body {
 @layer components {
   /* Text inputs */
   .field {
-    @apply h-[52px] w-full rounded-[10px] border border-line bg-white px-4 text-base text-ink;
+    @apply h-[52px] w-full rounded-[10px] border border-line bg-surface px-4 text-base text-ink placeholder:text-muted;
   }
   /* Pill buttons */
   .btn {
@@ -19,11 +45,11 @@ body {
     @apply btn bg-accent text-[#0B1020];
   }
   .btn-plain {
-    @apply btn border border-line bg-white font-medium text-ink;
+    @apply btn border border-line bg-surface font-medium text-ink hover:border-ink;
   }
   /* Small round icon button (close, step) */
   .btn-round {
-    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0F2F7] text-ink;
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0F2F7] text-ink dark:bg-[#1E294A];
   }
   /* Small uppercase label */
   .eyebrow {

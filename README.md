@@ -36,7 +36,8 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
-7. **All of It in the Viewer**
+7. **All of It in the Viewer (+ Dark Mode)**
+   - The top navigation bar includes a persistent **Dark / Light** theme toggle (`localStorage` `skyflip_theme`) that adapts all surfaces, borders, text, dialogs, and SVG chart colors for high-contrast viewing day or night.
    - The viewer page shows every feature above: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
 
 8. **Newcomer Tutorial & Field Guide (`How to use`)**

@@ -1,18 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
         accent: '#FF8A3D',
-        ink: '#141A2E',
-        body: '#3A4560',
-        muted: '#5A6580',
-        page: '#F5F7FB',
-        line: '#CCD3E0',
-        soft: '#DDE2EC',
-        rust: '#B4460F',
-        danger: '#B42318',
+        ink: 'var(--color-ink)',
+        body: 'var(--color-body)',
+        muted: 'var(--color-muted)',
+        page: 'var(--color-page)',
+        surface: 'var(--color-surface)',
+        line: 'var(--color-line)',
+        soft: 'var(--color-soft)',
+        rust: 'var(--color-rust)',
+        danger: 'var(--color-danger)',
         sky: '#0B1230',
         night: '#141C3A',
       },
