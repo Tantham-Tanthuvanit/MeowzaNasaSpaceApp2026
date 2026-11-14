@@ -14,6 +14,16 @@ const RAD = Math.PI / 180;
 export const wrap360 = (v) => ((v % 360) + 360) % 360;
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Pick a uniformly distributed random point on the celestial sphere.
+// RA: [0, 360), Dec: [-85, 85] degrees (avoids coordinate singularity at the exact poles).
+export function randomSkyPoint() {
+  const ra = Math.random() * 360;
+  const maxSin = Math.sin((85 * Math.PI) / 180);
+  const sinDec = (Math.random() * 2 - 1) * maxSin;
+  const dec = (Math.asin(sinDec) * 180) / Math.PI;
+  return [Number(ra.toFixed(4)), Number(dec.toFixed(4))];
+}
+
 // Rotate the sky so (rot, tilt) sits at the map centre. Returns [lon, lat] in radians.
 function rotate(ra, dec, rot, tilt) {
   const a = (ra - rot) * RAD, d = dec * RAD, t = tilt * RAD;

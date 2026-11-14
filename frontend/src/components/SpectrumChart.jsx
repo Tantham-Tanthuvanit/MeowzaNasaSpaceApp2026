@@ -137,10 +137,10 @@ function Chart({ channels, unit }) {
 
 // The spectrum of the centre of the picture. It is only fetched when asked for, because the
 // backend has to download every picture of the spot first.
-export default function SpectrumPanel({ ra, dec }) {
+export default function SpectrumPanel({ ra, dec, fov = 5.0 }) {
   const [asked, setAsked] = useState(false);
-  const { data, error, loading, progress, retry } = useRemote(asked ? `${ra}|${dec}` : null, (onProgress, isCancelled) =>
-    fetchSpectrum(ra, dec, onProgress, isCancelled)
+  const { data, error, loading, progress, retry } = useRemote(asked ? `${ra}|${dec}|${fov}` : null, (onProgress, isCancelled) =>
+    fetchSpectrum(ra, dec, fov, onProgress, isCancelled)
   );
 
   return (

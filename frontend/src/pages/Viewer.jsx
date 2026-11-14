@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import FlipPlayer, { fmtDate } from '../components/FlipPlayer';
+import SplitPlayer from '../components/SplitPlayer';
+import DemoTour, { DEMO_STEPS, DEMO_TARGET } from '../components/DemoTour';
 import Flags from '../components/Flags';
 import SpectrumPanel from '../components/SpectrumChart';
 import ProjectDialog from '../components/ProjectDialog';
-import { CheckIcon, PlusIcon } from '../components/icons';
+import { CheckIcon, CompassIcon, PlusIcon, ShuffleIcon } from '../components/icons';
 import { useProjects } from '../core/projects';
 import { BANDS, ALL_BANDS, DEFAULT_BAND, DEFAULT_LOOK } from '../core/targets';
-import { parseRa, parseDec, fmtRa, fmtDec, skyToPixel } from '../core/sky';
-import { fetchCatalog, fetchLightKinds, fetchShiftAndAdd, listCandidates, useFrames, useRemote } from '../services/api';
+import { parseRa, parseDec, fmtRa, fmtDec, skyToPixel, randomSkyPoint } from '../core/sky';
+import { fetchCatalog, fetchLightKinds, fetchShiftAndAdd, fetchDifferenceImage, listCandidates, useFrames, useRemote } from '../services/api';
 
 // Headings for the extra kinds of light, by the backend's category.
 const KIND_GROUPS = [
@@ -60,32 +62,97 @@ export default function Viewer() {
   const asked = params.get('band');
   const band = (asked ? bands.find((b) => String(b.n) === asked) : bands.find((b) => b.n === DEFAULT_BAND) || bands[0]) || null;
 
+  // Field of view in arcminutes (default 5.0 arcmin).
+  const urlFov = parseFloat(params.get('fov'));
+  const fov = Number.isFinite(urlFov) && urlFov > 0 ? urlFov : 5.0;
+
   // Every other kind of light the backend offers (colour picture, narrow filters, comparisons).
   const kinds = useRemote('kinds', fetchLightKinds).data || {};
   const extras = Object.entries(kinds).filter(([id]) => id !== 'stacked' && !id.startsWith('array_'));
   const extraId = extras.some(([id]) => id === asked) ? asked : null;
   const bandId = band ? band.id : extraId || 'stacked';
-  const { frames, difference, error, loading, progress, retry } = useFrames(ra, dec, bandId);
+  const { frames, difference, differenceImages = {}, error, loading, progress, retry } = useFrames(ra, dec, bandId, fov);
 
-  // What the player shows: the flipbook, the before-and-after picture, or all pictures combined.
+  // What the player shows: the flipbook, the side-by-side split view, the before-and-after picture, or all pictures combined.
   const oneColour = bandId !== 'false_color_rgb'; // the colour picture has neither of the other two
   const [chosenView, setView] = useState('flipbook');
   const view = oneColour ? chosenView : 'flipbook';
+
+  // Split view (side-by-side epoch comparison) selection
+  const [splitLeft, setSplitLeft] = useState(0);
+  const [splitRight, setSplitRight] = useState(1);
+  useEffect(() => {
+    if (frames.length > 1 && splitRight === 0) {
+      setSplitRight(Math.min(frames.length - 1, 1));
+    }
+  }, [frames.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Difference image frame pair selection (e.g. Visit Late minus Visit Early)
+  const [diffEarly, setDiffEarly] = useState(0);
+  const [diffLate, setDiffLate] = useState(1);
+  useEffect(() => {
+    if (frames.length > 1) {
+      setDiffEarly(0);
+      setDiffLate(frames.length - 1);
+    }
+  }, [frames.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const diffPairKey = `${diffEarly}_${diffLate}`;
+  const customDiffKey = hasSpot && view === 'changes' && !differenceImages[diffPairKey] && diffEarly !== diffLate && !(diffEarly === 0 && diffLate === frames.length - 1 && difference)
+    ? `${ra}|${dec}|${bandId}|${fov}|${diffEarly}|${diffLate}`
+    : null;
+  const customDiff = useRemote(customDiffKey, () => fetchDifferenceImage(ra, dec, bandId, diffEarly, diffLate, fov));
+  const activeDiffUrl = differenceImages[diffPairKey] || (diffEarly === 0 && diffLate === frames.length - 1 ? difference : null) || (customDiff.data && customDiff.data.difference_image_url);
+
   const [drift, setDrift] = useState(NO_DRIFT); // what the sliders say
   const [sent, setSent] = useState(NO_DRIFT); // what the combined picture was made with
-  const combined = useRemote(hasSpot && view === 'combine' ? `${ra}|${dec}|${bandId}|${sent.x}|${sent.y}` : null, (onProgress, isCancelled) =>
-    fetchShiftAndAdd(ra, dec, bandId, sent.x, sent.y, onProgress, isCancelled)
+  const combined = useRemote(hasSpot && view === 'combine' ? `${ra}|${dec}|${bandId}|${sent.x}|${sent.y}|${fov}` : null, (onProgress, isCancelled) =>
+    fetchShiftAndAdd(ra, dec, bandId, sent.x, sent.y, fov, onProgress, isCancelled)
   );
 
   // Known stars from the Gaia and WISE catalogues, looked up only when asked for (it takes a while).
   const [showStars, setShowStars] = useState(false);
-  const catalog = useRemote(hasSpot && showStars ? `${ra}|${dec}` : null, () => fetchCatalog(ra, dec));
+  const catalog = useRemote(hasSpot && showStars ? `${ra}|${dec}|${fov}` : null, () => fetchCatalog(ra, dec, fov));
   const stars = (!catalog.loading && catalog.data && catalog.data.sources) || [];
   const dwarfs = stars.filter((s) => s.is_brown_dwarf_candidate);
   const [source, setSource] = useState(null);
 
+  // Judge Demo / Guided Discovery Tour state
+  const demoStepNum = parseInt(params.get('demo'), 10);
+  const demoActive = Number.isInteger(demoStepNum) && demoStepNum >= 1 && demoStepNum <= DEMO_STEPS.length;
+  useEffect(() => {
+    if (!demoActive) return;
+    const stepCfg = DEMO_STEPS[demoStepNum - 1];
+    if (stepCfg) {
+      setView(stepCfg.view);
+      setShowStars(Boolean(stepCfg.showStars));
+      if (frames.length > 1) {
+        setSplitLeft(0);
+        setSplitRight(frames.length - 1);
+        setDiffEarly(0);
+        setDiffLate(frames.length - 1);
+      }
+    }
+  }, [demoActive, demoStepNum, frames.length]);
+
+  const goToDemoStep = (idx) => {
+    const stepCfg = DEMO_STEPS[idx] || DEMO_STEPS[0];
+    const next = new URLSearchParams();
+    next.set('demo', String(stepCfg.step));
+    next.set('ra', DEMO_TARGET.ra);
+    next.set('dec', DEMO_TARGET.dec);
+    if (stepCfg.band) next.set('band', stepCfg.band);
+    setParams(next);
+  };
+
+  const exitDemo = () => {
+    const next = new URLSearchParams(params);
+    next.delete('demo');
+    setParams(next);
+  };
+
   // Flags near this spot (or all of them when no spot is chosen), and the point being flagged.
-  const flags = useRemote(hasSpot ? `${ra}|${dec}` : 'all', () => listCandidates(ra, dec));
+  const flags = useRemote(hasSpot ? `${ra}|${dec}|${fov}` : 'all', () => listCandidates(ra, dec, fov));
   const [point, setPoint] = useState(null);
 
   // The form holds what the visitor is typing; it follows the position when that changes.
@@ -100,7 +167,23 @@ export default function Viewer() {
     setSent(NO_DRIFT);
   }, [ra, dec]);
 
-  const goTo = (newRa, newDec) => setParams({ ra: fmtRa(newRa, true), dec: fmtDec(newDec, true) });
+  const pickFov = (newFov) => {
+    const val = Number(newFov);
+    const next = new URLSearchParams(params);
+    if (val && val !== 5.0) next.set('fov', String(val));
+    else next.delete('fov');
+    setParams(next);
+  };
+
+  const goTo = (newRa, newDec) => {
+    const next = new URLSearchParams(params);
+    next.set('ra', fmtRa(newRa, true));
+    next.set('dec', fmtDec(newDec, true));
+    if (fov !== 5.0) next.set('fov', String(fov));
+    else next.delete('fov');
+    next.delete('project');
+    setParams(next);
+  };
 
   const submit = (e) => {
     e.preventDefault();
@@ -109,6 +192,11 @@ export default function Viewer() {
       setFormError('Check the position. Try RA like 08h55m10.8s and Dec like -7°14′42.5″.');
       return;
     }
+    goTo(newRa, newDec);
+  };
+
+  const pickRandomPatch = () => {
+    const [newRa, newDec] = randomSkyPoint();
     goTo(newRa, newDec);
   };
 
@@ -130,14 +218,22 @@ export default function Viewer() {
     }
   };
 
-  const title = project ? project.name : 'Your spot in the sky';
-  const kind = project ? 'Project' : 'Your choice';
+  const title = project ? project.name : demoActive ? 'WISE 0855' : 'Your spot in the sky';
+  const kind = project ? 'Project' : demoActive ? 'Guided Demo Target' : 'Your choice';
   const lightLabel = band ? `Band ${band.n} · ${band.range} µm` : extraId ? cleanName(kinds[extraId].name) : 'All bands combined';
   const still = {
     changes: {
-      frames: difference ? [{ image_url: difference }] : [],
-      caption: frames.length > 1 ? `${fmtDate(frames[0].timestamp)} to ${fmtDate(frames[frames.length - 1].timestamp)}` : 'What changed',
-      emptyText: 'A before-and-after picture needs at least two visits to this spot.',
+      frames: activeDiffUrl ? [{ image_url: activeDiffUrl }] : [],
+      caption: frames.length > 1
+        ? `Visit ${diffEarly + 1} (${fmtDate(frames[diffEarly]?.timestamp)}) to Visit ${diffLate + 1} (${fmtDate(frames[diffLate]?.timestamp)})`
+        : 'What changed',
+      emptyText: frames.length < 2
+        ? 'A before-and-after picture needs at least two visits to this spot.'
+        : customDiff.loading
+        ? 'Computing difference image from NASA visits…'
+        : 'Difference image unavailable for these visits.',
+      loading: customDiff.loading,
+      error: customDiff.error,
     },
     combine: {
       frames: combined.data ? [{ image_url: combined.data.image_url }] : [],
@@ -153,7 +249,7 @@ export default function Viewer() {
     <>
       {showStars && stars.map((s) => <StarMark key={s.id} s={s} selected={source === s} onSelect={setSource} />)}
       {hasSpot && (flags.data || []).map((c, i) => {
-        const [x, y] = skyToPixel(c.ra_deg, c.dec_deg, ra, dec);
+        const [x, y] = skyToPixel(c.ra_deg, c.dec_deg, ra, dec, fov);
         return (
           <g key={c.id} aria-hidden="true">
             <circle cx={x} cy={y} r="5" fill="#FF8A3D" stroke="#0B1020" strokeWidth="1" vectorEffect="non-scaling-stroke" />
@@ -174,9 +270,9 @@ export default function Viewer() {
   const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
 
   return (
-    <main className="mx-auto grid w-full max-w-[1720px] gap-10 px-4 py-8 sm:px-8 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_360px] xl:gap-12">
+    <main className="mx-auto grid w-full max-w-[1720px] gap-8 px-4 py-6 sm:px-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:gap-6 lg:overflow-hidden xl:grid-cols-[340px_minmax(0,1fr)_360px] xl:gap-10">
       {/* On small screens the player sits between the form and the list of stars. */}
-      <aside aria-label="Choose a patch of sky" className="flex flex-col gap-8 max-lg:contents">
+      <aside aria-label="Choose a patch of sky" className="flex flex-col gap-8 max-lg:contents lg:overflow-y-auto lg:pr-1">
         <form onSubmit={submit} className="flex flex-col gap-5">
           <h1 className="font-display text-[26px] font-medium">Where in the sky?</h1>
           <label className="flex flex-col gap-1 text-sm font-medium text-body">
@@ -189,8 +285,69 @@ export default function Viewer() {
             <span className="text-[13px] font-normal text-muted">Like latitude, but for the sky: how far north or south</span>
             <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7°14′42.53″" className="field mt-1 font-mono" />
           </label>
+          <div className="flex flex-col gap-1.5 text-sm font-medium text-body">
+            <div className="flex items-center justify-between">
+              <span>Field of view (FOV)</span>
+              <span className="font-mono text-xs font-semibold text-rust bg-[#FFF1E6] px-2 py-0.5 rounded-full">
+                {fov.toFixed(1)}′ ({Math.round(fov * 60)}″)
+              </span>
+            </div>
+            <span className="text-[13px] font-normal text-muted">
+              Angular width of sky to show (5.0′ is standard)
+            </span>
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {[3, 5, 8, 12, 15].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => pickFov(val)}
+                  aria-pressed={fov === val}
+                  className={`h-8 rounded-full px-3 text-xs font-medium transition-colors ${
+                    fov === val
+                      ? 'bg-ink text-white font-semibold'
+                      : 'border border-line bg-white text-ink hover:border-ink'
+                  }`}
+                >
+                  {val}′
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="range"
+                min="1.0"
+                max="30.0"
+                step="0.5"
+                value={fov}
+                onChange={(e) => pickFov(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-line rounded-lg appearance-none cursor-pointer accent-[#FF8A3D]"
+                aria-label="Field of view slider in arcminutes"
+              />
+            </div>
+          </div>
           {formError && <p role="alert" className="text-sm font-medium text-danger">{formError}</p>}
-          <button type="submit" className="btn-primary h-11 text-base">Show me</button>
+          <div className="flex gap-2.5">
+            <button type="submit" className="btn-primary h-11 flex-1 text-base">Show me</button>
+            <button
+              type="button"
+              onClick={pickRandomPatch}
+              className="btn-plain h-11 px-4 text-base"
+              title="Choose a random patch of sky"
+            >
+              <ShuffleIcon />
+              Random patch
+            </button>
+          </div>
+          {!demoActive && (
+            <button
+              type="button"
+              onClick={() => goToDemoStep(0)}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE]"
+            >
+              <CompassIcon />
+              Start guided demo (WISE 0855)
+            </button>
+          )}
         </form>
 
         <div className="flex flex-col gap-8 max-lg:order-4">
@@ -220,7 +377,7 @@ export default function Viewer() {
 
           </div>
 
-          <Flags ra={ra} dec={dec} flags={flags} point={point} setPoint={setPoint} band={bandId} />
+          <Flags ra={ra} dec={dec} flags={flags} point={point} setPoint={setPoint} band={bandId} fov={fov} />
 
           <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
             <h3 className="text-[17px] font-semibold">What to watch for</h3>
@@ -241,40 +398,78 @@ export default function Viewer() {
       </aside>
 
       <section aria-label="Image player" className="flex min-w-0 flex-col items-center gap-4 max-lg:contents lg:overflow-y-auto">
+        {demoActive && (
+          <div className="flex w-full justify-center max-lg:order-1">
+            <DemoTour stepIndex={demoStepNum - 1} onStep={goToDemoStep} onExit={exitDemo} />
+          </div>
+        )}
         <div className="flex w-full justify-center max-lg:order-1">
-        <FlipPlayer
-          frames={frames}
-          loading={loading}
-          error={error}
-          onRetry={retry}
-          progress={progress}
-          emptyText={hasSpot ? '' : 'Type a position and press Show me.'}
-          slowText={extraId && oneColour ? SLOW_TEXT : ''}
-          {...(hasSpot ? still : null)}
-          overlay={overlay}
-          onPick={point ? (x, y) => setPoint({ x, y }) : null}
-          resetKey={`${ra}|${dec}`}
-          label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)}` : 'No position chosen yet'}
-          bandDot={band ? band.color : '#FFFFFF'}
-          bandLabel={lightLabel}
-        />
+        {view === 'split' ? (
+          <SplitPlayer
+            frames={frames}
+            loading={loading}
+            error={error}
+            onRetry={retry}
+            leftIdx={splitLeft}
+            rightIdx={splitRight}
+            onLeftChange={setSplitLeft}
+            onRightChange={setSplitRight}
+            onSwap={() => {
+              const temp = splitLeft;
+              setSplitLeft(splitRight);
+              setSplitRight(temp);
+            }}
+            onCompareDifference={() => {
+              setDiffEarly(Math.min(splitLeft, splitRight));
+              setDiffLate(Math.max(splitLeft, splitRight));
+              setView('changes');
+            }}
+            overlay={overlay}
+            onPick={point ? (x, y) => setPoint({ x, y }) : null}
+            bandDot={band ? band.color : '#FFFFFF'}
+            bandLabel={lightLabel}
+            label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
+          />
+        ) : (
+          <FlipPlayer
+            frames={frames}
+            loading={loading}
+            error={error}
+            onRetry={retry}
+            progress={progress}
+            emptyText={hasSpot ? '' : 'Type a position and press Show me.'}
+            slowText={extraId && oneColour ? SLOW_TEXT : ''}
+            {...(hasSpot ? still : null)}
+            overlay={overlay}
+            onPick={point ? (x, y) => setPoint({ x, y }) : null}
+            resetKey={`${ra}|${dec}|${fov}`}
+            label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
+            bandDot={band ? band.color : '#FFFFFF'}
+            bandLabel={lightLabel}
+          />
+        )}
         </div>
 
-        {hasSpot && <div className="flex w-full justify-center max-lg:order-3"><SpectrumPanel key={`${ra}|${dec}`} ra={ra} dec={dec} /></div>}
+        {hasSpot && <div className="flex w-full justify-center max-lg:order-3"><SpectrumPanel key={`${ra}|${dec}|${fov}`} ra={ra} dec={dec} fov={fov} /></div>}
       </section>
 
       <aside aria-label="What to show" className="flex flex-col gap-7 max-lg:order-2 lg:overflow-y-auto">
         <div className="flex flex-col gap-3">
           <h2 className="text-[15px] font-semibold">Show</h2>
-          <div role="group" aria-label="What to show" className="grid grid-cols-3 gap-1 rounded-full border border-line bg-white p-1">
-            {[['flipbook', 'Flipbook'], ['changes', 'What changed'], ['combine', 'Combined']].map(([id, name]) => (
+          <div role="group" aria-label="What to show" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-white p-1">
+            {[
+              ['flipbook', 'Flipbook'],
+              ['split', 'Split view'],
+              ['changes', 'What changed'],
+              ['combine', 'Combined'],
+            ].map(([id, name]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setView(id)}
                 aria-pressed={view === id}
-                disabled={id !== 'flipbook' && (!hasSpot || !oneColour)}
-                className={`h-10 rounded-full px-1 text-[13px] font-medium xl:text-sm disabled:opacity-40 ${view === id ? 'bg-ink text-white' : 'text-ink'}`}
+                disabled={id !== 'flipbook' && (!hasSpot || !oneColour || (frames.length < 2 && (id === 'split' || id === 'changes')))}
+                className={`h-10 rounded-full px-1 text-[12px] font-medium xl:text-sm disabled:opacity-40 ${view === id ? 'bg-ink text-white font-semibold' : 'text-ink'}`}
               >
                 {name}
               </button>
@@ -284,12 +479,143 @@ export default function Viewer() {
             <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-white bg-white' : 'border-ink'}`} aria-hidden="true" />
             Mark known stars
           </button>
-          {hasSpot && view === 'changes' && difference && (
-            <p className="w-full text-[15px] leading-relaxed text-body">
-              The newest picture minus the oldest.{' '}
-              <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#B40426] align-baseline" aria-hidden="true" /> Red got brighter,{' '}
-              <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#3B4CC0] align-baseline" aria-hidden="true" /> blue got dimmer, and pale grey stayed the same. Something that moved leaves a blue dot where it was and a red dot where it went.
-            </p>
+
+          {hasSpot && view === 'split' && (
+            <div className="flex w-full flex-col gap-2.5">
+              <p className="text-[15px] leading-relaxed text-body">
+                Side-by-side view compares any two observation visits directly. Use the visit buttons (<span className="font-mono text-xs font-bold">V1</span>, <span className="font-mono text-xs font-bold">V2</span>…) on each pane to change which dates are side by side.
+              </p>
+              {frames.length > 1 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const temp = splitLeft;
+                      setSplitLeft(splitRight);
+                      setSplitRight(temp);
+                    }}
+                    className="btn-plain h-9 px-3 text-xs"
+                  >
+                    ⇄ Swap left and right
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDiffEarly(Math.min(splitLeft, splitRight));
+                      setDiffLate(Math.max(splitLeft, splitRight));
+                      setView('changes');
+                    }}
+                    className="btn-plain h-9 px-3 text-xs font-semibold text-rust"
+                  >
+                    Subtract these in What changed →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasSpot && view === 'changes' && (
+            <div className="flex w-full flex-col gap-3">
+              {frames.length > 1 ? (
+                <>
+                  <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-white p-3.5 shadow-sm">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted">Choose visits to subtract</span>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <label className="flex flex-col gap-1 text-xs font-medium text-body">
+                        Reference (Earlier)
+                        <select
+                          value={diffEarly}
+                          onChange={(e) => setDiffEarly(Number(e.target.value))}
+                          className="h-9 rounded-lg border border-line bg-page px-2 text-xs font-mono text-ink"
+                        >
+                          {frames.map((f, i) => (
+                            <option key={i} value={i} disabled={i === diffLate}>
+                              V{i + 1} ({fmtDate(f.timestamp)})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-medium text-body">
+                        Comparison (Later)
+                        <select
+                          value={diffLate}
+                          onChange={(e) => setDiffLate(Number(e.target.value))}
+                          className="h-9 rounded-lg border border-line bg-page px-2 text-xs font-mono text-ink"
+                        >
+                          {frames.map((f, i) => (
+                            <option key={i} value={i} disabled={i === diffEarly}>
+                              V{i + 1} ({fmtDate(f.timestamp)})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    {frames.length > 2 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-soft">
+                        <span className="text-[11px] text-muted">Quick:</span>
+                        <button
+                          type="button"
+                          onClick={() => { setDiffEarly(0); setDiffLate(frames.length - 1); }}
+                          className={`h-7 px-2.5 rounded-full text-xs font-medium border ${diffEarly === 0 && diffLate === frames.length - 1 ? 'border-ink bg-ink text-white font-semibold' : 'border-line bg-white text-body hover:border-ink'}`}
+                        >
+                          Full span (V1 → V{frames.length})
+                        </button>
+                        {frames.slice(0, -1).map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => { setDiffEarly(i); setDiffLate(i + 1); }}
+                            className={`h-7 px-2 rounded-full text-xs font-medium border ${diffEarly === i && diffLate === i + 1 ? 'border-ink bg-ink text-white font-semibold' : 'border-line bg-white text-body hover:border-ink'}`}
+                          >
+                            V{i + 1} → V{i + 2}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2 text-[14px] leading-relaxed text-body">
+                    <p className="font-medium text-ink">
+                      How to read this picture (Visit {diffLate + 1} minus Visit {diffEarly + 1}):
+                    </p>
+                    <ul className="flex flex-col gap-2 pl-1">
+                      <li className="flex items-start gap-2.5">
+                        <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full bg-[#B40426]" aria-hidden="true" />
+                        <span>
+                          <strong className="font-semibold text-ink">Red spot:</strong> Got brighter in Visit {diffLate + 1} ({fmtDate(frames[diffLate]?.timestamp)}), or something new moved here.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full bg-[#3B4CC0]" aria-hidden="true" />
+                        <span>
+                          <strong className="font-semibold text-ink">Blue spot:</strong> Got dimmer since Visit {diffEarly + 1} ({fmtDate(frames[diffEarly]?.timestamp)}), or something moved away from here.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full border border-line bg-[#E5E7EB]" aria-hidden="true" />
+                        <span>
+                          <strong className="font-semibold text-ink">Pale grey:</strong> Stayed the same — ordinary stars cancel out and disappear.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="mt-1.5 inline-flex shrink-0 items-center gap-0.5" aria-hidden="true">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#3B4CC0]" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#B40426]" />
+                        </span>
+                        <span>
+                          <strong className="font-semibold text-ink">Blue + Red pair:</strong> A moving object! Blue shows where it <em>was</em> (Visit {diffEarly + 1}) and red shows where it <em>went</em> (Visit {diffLate + 1}).
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <p className="w-full text-[15px] leading-relaxed text-muted">
+                  A difference picture needs at least two visits to this spot.
+                </p>
+              )}
+            </div>
           )}
 
           {hasSpot && view === 'combine' && (

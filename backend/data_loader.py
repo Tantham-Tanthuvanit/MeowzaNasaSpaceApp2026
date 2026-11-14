@@ -140,6 +140,16 @@ def grid_size(fov_arcmin: float) -> int:
     return n if n % 2 else n + 1
 
 
+def crop_to_fov(arr: np.ndarray, fov_arcmin: float) -> np.ndarray:
+    """If arr was reprojected for a larger FOV at the same position, return its central n x n grid."""
+    n = grid_size(fov_arcmin)
+    h = arr.shape[0]
+    if h <= n:
+        return arr
+    start = (h - n) // 2
+    return arr[start:start + n, start:start + n]
+
+
 def target_wcs(ra_deg: float, dec_deg: float, n: int) -> WCS:
     """North-up, east-left TAN grid centred on the position at the native pixel scale."""
     w = WCS(naxis=2)
@@ -350,22 +360,31 @@ class SPHERExDataLoader:
 
     # -- positions and background downloads ---------------------------------
 
-    def _position(self, ra_deg: float, dec_deg: float, fov_arcmin: float) -> Dict[str, Any]:
-        """The cached position within half a SPHEREx pixel, or a new one (asks IRSA for its image list)."""
+    def _siblings(self, ra_deg: float, dec_deg: float) -> List[Dict[str, Any]]:
+        """All cached positions within half a SPHEREx pixel of (ra_deg, dec_deg), across any FOV."""
         db = get_client()
         tol = PIXEL_ARCSEC / 2.0 / 3600.0
-        rows = (db.table("sky_positions").select("*").eq("fov_arcmin", fov_arcmin)
+        rows = (db.table("sky_positions").select("*")
                 .gte("dec_deg", dec_deg - tol).lte("dec_deg", dec_deg + tol).order("created_at").execute().data)
+        matched = []
         for row in rows:
             dra = ((row["ra_deg"] - ra_deg + 180.0) % 360.0 - 180.0) * np.cos(np.radians(dec_deg))
             if np.hypot(dra, row["dec_deg"] - dec_deg) <= tol:
+                matched.append(row)
+        return matched
+
+    def _position(self, ra_deg: float, dec_deg: float, fov_arcmin: float) -> Dict[str, Any]:
+        """The cached position within half a SPHEREx pixel, or a new one (asks IRSA for its image list)."""
+        siblings = self._siblings(ra_deg, dec_deg)
+        for row in siblings:
+            if abs(float(row["fov_arcmin"]) - float(fov_arcmin)) < 1e-4:
                 return row
-        images = query_images(ra_deg, dec_deg)
+        images = siblings[0]["images"] if siblings and siblings[0].get("images") else query_images(ra_deg, dec_deg)
         row = {
             "position_key": position_key(ra_deg, dec_deg, fov_arcmin), "ra_deg": ra_deg, "dec_deg": dec_deg,
             "fov_arcmin": fov_arcmin, "images": images, "total_images": len(images), "status": "done" if not images else "queued",
         }
-        db.table("sky_positions").upsert(row).execute()
+        get_client().table("sky_positions").upsert(row).execute()
         return row
 
     def _cached(self, key: str) -> Dict[str, Dict[str, Any]]:
@@ -430,9 +449,23 @@ class SPHERExDataLoader:
 
     def _require(self, pos: Dict[str, Any], needed: List[Dict[str, Any]], priority: int) -> Dict[str, Dict[str, Any]]:
         """Cached cutouts, or queue the missing ones and raise NotReady with progress.
+        If a larger FOV at the same position already has a cutout cached, reuse it and center-crop.
         Images that already failed in this process are skipped, so one bad image can't block a request."""
         cached = self._cached(pos["position_key"])
         missing = [img for img in needed if img["uri"] not in cached]
+        if missing and "ra_deg" in pos and "fov_arcmin" in pos:
+            larger = [
+                s for s in self._siblings(pos["ra_deg"], pos["dec_deg"])
+                if float(s.get("fov_arcmin", 0)) > float(pos["fov_arcmin"])
+            ]
+            larger.sort(key=lambda s: float(s["fov_arcmin"]), reverse=True)
+            for sib in larger:
+                for uri, row in self._cached(sib["position_key"]).items():
+                    if uri not in cached:
+                        cached[uri] = row
+                missing = [img for img in needed if img["uri"] not in cached]
+                if not missing:
+                    break
         with self._lock:
             retry = [img for img in missing if (pos["position_key"], img["uri"]) not in self._failed]
         if retry:
@@ -474,7 +507,7 @@ class SPHERExDataLoader:
                 have = [img for img in visit if img["uri"] in cached]
                 if not have:
                     continue
-                arrays = {img["detector"]: load_array(cached[img["uri"]]["storage_path"]) for img in have}
+                arrays = {img["detector"]: crop_to_fov(load_array(cached[img["uri"]]["storage_path"]), pos["fov_arcmin"]) for img in have}
                 frame = {"date": mjd_to_date(have[0]["mjd"]), "mjd": have[0]["mjd"], "uris": [img["uri"] for img in have]}
                 if band_group == "false_color_rgb":
                     frame["rgb"] = [self._mean([arrays.get(d) for d in pair]) for pair in ((1, 2), (3, 4), (5, 6))]
@@ -494,7 +527,7 @@ class SPHERExDataLoader:
             parts, uris = [], []
             for wl in targets:
                 hits = [r for r in rows if r.get("wavelength_um") and abs(r["wavelength_um"] - wl) <= FILTER_HALF_WIDTH * wl]
-                parts.append(self._mean([load_array(r["storage_path"]) for r in hits], scale=False))
+                parts.append(self._mean([crop_to_fov(load_array(r["storage_path"]), pos["fov_arcmin"]) for r in hits], scale=False))
                 uris += [r["irsa_uri"] for r in hits]
             if any(p is None for p in parts):
                 continue
@@ -551,17 +584,27 @@ class SPHERExDataLoader:
                     "images_used": len(f["uris"]), "irsa_uris": f["uris"],
                 })
             diff_path = None
+            diff_paths: Dict[str, str] = {}
             if len(frames) > 1 and "array" in frames[0]:
-                diff = image_processor.compute_difference_image(frames[0]["array"], frames[-1]["array"])
-                diff_path = self._upload_png(f"results/{key}/difference.png", render_png(diff, stretch, colormap, is_difference=True))
+                for a in range(len(frames)):
+                    for b in range(a + 1, len(frames)):
+                        diff = image_processor.compute_difference_image(frames[a]["array"], frames[b]["array"])
+                        diff_p = self._upload_png(f"results/{key}/diff_{a}_{b}.png", render_png(diff, stretch, colormap, is_difference=True))
+                        diff_paths[f"{a}_{b}"] = diff_p
+                diff_path = diff_paths.get(f"0_{len(frames)-1}")
             payload = {
                 "epochs": epochs,
                 "difference_image_path": diff_path,
+                "difference_image_paths": diff_paths,
                 "source": {"mission": "SPHEREx", "archive": "NASA/IPAC IRSA", "total_images_at_position": pos["total_images"]},
             }
             self._save_result(key, pos["position_key"], payload)
 
-        urls = self._signed_urls([e["image_path"] for e in payload["epochs"]] + ([payload["difference_image_path"]] if payload["difference_image_path"] else []))
+        diff_paths = payload.get("difference_image_paths") or (
+            {f"0_{len(payload['epochs'])-1}": payload["difference_image_path"]} if payload.get("difference_image_path") else {}
+        )
+        all_paths = [e["image_path"] for e in payload["epochs"]] + [p for p in diff_paths.values() if p]
+        urls = self._signed_urls(all_paths)
         return {
             "target_info": {
                 "ra_deg": coord["ra_deg"], "dec_deg": coord["dec_deg"], "ra_hms": coord["ra_hms"], "dec_dms": coord["dec_dms"],
@@ -569,17 +612,58 @@ class SPHERExDataLoader:
                 "stretch": stretch, "colormap": colormap,
             },
             "epochs": [{**{k: v for k, v in e.items() if k != "image_path"}, "image_url": urls[e["image_path"]]} for e in payload["epochs"]],
-            "difference_image_url": urls.get(payload["difference_image_path"]) if payload["difference_image_path"] else None,
+            "difference_image_url": urls.get(payload.get("difference_image_path")),
+            "difference_images": {pair: urls[p] for pair, p in diff_paths.items() if p in urls},
             "source": payload["source"],
             "spherex_detector_arrays": SPHEREX_ARRAYS,
             "available_filters": WAVELENGTH_FILTERS,
         }
 
+    def get_difference_image(self, ra_input: str, dec_input: str, fov_arcmin: float = 5.0, band_group: str = "stacked",
+                             early_idx: int = 0, late_idx: int = 1, stretch: str = "zscale", colormap: str = "inferno") -> Dict[str, Any]:
+        """Scientific difference image between two user-specified survey visits."""
+        if band_group not in WAVELENGTH_FILTERS:
+            raise ValueError(f"Unknown band_group '{band_group}'")
+        coord, pos = self._locate(ra_input, dec_input, fov_arcmin)
+        frames = self._frames(pos, band_group, 4)
+        if len(frames) < 2:
+            raise NoData("A difference image requires at least two visits to this spot.")
+
+        n_epochs = len(frames)
+        e_idx = max(0, min(n_epochs - 1, early_idx))
+        l_idx = max(0, min(n_epochs - 1, late_idx))
+        if e_idx == l_idx:
+            raise ValueError("Early and late visits must be different.")
+
+        if "array" not in frames[e_idx] or "array" not in frames[l_idx]:
+            raise NoData("Difference imaging is not supported for composite RGB bands.")
+
+        diff = image_processor.compute_difference_image(frames[e_idx]["array"], frames[l_idx]["array"])
+        key = result_key(pos["position_key"], "diff", band_group, stretch, colormap, e_idx, l_idx)
+        diff_png = render_png(diff, stretch, colormap, is_difference=True)
+        diff_path = self._upload_png(f"results/{key}/diff_{e_idx}_{l_idx}.png", diff_png)
+        urls = self._signed_urls([diff_path])
+        return {
+            "early_epoch": {"index": e_idx, "timestamp": frames[e_idx]["date"], "mjd": frames[e_idx]["mjd"]},
+            "late_epoch": {"index": l_idx, "timestamp": frames[l_idx]["date"], "mjd": frames[l_idx]["mjd"]},
+            "difference_image_url": urls.get(diff_path),
+            "pair": f"{e_idx}_{l_idx}",
+            "band_group": band_group,
+            "fov_arcmin": float(fov_arcmin)
+        }
+
     def get_spectrum(self, ra_input: str, dec_input: str, fov_arcmin: float = 5.0) -> Dict[str, Any]:
-        """The 102-channel spectrum from every SPHEREx image of the position."""
+        """The 102-channel spectrum from every SPHEREx image of the position.
+        Since the spectrum only measures the centre pixel at (ra, dec), any FOV at this position shares the same spectrum."""
         coord, pos = self._locate(ra_input, dec_input, fov_arcmin)
         key = result_key(pos["position_key"], "spectrum")
         payload = self._result(key)
+        if payload is None:
+            for sib in self._siblings(coord["ra_deg"], coord["dec_deg"]):
+                sib_payload = self._result(result_key(sib["position_key"], "spectrum"))
+                if sib_payload is not None:
+                    payload = sib_payload
+                    break
         if payload is None:
             cached = self._require(pos, pos["images"], priority=1)
             payload = build_spectrum(list(cached.values()), channel_wavelengths())

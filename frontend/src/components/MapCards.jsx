@@ -122,7 +122,7 @@ export function CoordInfo() {
         <span className="flex h-9 items-center rounded-full bg-accent px-3.5 text-sm text-[#0B1020]">{open ? 'Close' : 'Open'}</span>
       </button>
       {open && (
-        <section id="coord-info" aria-labelledby="coord-info-title" className="flex max-h-[70vh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-[22px] border border-soft bg-white/95 p-6 text-ink shadow-[0_12px_32px_rgba(20,26,46,0.18)] backdrop-blur">
+        <section id="coord-info" aria-labelledby="coord-info-title" className="flex max-h-[min(55vh,400px)] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-[22px] border border-soft bg-white/95 p-6 text-ink shadow-[0_12px_32px_rgba(20,26,46,0.18)] backdrop-blur">
           <div className="flex flex-col gap-1">
             <h2 id="coord-info-title" className="text-xl font-semibold">Every star has an address</h2>
             <p className="text-[15px] leading-relaxed text-muted">Just like a place on Earth, a spot in the sky is found with two numbers.</p>

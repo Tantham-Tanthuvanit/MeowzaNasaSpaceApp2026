@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import SkyMap from '../components/SkyMap';
 import ProjectDialog from '../components/ProjectDialog';
 import { ProjectCard, PinCard, CoordInfo } from '../components/MapCards';
+import { DEMO_TARGET } from '../components/DemoTour';
+import { BookIcon, CompassIcon, ShuffleIcon } from '../components/icons';
 import { useProjects } from '../core/projects';
 import { MARKER_COLORS } from '../core/targets';
-import { MAP_W, MAX_ZOOM, project, clamp, fmtRa, fmtDec } from '../core/sky';
+import { MAP_W, MAX_ZOOM, project, clamp, fmtRa, fmtDec, randomSkyPoint } from '../core/sky';
 
 const START_VIEW = { rot: 0, tilt: 0, zoom: 1 };
 const centredOn = (p) => ({ rot: p.ra, tilt: p.dec, zoom: 1 });
 
-export default function Home() {
+export default function Home({ onOpenTutorial }) {
   const { projects, loaded, error, addProject, updateProject, deleteProject } = useProjects();
   const [params] = useSearchParams();
+  const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
 
   // Coming back from the viewer with ?project=id opens that project on the map.
   const arrived = projects.find((p) => p.id === params.get('project'));
@@ -57,6 +60,14 @@ export default function Home() {
     setPin(null);
     setSelectedId(p.id);
     setView(centredOn(p));
+  };
+
+  const pickRandomPatch = () => {
+    const [randRa, randDec] = randomSkyPoint();
+    setQuery('');
+    setSelectedId(null);
+    setPin([randRa, randDec]);
+    setView({ rot: randRa, tilt: randDec, zoom: 1 });
   };
 
   const openEdit = (p) =>
@@ -116,10 +127,29 @@ export default function Home() {
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rust">Free sky viewer for everyone</p>
           <h1 className="font-display text-[28px] font-medium leading-[1.08] tracking-[-0.01em] sm:text-4xl lg:text-[clamp(28px,4.5vh,48px)]">Watch the night sky change.</h1>
           <p className="text-[15px] leading-relaxed text-muted sm:text-base">Drag the map to turn the sky, scroll to zoom. Click a project to see what it’s watching, or click any spot to start one.</p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {onOpenTutorial && (
+              <button
+                type="button"
+                onClick={onOpenTutorial}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-sm font-medium text-ink transition-colors hover:border-ink"
+              >
+                <BookIcon />
+                New here? How to use SkyFlip
+              </button>
+            )}
+            <Link
+              to={demoHref}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE]"
+            >
+              <CompassIcon />
+              Try Guided Demo
+            </Link>
+          </div>
         </div>
-        <form role="search" onSubmit={(e) => { e.preventDefault(); if (matches[0]) openFound(matches[0]); }} className="relative flex w-full flex-col gap-2 lg:max-w-[480px]">
+        <form role="search" onSubmit={(e) => { e.preventDefault(); if (matches[0]) openFound(matches[0]); }} className="relative flex w-full flex-col gap-2 lg:max-w-[540px]">
           <label htmlFor="project-search" className="text-[15px] font-semibold">Find a project</label>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2.5">
             <input
               id="project-search"
               type="search"
@@ -129,9 +159,18 @@ export default function Home() {
               placeholder="Search projects"
               autoComplete="off"
               aria-controls="project-search-results"
-              className="field h-12 min-w-[180px] flex-1 rounded-xl"
+              className="field h-12 min-w-[160px] flex-1 rounded-xl"
             />
-            <button type="submit" disabled={!matches.length} className="btn-primary h-12 rounded-xl px-6 text-base disabled:opacity-50">Search</button>
+            <button type="submit" disabled={!matches.length} className="btn-primary h-12 rounded-xl px-5 text-base disabled:opacity-50">Search</button>
+            <button
+              type="button"
+              onClick={pickRandomPatch}
+              className="btn-plain h-12 rounded-xl px-4 text-base"
+              title="Choose a random patch of sky"
+            >
+              <ShuffleIcon />
+              Random patch
+            </button>
           </div>
           {q && (
             <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-white p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">

@@ -156,6 +156,27 @@ def get_sky_cutout(
     ))
 
 
+@app.get("/api/difference-image")
+def get_difference_image(
+    ra: str = Query(..., description="Right Ascension"),
+    dec: str = Query(..., description="Declination"),
+    fov: float = Query(5.0, description="Field of View in arcminutes"),
+    band_group: str = Query("stacked", description="'stacked', 'array_1'..'array_6', or filter id"),
+    early_idx: int = Query(0, description="Reference early epoch index"),
+    late_idx: int = Query(1, description="Comparison late epoch index"),
+    stretch: str = Query("zscale", description="Contrast stretch: 'zscale', 'asinh', 'linear', 'log'"),
+    colormap: str = Query("inferno", description="Display colormap: 'inferno', 'viridis', 'magma', 'grayscale'")
+):
+    """
+    Computes scientific difference imaging between two specified survey visits
+    (late_idx minus early_idx) to detect moving objects and transient brightness changes.
+    """
+    return sky_call(lambda: loader.get_difference_image(
+        ra_input=ra, dec_input=dec, fov_arcmin=fov, band_group=band_group,
+        early_idx=early_idx, late_idx=late_idx, stretch=stretch, colormap=colormap
+    ))
+
+
 @app.get("/api/spectrum")
 def get_spectrum(
     ra: str = Query(..., description="Right Ascension"),

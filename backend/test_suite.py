@@ -119,6 +119,16 @@ class TestSpherexBookkeeping(unittest.TestCase):
         self.assertAlmostEqual(float(x), n // 2, places=6)
         self.assertAlmostEqual(float(y), n // 2, places=6)
 
+    def test_crop_to_fov_preserves_center(self):
+        n15 = data_loader.grid_size(15.0)
+        arr = np.zeros((n15, n15), dtype=np.float32)
+        arr[n15 // 2, n15 // 2] = 42.0
+        for fov in (3.0, 5.0, 8.0, 12.0, 15.0):
+            cropped = data_loader.crop_to_fov(arr, fov)
+            nf = data_loader.grid_size(fov)
+            self.assertEqual(cropped.shape, (nf, nf))
+            self.assertEqual(float(cropped[nf // 2, nf // 2]), 42.0)
+
     def test_render_puts_north_up(self):
         arr = np.zeros((49, 49), dtype=np.float32)
         arr[-1, :] = 100.0  # last FITS row is the north edge

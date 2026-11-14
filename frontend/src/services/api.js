@@ -52,24 +52,33 @@ async function poll(url, onProgress = () => {}, isCancelled = () => false) {
   }
 }
 
-const spot = (ra, dec, more) => new URLSearchParams({ ra: ra.toFixed(6), dec: dec.toFixed(6), fov: '5.0', ...more }).toString();
+const spot = (ra, dec, more = {}) => {
+  const fov = more.fov != null ? String(more.fov) : '5.0';
+  return new URLSearchParams({ ra: ra.toFixed(6), dec: dec.toFixed(6), fov, ...more }).toString();
+};
 const LOOK = { stretch: 'zscale', colormap: 'grayscale' };
 
 // The time series of pictures for one sky position, plus difference_image_url.
 // `band` is any band_group the backend knows: 'stacked', 'array_1'..'array_6', or an id from fetchLightKinds().
-export const fetchSkyCutout = (ra, dec, band = 'stacked', onProgress, isCancelled) =>
-  poll(`/api/sky-cutout?${spot(ra, dec, { band_group: band, ...LOOK, epochs: '4' })}`, onProgress, isCancelled);
+export const fetchSkyCutout = (ra, dec, band = 'stacked', fov = 5.0, onProgress, isCancelled) =>
+  poll(`/api/sky-cutout?${spot(ra, dec, { band_group: band, ...LOOK, fov, epochs: '4' })}`, onProgress, isCancelled);
 
 // { unit, channels: [{ channel, detector, wavelength_um, flux_mjy_sr, n_measurements }] }.
 // Needs every picture of the spot, so the first request can report progress for 15 minutes or more.
-export const fetchSpectrum = (ra, dec, onProgress, isCancelled) => poll(`/api/spectrum?${spot(ra, dec)}`, onProgress, isCancelled);
+export const fetchSpectrum = (ra, dec, fov = 5.0, onProgress, isCancelled) =>
+  poll(`/api/spectrum?${spot(ra, dec, { fov })}`, onProgress, isCancelled);
 
 // { sources: [{ id, catalog, pixel_x, pixel_y, mag, mag_band, ... }] } with pixels on the pictures' 0-256 grid.
-export const fetchCatalog = (ra, dec) => poll(`/api/catalog-overlay?${spot(ra, dec)}`);
+export const fetchCatalog = (ra, dec, fov = 5.0) =>
+  poll(`/api/catalog-overlay?${spot(ra, dec, { fov })}`);
 
 // All pictures of the spot added together after sliding each one by (shiftX, shiftY) pixels per visit.
-export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, onProgress, isCancelled) =>
-  poll(`/api/shift-and-add?${spot(ra, dec, { band_group: band, shift_x: shiftX, shift_y: shiftY, ...LOOK })}`, onProgress, isCancelled);
+export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, fov = 5.0, onProgress, isCancelled) =>
+  poll(`/api/shift-and-add?${spot(ra, dec, { band_group: band, shift_x: shiftX, shift_y: shiftY, fov, ...LOOK })}`, onProgress, isCancelled);
+
+// Difference image between two chosen survey visits (lateIdx minus earlyIdx).
+export const fetchDifferenceImage = (ra, dec, band = 'stacked', earlyIdx = 0, lateIdx = 1, fov = 5.0) =>
+  poll(`/api/difference-image?${spot(ra, dec, { band_group: band, ...LOOK, early_idx: earlyIdx, late_idx: lateIdx, fov })}`);
 
 // Every kind of light the backend can show: { id: { name, category, description } }.
 export const fetchLightKinds = async () => (await poll('/api/bands')).wavelength_filters;
@@ -90,17 +99,19 @@ function voterId() {
   return voter;
 }
 
-// Flags near a position (within the 5 arcminute picture), or every flag when ra is null.
+// Flags near a position (within the requested field of view), or every flag when ra is null.
 // Each has upvotes and user_voted (whether this browser has voted for it).
-export const listCandidates = async (ra, dec) =>
-  (await request(`/api/candidates?voter_id=${voterId()}${ra == null ? '' : `&ra=${ra}&dec=${dec}&radius_deg=0.06`}`)).body;
+export const listCandidates = async (ra, dec, fov = 5.0) => {
+  const radiusDeg = ((fov || 5.0) / 60.0) * 0.75;
+  return (await request(`/api/candidates?voter_id=${voterId()}${ra == null ? '' : `&ra=${ra}&dec=${dec}&radius_deg=${radiusDeg.toFixed(4)}`}`)).body;
+};
 // Votes for a flag, or takes the vote back with remove = true.
 export const voteCandidate = async (id, remove = false) =>
   (await request(`/api/candidates/${id}/vote`, sendJson('POST', { voter_id: voterId(), vote_type: remove ? 'unvote' : 'corroborate' }))).body;
 
 // Flags the point (x, y) on the 0-256 picture grid of the picture centred on (ra, dec).
-export async function flagCandidate(ra, dec, x, y, fields) {
-  const where = (await request(`/api/pixel-to-radec?pixel_x=${x}&pixel_y=${y}&center_ra=${ra}&center_dec=${dec}`)).body;
+export async function flagCandidate(ra, dec, x, y, fields, fov = 5.0) {
+  const where = (await request(`/api/pixel-to-radec?pixel_x=${x}&pixel_y=${y}&center_ra=${ra}&center_dec=${dec}&fov=${fov}`)).body;
   const { ra_deg, dec_deg, ra_hms, dec_dms } = where;
   return (await request('/api/candidates', sendJson('POST', { ra_deg, dec_deg, ra_hms, dec_dms, pixel_x: x, pixel_y: y, ...fields }))).body;
 }
@@ -138,9 +149,14 @@ export function useRemote(key, load) {
 // Loads the pictures for a position. Returns { frames, difference, error, loading, progress, retry }.
 // frames: [{ image_url, timestamp }] oldest first. difference: picture URL or null.
 // progress: null or { cached_images, total_images }. Pass ra = null to load nothing.
-export function useFrames(ra, dec, band = 'stacked') {
-  const { data, ...rest } = useRemote(ra == null || dec == null ? null : `${ra}|${dec}|${band}`, (onProgress, isCancelled) =>
-    fetchSkyCutout(ra, dec, band, onProgress, isCancelled)
+export function useFrames(ra, dec, band = 'stacked', fov = 5.0) {
+  const { data, ...rest } = useRemote(ra == null || dec == null ? null : `${ra}|${dec}|${band}|${fov}`, (onProgress, isCancelled) =>
+    fetchSkyCutout(ra, dec, band, fov, onProgress, isCancelled)
   );
-  return { frames: (data && data.epochs) || [], difference: (data && data.difference_image_url) || null, ...rest };
+  return {
+    frames: (data && data.epochs) || [],
+    difference: (data && data.difference_image_url) || null,
+    differenceImages: (data && data.difference_images) || {},
+    ...rest
+  };
 }

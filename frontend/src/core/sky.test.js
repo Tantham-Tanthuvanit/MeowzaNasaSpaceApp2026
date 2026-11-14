@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, gridStep, gridLines, MAX_ZOOM, MAP_W, MAP_H } from './sky';
+import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, gridStep, gridLines, randomSkyPoint, MAX_ZOOM, MAP_W, MAP_H } from './sky';
 
 describe('gridLines', () => {
   const onScreen = (d) => (d.match(/[\d.-]+ [\d.-]+/g) || []).some((p) => {
@@ -117,5 +117,28 @@ describe('skyToPixel', () => {
   });
   it('works across RA 0', () => {
     expect(skyToPixel(0.01, 0, 359.99, 0)[0]).toBeCloseTo(128 - 0.02 * 3072, 6);
+  });
+});
+
+describe('randomSkyPoint', () => {
+  it('generates coordinates within valid celestial ranges', () => {
+    for (let i = 0; i < 50; i++) {
+      const [ra, dec] = randomSkyPoint();
+      expect(ra).toBeGreaterThanOrEqual(0);
+      expect(ra).toBeLessThan(360);
+      expect(dec).toBeGreaterThanOrEqual(-85);
+      expect(dec).toBeLessThanOrEqual(85);
+      // Validates formatting and parsing roundtrip
+      expect(parseRa(fmtRa(ra, true))).toBeCloseTo(ra, 2);
+      expect(parseDec(fmtDec(dec, true))).toBeCloseTo(dec, 2);
+    }
+  });
+
+  it('produces diverse points across successive calls', () => {
+    const points = Array.from({ length: 5 }, () => randomSkyPoint());
+    const ras = new Set(points.map((p) => p[0]));
+    const decs = new Set(points.map((p) => p[1]));
+    expect(ras.size).toBe(5);
+    expect(decs.size).toBe(5);
   });
 });

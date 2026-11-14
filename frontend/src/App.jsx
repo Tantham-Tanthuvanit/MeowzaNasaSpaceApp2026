@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
-import { InfoIcon } from './components/icons';
+import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
+import { BookIcon, CompassIcon, InfoIcon } from './components/icons';
+import { DEMO_TARGET } from './components/DemoTour';
+import TutorialModal from './components/TutorialModal';
 import Home from './pages/Home';
 import Viewer from './pages/Viewer';
 
@@ -55,6 +57,26 @@ function Credits() {
 }
 
 export default function App() {
+  const [params] = useSearchParams();
+  const inDemo = Boolean(params.get('demo'));
+  const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
+  const [showTutorial, setShowTutorial] = useState(() => {
+    try {
+      return !localStorage.getItem('skyflip_tutorial_seen');
+    } catch {
+      return false;
+    }
+  });
+
+  const closeTutorial = () => {
+    try {
+      localStorage.setItem('skyflip_tutorial_seen', '1');
+    } catch {
+      // ignore storage errors in restricted browsing contexts
+    }
+    setShowTutorial(false);
+  };
+
   return (
     <div className="flex min-h-screen flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
       <header className="border-b border-[#E1E5EE] bg-white">
@@ -69,17 +91,39 @@ export default function App() {
               See how the night sky changes, picture by picture
             </span>
           </NavLink>
-          <nav aria-label="Main" className="flex items-center gap-1">
+          <nav aria-label="Main" className="flex items-center gap-1.5">
             <NavLink to="/" end className={navClass}>Sky map</NavLink>
-            <NavLink to="/viewer" className={navClass}>Sky viewer</NavLink>
+            <NavLink to="/viewer" className={(s) => navClass({ isActive: s.isActive && !inDemo })}>Sky viewer</NavLink>
+            <button
+              type="button"
+              onClick={() => setShowTutorial(true)}
+              className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-ink"
+              title="Learn how to read infrared sky images and spot moving objects"
+            >
+              <BookIcon />
+              How to use
+            </button>
+            <Link
+              to={demoHref}
+              className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-semibold transition-colors ${
+                inDemo
+                  ? 'border-[#FF8A3D] bg-[#FF8A3D] text-[#0B1020]'
+                  : 'border-[#FF8A3D] bg-[#FFF5EB] text-ink hover:bg-[#FFE6CE]'
+              }`}
+              title="Interactive 5-step walkthrough on real NASA SPHEREx data of brown dwarf WISE 0855"
+            >
+              <CompassIcon />
+              Guided demo
+            </Link>
             <Credits />
           </nav>
         </div>
       </header>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Home onOpenTutorial={() => setShowTutorial(true)} />} />
         <Route path="/viewer" element={<Viewer />} />
       </Routes>
+      {showTutorial && !inDemo && <TutorialModal onClose={closeTutorial} />}
     </div>
   );
 }

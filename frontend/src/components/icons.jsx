@@ -26,3 +26,19 @@ export const PauseIcon = () => (
 export const InfoIcon = () => (
   <svg width="22" height="22" strokeWidth="2" {...base}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.01" /></svg>
 );
+export const ShuffleIcon = () => (
+  <svg width="16" height="16" strokeWidth="2.2" {...base}>
+    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+  </svg>
+);
+export const CompassIcon = () => (
+  <svg width="16" height="16" strokeWidth="2.2" {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <polygon points="15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5 15.5 8.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+export const BookIcon = () => (
+  <svg width="16" height="16" strokeWidth="2.2" {...base}>
+    <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
+  </svg>
+);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAP_W, MAP_H, MAP_RX, MAP_RY, project, inverse, pathFrom, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
+import { MAP_W, MAP_H, MAP_RX, MAP_RY, MAX_ZOOM, project, inverse, pathFrom, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
 import SkyCanvas from './SkyCanvas';
 
 const pct = (v, total) => `${(v / total) * 100}%`;
@@ -24,6 +24,7 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
   useEffect(() => {
     const el = ref.current;
     const onWheel = (e) => {
+      if (e.target.closest('[data-map-ui]')) return;
       e.preventDefault();
       onView((v) => ({ ...v, zoom: clamp(v.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, MAX_ZOOM) }));
     };

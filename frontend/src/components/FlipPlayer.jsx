@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NextIcon, PauseIcon, PlayIcon, PrevIcon } from './icons';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -26,10 +26,14 @@ export function useFlipbook(count, resetKey, startPlaying = true) {
     return () => clearInterval(timer);
   }, [playing, count, speed]);
 
-  const show = (f) => {
+  const show = useCallback((f) => {
     setPlaying(false);
-    setFrame(((f % count) + count) % count);
-  };
+    setFrame((prev) => {
+      const base = count ? Math.min(prev, count - 1) : 0;
+      const next = typeof f === 'function' ? f(base) : f;
+      return count ? ((next % count) + count) % count : 0;
+    });
+  }, [count]);
   return { frame: count ? Math.min(frame, count - 1) : 0, playing, setPlaying, speed, setSpeed, show };
 }
 
@@ -84,6 +88,29 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
 
+  useEffect(() => {
+    if (caption || count < 2) return undefined;
+    const onKeyDown = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target && typeof e.target.closest === 'function' ? e.target : null;
+      if ((e.code === 'Space' || e.key === ' ') && !e.repeat) {
+        if (target && target.closest('input, textarea, select, button, a, [contenteditable]')) {
+          return;
+        }
+        e.preventDefault();
+        setPlaying((p) => !p);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (target && target.closest('input, textarea, select, [contenteditable]')) {
+          return;
+        }
+        e.preventDefault();
+        show((f) => (e.key === 'ArrowLeft' ? f - 1 : f + 1));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [caption, count, setPlaying, show]);
+
   const pick = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
     onPick(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
@@ -137,13 +164,13 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
       </div>
 
       {!caption && <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => show(frame - 1)} disabled={!count} aria-label="Previous picture" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
+        <button type="button" onClick={() => show(frame - 1)} disabled={!count} aria-label="Previous picture" title="Previous picture (←)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
           <PrevIcon />
         </button>
-        <button type="button" onClick={() => setPlaying(!playing)} disabled={!count} aria-label={playing ? 'Pause' : 'Play'} className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-accent text-[#0B1020] disabled:opacity-40">
+        <button type="button" onClick={() => setPlaying(!playing)} disabled={!count} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (Space)' : 'Play (Space)'} className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-accent text-[#0B1020] disabled:opacity-40">
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
-        <button type="button" onClick={() => show(frame + 1)} disabled={!count} aria-label="Next picture" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
+        <button type="button" onClick={() => show(frame + 1)} disabled={!count} aria-label="Next picture" title="Next picture (→)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40">
           <NextIcon />
         </button>
         <input

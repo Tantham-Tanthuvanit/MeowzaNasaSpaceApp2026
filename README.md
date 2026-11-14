@@ -18,7 +18,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - The viewer opens a spot in one band (Band 1, `array_1`), which needs one picture per visit (up to 4) and is ready in under a minute. "All bands combined" (`stacked`, `?band=all`) needs up to 24 and takes a few minutes the first time. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
 
 3. **Difference Imaging and Shift-and-Add**
-   - The difference image (last visit − first visit) uses a bipolar colormap, so moving objects show a dipole.
+   - The difference image (user-selectable visits, e.g. visit $B$ − visit $A$) uses a bipolar colormap, so moving objects show a dipole. All visit pairs are pre-computed and selectable via dropdowns and quick presets.
    - `/api/shift-and-add` co-adds the real visits along a trial motion, to bring out faint moving objects.
 
 4. **102-Channel Spectrum**
@@ -30,15 +30,23 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
 6. **Saved Projects and Citizen-Science Candidates**
    - The Home sky map shows the real SPHEREx sky: the browser loads IRSA's "SPHEREx DR1 all-sky data cube" picture tiles (first layer, 0.75 µm) straight from `irsa.ipac.caltech.edu` and draws them under the grid and markers. The map zooms to 20,000%, loading sharper tiles and drawing finer grid lines as it goes. The tiles run out of detail at 5,000% (about 13 arcseconds per pixel); past that the same pixels are magnified. If IRSA does not answer, the map shows an error with "Try again" and no drawn stand-in.
-   - Projects (the markers on the Home sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A new project is started by clicking a spot on the map and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
+   - Projects (the markers on the Home sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
 
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
 7. **All of It in the Viewer**
-   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Mark known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
+   - The viewer page shows every feature above: the flipbook, a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **"What changed" view** (difference image subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), a "More kinds of light…" list (filters and indices), a "Mark known stars" switch (Gaia and AllWISE marks), the spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
 
-8. **Query Sky Patches via URL**
-   - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.
+8. **Newcomer Tutorial & Field Guide (`How to use`)**
+   - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "What changed", keyboard shortcuts (`Space`, `←` / `→`), and citizen-science flagging.
+   - Accessible anytime via **How to use** in the header or **New here? How to use SkyFlip** on the Sky Map page.
+
+9. **Guided Demo Mode (5-Step Interactive Walkthrough)**
+   - Clicking **Guided demo** in the header (or **Start guided demo (WISE 0855)** in the viewer) launches an interactive 5-step tour on the cached WISE 0855 brown dwarf target (`RA 08h55m10.831s, Dec -07°14′42.53″`).
+   - Steps automatically walk through: (1) Infrared Flipbook in Band 6 (`4.42 µm`), (2) Side-by-Side Split View (`V1` vs `V4`), (3) Difference Imaging ("What changed" dipole signature), (4) Shift-and-Add Co-addition ("Combined"), and (5) Gaia/AllWISE Catalogue Overlay + SPHEREx 102-channel Spectrum.
+
+10. **Query Sky Patches via URL**
+   - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
 
 ---
 
@@ -61,7 +69,7 @@ MeowzaNasaSpaceApp2026/
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Home (sky map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SpectrumChart, Flags, MapCards, ProjectDialog
+│       ├── components/            # SkyMap, SkyCanvas, FlipPlayer, SplitPlayer, DemoTour, TutorialModal, SpectrumChart, Flags, MapCards, ProjectDialog
 │       ├── core/                  # Sky projection, sky picture drawing, bands, projects store
 │       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change

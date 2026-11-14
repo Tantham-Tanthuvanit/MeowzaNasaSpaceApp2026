@@ -18,7 +18,7 @@ const SURE = ['A wild guess', 'Not very sure', 'Fairly sure', 'Sure', 'Certain']
 // Things people have flagged: near the chosen spot, or everywhere when no spot is chosen.
 // flags: { data, error, loading, retry } from useRemote. point: null, or the { x, y } picture
 // point being flagged (the viewer draws it and moves it when the picture is clicked).
-export default function Flags({ ra, dec, flags, point, setPoint, band }) {
+export default function Flags({ ra, dec, flags, point, setPoint, band, fov = 5.0 }) {
   const hasSpot = ra !== null;
   const [form, setForm] = useState({ category: KINDS[0].id, confidence: 3, notes: '', name: '' });
   const [busy, setBusy] = useState(false);
@@ -48,7 +48,7 @@ export default function Flags({ ra, dec, flags, point, setPoint, band }) {
         notes: form.notes.trim(),
         observer_callsign: form.name.trim() || undefined,
         band_group: band,
-      });
+      }, fov);
       setPoint(null);
       setForm({ ...form, notes: '' });
     }, 'Couldn’t save the flag.');
