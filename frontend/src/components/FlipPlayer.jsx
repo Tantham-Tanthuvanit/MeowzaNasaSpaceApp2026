@@ -51,7 +51,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
   };
 
   return (
-    <div className="flex w-full max-w-[700px] flex-col gap-3.5">
+    <div className="flex w-full player-w flex-col gap-3.5">
       <div
         role="img"
         aria-label={current ? `${caption || `Sky picture ${frame + 1} of ${count}, taken ${fmtDate(current.timestamp)}`}. ${label}` : label}
@@ -126,7 +126,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
           value={frame}
           disabled={!count}
           onChange={(e) => show(Number(e.target.value))}
-          className="h-11 min-w-[120px] flex-1 accent-accent"
+          className="h-11 min-w-[80px] flex-1 accent-accent"
         />
         <label className="flex items-center gap-2 text-sm text-muted">
           Speed

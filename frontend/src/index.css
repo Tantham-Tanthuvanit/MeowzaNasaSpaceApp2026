@@ -30,3 +30,28 @@ body {
     @apply text-xs font-semibold uppercase tracking-[0.08em] text-muted;
   }
 }
+
+/* Width of the flipbook column. On large screens it also shrinks with the window height,
+   so the picture and its play controls fit on screen without scrolling. */
+.player-w {
+  max-width: 700px;
+}
+@media (min-width: 1024px) {
+  .player-w {
+    max-width: min(700px, calc(100dvh - 260px));
+  }
+}
+
+/* Sky map messages sit between the corner panels only when the map is wide enough for them
+   (the map is a size container on large screens); otherwise they stay at the top, like on phones. */
+@container (min-width: 1080px) {
+  .map-status {
+    top: auto;
+    bottom: 1rem;
+    padding-left: 430px;
+    padding-right: 280px;
+  }
+  .map-caption {
+    display: block;
+  }
+}

@@ -35,7 +35,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
 7. **All of It in the Viewer**
-   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
+   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Mark known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
 
 8. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.

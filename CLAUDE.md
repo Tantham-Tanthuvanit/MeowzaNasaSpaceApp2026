@@ -38,7 +38,7 @@ cd frontend && npx vitest run && npm run build
 - **WISE 0855** (RA 133.795129, Dec −7.245147): everything is cached (flipbook, spectrum, filters, catalogue), so it loads in under a second. Use this one.
 - **Proxima Centauri** (RA 217.429167, Dec −62.679444): flipbook only.
 - A new position takes 1–2 minutes for the flipbook and 15 minutes or more for the spectrum or a filter, because every picture is downloaded from IRSA once. The backend answers 202 with progress meanwhile; `poll()` in `frontend/src/services/api.js` handles it.
-- The catalogue lookup ("Known stars") takes about 30 seconds every time.
+- The catalogue lookup ("Mark known stars") takes about 30 seconds every time.
 
 ## Out-of-date files
 

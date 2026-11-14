@@ -95,7 +95,7 @@ export default function SkyImage({ view }) {
         className="pointer-events-none absolute inset-0 h-full w-full"
         style={{ clipPath: `ellipse(${rx}% ${ry}% at 50% 50%)` }}
       />
-      <div className="pointer-events-none absolute inset-x-0 top-3 z-[7] flex justify-center px-3 lg:top-auto lg:bottom-4 lg:pl-[430px] lg:pr-[280px]">
+      <div className="pointer-events-none absolute inset-x-0 top-3 z-[7] flex justify-center px-3 map-status">
         {status === 'loading' && (
           <p role="status" className="rounded-full bg-[rgba(7,11,24,0.82)] px-4 py-2 text-sm text-white">Loading the real picture of the sky from NASA…</p>
         )}
@@ -109,7 +109,7 @@ export default function SkyImage({ view }) {
           <p role="status" className="rounded-full bg-[rgba(7,11,24,0.82)] px-4 py-2 text-sm text-white">Loading a sharper picture…</p>
         )}
         {status === 'ready' && !problem && !sharpening && (
-          <p className="hidden rounded-full bg-[rgba(7,11,24,0.6)] px-3 py-1 text-[13px] text-[#D5DCF0] lg:block">Real picture of the sky in infrared light · NASA SPHEREx</p>
+          <p className="hidden rounded-full bg-[rgba(7,11,24,0.6)] px-3 py-1 text-[13px] text-[#D5DCF0] map-caption">Real picture of the sky in infrared light · NASA SPHEREx</p>
         )}
       </div>
     </>

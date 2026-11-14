@@ -144,7 +144,7 @@ export default function SpectrumPanel({ ra, dec }) {
   );
 
   return (
-    <section aria-labelledby="spectrum-title" className="flex w-full max-w-[700px] flex-col gap-3 border-t border-[#E1E5EE] pt-7">
+    <section aria-labelledby="spectrum-title" className="flex w-full player-w flex-col gap-3 border-t border-[#E1E5EE] pt-7">
       <h2 id="spectrum-title" className="font-display text-[22px] font-medium">The light here, split into 102 colours</h2>
       <p className="text-[15px] leading-relaxed text-muted">
         SPHEREx sees 102 shades of infrared light. This chart shows how bright the centre of the picture, under the orange cross, is in each one. Astronomers call it a spectrum. Its shape hints at what is there and how hot it is.
