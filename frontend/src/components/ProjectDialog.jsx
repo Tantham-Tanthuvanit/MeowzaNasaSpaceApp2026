@@ -27,7 +27,7 @@ export default function ProjectDialog({ title, sub, submitLabel, hint, initial, 
     if (!name) return setError('Give your project a name.');
     const ra = parseRa(form.ra), dec = parseDec(form.dec);
     if (ra === null || dec === null) {
-      return setError('Check the position. Try RA like 08h55m10.8s and Dec like -7d14m42.5s.');
+      return setError('Check the position. Try RA like 08h55m10.8s and Dec like -7°14′42.5″.');
     }
     onSubmit({ name, desc: form.desc.trim(), color: form.color, ra, dec });
   };
@@ -68,7 +68,7 @@ export default function ProjectDialog({ title, sub, submitLabel, hint, initial, 
             </label>
             <label className="flex flex-col gap-2 text-[15px] font-semibold">
               Declination (Dec)
-              <input type="text" value={form.dec} onChange={set('dec')} placeholder="-7d14m42.5s" className="field font-mono font-normal" />
+              <input type="text" value={form.dec} onChange={set('dec')} placeholder="-7°14′42.5″" className="field font-mono font-normal" />
             </label>
           </div>
         </div>

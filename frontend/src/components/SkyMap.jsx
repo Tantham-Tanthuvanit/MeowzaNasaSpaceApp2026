@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MAP_W, MAP_H, MAP_RX, MAP_RY, project, inverse, pathFrom, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
-import { MILKY_WAY, GALACTIC_CENTRE } from '../core/milkyWay';
+import SkyCanvas from './SkyCanvas';
 
 const pct = (v, total) => `${(v / total) * 100}%`;
 
@@ -33,7 +33,7 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
 
   const P = (ra, dec) => project(ra, dec, view);
 
-  const { grid, milkyWay, centre, hours } = useMemo(() => {
+  const { grid, hours } = useMemo(() => {
     const lines = [];
     for (const dec of [-60, -30, 0, 30, 60]) {
       const pts = [];
@@ -53,8 +53,6 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
     }
     return {
       grid: lines,
-      milkyWay: pathFrom(MILKY_WAY.map((q) => P(q[0], q[1]))),
-      centre: P(GALACTIC_CENTRE[0], GALACTIC_CENTRE[1]),
       hours: labels,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,23 +108,18 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
       className={`relative w-full touch-none select-none overflow-hidden rounded-2xl ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ aspectRatio: `${MAP_W} / ${MAP_H}` }}
     >
-      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
+      <SkyCanvas view={view} />
+
+      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="absolute inset-0 h-full w-full pointer-events-none">
         <defs>
           <clipPath id="sky-oval"><ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} /></clipPath>
-          <filter id="mw-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={30 * zoom} /></filter>
-          <filter id="gc-blur" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation={30 * zoom} /></filter>
-          <filter id="mw-blur-s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={9 * zoom} /></filter>
         </defs>
-        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="#0B1230" />
         <g clipPath="url(#sky-oval)">
-          <path d={milkyWay} fill="none" stroke="#5B6FA8" strokeWidth={150 * zoom} strokeLinecap="round" strokeLinejoin="round" opacity="0.45" filter="url(#mw-blur)" />
-          <path d={milkyWay} fill="none" stroke="#B9C6EA" strokeWidth={36 * zoom} strokeLinecap="round" strokeLinejoin="round" opacity="0.35" filter="url(#mw-blur-s)" />
-          <ellipse cx={centre[0]} cy={centre[1]} rx={96 * zoom} ry={52 * zoom} fill="#E9D9B8" opacity="0.35" filter="url(#gc-blur)" />
-          <g fill="none" stroke="#3A4A7A" strokeWidth="0.9" opacity="0.7">
+          <g fill="none" stroke="#7A93D0" strokeWidth="0.8" opacity="0.5">
             {grid.map((d, i) => <path key={i} d={d} />)}
           </g>
         </g>
-        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="none" stroke="#56689C" strokeWidth="1.4" />
+        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="none" stroke="#667EA8" strokeWidth="1.5" />
       </svg>
 
       {hours.map((l) => (

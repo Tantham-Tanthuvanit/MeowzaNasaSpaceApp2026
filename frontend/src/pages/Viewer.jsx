@@ -103,7 +103,7 @@ export default function Viewer() {
     e.preventDefault();
     const newRa = parseRa(form.ra), newDec = parseDec(form.dec);
     if (newRa === null || newDec === null) {
-      setFormError('Check the position. Try RA like 08h55m10.8s and Dec like -7d14m42.5s.');
+      setFormError('Check the position. Try RA like 08h55m10.8s and Dec like -7°14′42.5″.');
       return;
     }
     goTo(newRa, newDec);
@@ -183,7 +183,7 @@ export default function Viewer() {
           <label className="flex flex-col gap-1 text-sm font-medium text-body">
             Declination (Dec)
             <span className="text-[13px] font-normal text-muted">Like latitude, but for the sky: how far north or south</span>
-            <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7d14m42.53s" className="field mt-1 font-mono" />
+            <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7°14′42.53″" className="field mt-1 font-mono" />
           </label>
           {formError && <p role="alert" className="text-sm font-medium text-danger">{formError}</p>}
           <button type="submit" className="btn-primary h-[52px] text-base">Show me</button>

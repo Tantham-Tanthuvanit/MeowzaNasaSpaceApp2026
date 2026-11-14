@@ -61,44 +61,6 @@ export default function Flags({ ra, dec, flags, point, setPoint, band }) {
         Seen a dot that moves, appears or changes brightness? Flag it so others can check. Flags are public and anyone can add one.
       </p>
 
-      {flags.error && (
-        <div role="alert" className="flex flex-col items-start gap-3">
-          <p className="text-sm font-medium text-danger">Couldn’t load the flags. {flags.error}</p>
-          <button type="button" onClick={flags.retry} className="btn-plain">Try again</button>
-        </div>
-      )}
-      {flags.loading && !flags.data && <p role="status" className="text-sm text-muted">Loading flags…</p>}
-      {flags.data && !list.length && <p className="text-sm text-body">{hasSpot ? 'Nothing flagged here yet.' : 'Nothing flagged yet. Choose a spot to flag the first thing.'}</p>}
-
-      {list.length > 0 && (
-        <ol className="flex flex-col gap-3">
-          {list.map((c, i) => (
-            <li key={c.id} className="flex flex-col gap-1.5 rounded-xl border border-soft bg-white p-3.5">
-              <div className="flex items-start gap-2.5">
-                {hasSpot && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-[13px] font-semibold text-[#0B1020]">{i + 1}</span>}
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-[15px] font-semibold">{kindLabel(c.category)}</span>
-                  <span className="text-[13px] text-muted">
-                    {SURE[c.confidence - 1]}, says {c.observer_callsign}, {fmtDate(String(c.created_at).slice(0, 10))}
-                  </span>
-                </div>
-              </div>
-              {c.notes && <p className="text-sm leading-relaxed text-body">{c.notes}</p>}
-              <span className="font-mono text-[13px] text-muted">RA {fmtRa(c.ra_deg)} · Dec {fmtDec(c.dec_deg)}</span>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id, c.user_voted), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
-                  {c.user_voted ? 'Take back my vote' : 'I see it too'}
-                </button>
-                <span className="text-sm text-body">
-                  {c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}{c.user_voted ? ', including you' : ''}
-                </span>
-                {!hasSpot && <Link to={`/viewer?ra=${fmtRa(c.ra_deg, true)}&dec=${encodeURIComponent(fmtDec(c.dec_deg, true))}`} className="ml-auto text-sm font-semibold text-rust underline">Look at this spot</Link>}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-
       {hasSpot && !point && (
         <button type="button" onClick={() => setPoint({ x: 128, y: 128 })} className="btn self-start border border-ink bg-white text-ink">
           <PlusIcon />Flag something here
@@ -138,6 +100,44 @@ export default function Flags({ ra, dec, flags, point, setPoint, band }) {
       )}
 
       {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+
+      {flags.error && (
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <p className="text-sm font-medium text-danger">Couldn’t load the flags. {flags.error}</p>
+          <button type="button" onClick={flags.retry} className="btn-plain">Try again</button>
+        </div>
+      )}
+      {flags.loading && !flags.data && <p role="status" className="text-sm text-muted">Loading flags…</p>}
+      {flags.data && !list.length && <p className="text-sm text-body">{hasSpot ? 'Nothing flagged here yet.' : 'Nothing flagged yet. Choose a spot to flag the first thing.'}</p>}
+
+      {list.length > 0 && (
+        <ol className="flex flex-col gap-3">
+          {list.map((c, i) => (
+            <li key={c.id} className="flex flex-col gap-1.5 rounded-xl border border-soft bg-white p-3.5">
+              <div className="flex items-start gap-2.5">
+                {hasSpot && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-[13px] font-semibold text-[#0B1020]">{i + 1}</span>}
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-[15px] font-semibold">{kindLabel(c.category)}</span>
+                  <span className="text-[13px] text-muted">
+                    {SURE[c.confidence - 1]}, says {c.observer_callsign}, {fmtDate(String(c.created_at).slice(0, 10))}
+                  </span>
+                </div>
+              </div>
+              {c.notes && <p className="text-sm leading-relaxed text-body">{c.notes}</p>}
+              <span className="font-mono text-[13px] text-muted">RA {fmtRa(c.ra_deg)} · Dec {fmtDec(c.dec_deg)}</span>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button type="button" disabled={busy} onClick={() => act(() => voteCandidate(c.id, c.user_voted), 'Couldn’t save your vote.')} className="btn-plain h-10 px-4 text-sm disabled:opacity-50">
+                  {c.user_voted ? 'Take back my vote' : 'I see it too'}
+                </button>
+                <span className="text-sm text-body">
+                  {c.upvotes} {c.upvotes === 1 ? 'person agrees' : 'people agree'}{c.user_voted ? ', including you' : ''}
+                </span>
+                {!hasSpot && <Link to={`/viewer?ra=${fmtRa(c.ra_deg, true)}&dec=${encodeURIComponent(fmtDec(c.dec_deg, true))}`} className="ml-auto text-sm font-semibold text-rust underline">Look at this spot</Link>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
 
       {list.length > 0 && (
         <a href="/api/candidates/export-mpc" download="skyflip-flags.txt" className="self-start text-sm font-semibold text-rust underline">
