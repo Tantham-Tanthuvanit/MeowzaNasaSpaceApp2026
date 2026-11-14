@@ -66,7 +66,9 @@ MeowzaNasaSpaceApp2026/
 │       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change
 ├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
-├── setup.sh, start.sh             # Environment setup and one-command startup
+├── setup.sh, start.sh             # Environment setup and one-command startup (macOS / Linux / Git Bash)
+├── setup.bat, start.bat           # Windows Command Prompt / PowerShell setup and startup
+├── setup.ps1, start.ps1           # Windows PowerShell setup and startup scripts
 ├── CLAUDE.md                      # Working rules for AI coding sessions
 └── README.md
 ```
@@ -89,18 +91,32 @@ All persistent data lives in the Supabase project **MeowZa**. Only the backend t
 
 ### 1. One-Time Setup
 
+**macOS / Linux / Windows (Git Bash):**
 ```bash
 ./setup.sh
 cp backend/.env.example backend/.env
 # then put a secret key (sb_secret_...) from Supabase > Project Settings > API Keys into backend/.env
 ```
 
+**Windows (PowerShell or Command Prompt):**
+```powershell
+.\setup.bat
+copy backend\.env.example backend\.env
+# then put a secret key (sb_secret_...) from Supabase > Project Settings > API Keys into backend\.env
+```
+
 ### 2. Launch Both Backend & Frontend with One Command
 
+**macOS / Linux / Windows (Git Bash):**
 ```bash
 ./start.sh
 ```
-*(If `setup.sh` has not been run yet or the venv was created on a different OS, `start.sh` will automatically run `setup.sh` first).*
+
+**Windows (PowerShell or Command Prompt):**
+```powershell
+.\start.bat
+```
+*(If `setup` has not been run yet or the venv was created on a different OS, `start.sh` / `start.bat` will automatically run `setup` first).*
 
 - **Frontend Application**: [http://localhost:5173](http://localhost:5173)
 - **Backend API Docs (FastAPI)**: [http://localhost:8000/docs](http://localhost:8000/docs)

@@ -106,7 +106,7 @@ export default function Viewer() {
     e.preventDefault();
     const newRa = parseRa(form.ra), newDec = parseDec(form.dec);
     if (newRa === null || newDec === null) {
-      setFormError('Check the position. Try RA like 08h55m10.8s and Dec like -7d14m42.5s.');
+      setFormError('Check the position. Try RA like 08h55m10.8s and Dec like -7°14′42.5″.');
       return;
     }
     goTo(newRa, newDec);
@@ -174,21 +174,21 @@ export default function Viewer() {
   const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
 
   return (
-    <main className="mx-auto grid w-full max-w-[1720px] gap-8 px-4 py-6 sm:px-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[260px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:gap-6 lg:overflow-hidden xl:grid-cols-[300px_minmax(0,1fr)_360px] xl:gap-10">
-      {/* Small screens: position, picture, controls, spectrum, then the rest of this column. */}
-      <aside aria-label="Choose a patch of sky" className="flex flex-col gap-8 max-lg:contents lg:overflow-y-auto">
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <h1 className="font-display text-xl font-medium">Where in the sky?</h1>
-          <div className="grid grid-cols-2 items-end gap-3">
-            <label className="flex flex-col gap-0.5 text-sm font-medium text-body">
-              <span>RA <span className="font-normal text-muted">(how far east)</span></span>
-              <input type="text" value={form.ra} onChange={(e) => setForm({ ...form, ra: e.target.value })} placeholder="08h55m10.8s" aria-label="Right Ascension (RA), like longitude: how far east" className="field mt-1 h-11 px-3 font-mono text-sm" />
-            </label>
-            <label className="flex flex-col gap-0.5 text-sm font-medium text-body">
-              <span>Dec <span className="font-normal text-muted">(north or south)</span></span>
-              <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7d14m42.5s" aria-label="Declination (Dec), like latitude: how far north or south" className="field mt-1 h-11 px-3 font-mono text-sm" />
-            </label>
-          </div>
+    <main className="mx-auto grid w-full max-w-[1720px] gap-10 px-4 py-8 sm:px-8 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_360px] xl:gap-12">
+      {/* On small screens the player sits between the form and the list of stars. */}
+      <aside aria-label="Choose a patch of sky" className="flex flex-col gap-8 max-lg:contents">
+        <form onSubmit={submit} className="flex flex-col gap-5">
+          <h1 className="font-display text-[26px] font-medium">Where in the sky?</h1>
+          <label className="flex flex-col gap-1 text-sm font-medium text-body">
+            Right Ascension (RA)
+            <span className="text-[13px] font-normal text-muted">Like longitude, but for the sky: how far east</span>
+            <input type="text" value={form.ra} onChange={(e) => setForm({ ...form, ra: e.target.value })} placeholder="08h55m10.831s" className="field mt-1 font-mono" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-body">
+            Declination (Dec)
+            <span className="text-[13px] font-normal text-muted">Like latitude, but for the sky: how far north or south</span>
+            <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7°14′42.53″" className="field mt-1 font-mono" />
+          </label>
           {formError && <p role="alert" className="text-sm font-medium text-danger">{formError}</p>}
           <button type="submit" className="btn-primary h-11 text-base">Show me</button>
         </form>

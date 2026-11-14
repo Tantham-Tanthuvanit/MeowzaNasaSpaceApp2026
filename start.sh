@@ -9,17 +9,29 @@ echo "=========================================================="
 echo "      NASA SPHEREx Sky Viewer — Launch Sequence           "
 echo "=========================================================="
 
+find_venv_python() {
+    if [ -x "$PROJECT_DIR/backend/venv/Scripts/python.exe" ]; then
+        echo "$PROJECT_DIR/backend/venv/Scripts/python.exe"
+    elif [ -x "$PROJECT_DIR/backend/venv/bin/python" ]; then
+        echo "$PROJECT_DIR/backend/venv/bin/python"
+    else
+        echo ""
+    fi
+}
+
 # 0. Ensure environment and packages are properly set up for current OS
-if [ ! -d "$PROJECT_DIR/backend/venv" ] || ! "$PROJECT_DIR/backend/venv/bin/python" -c "import sys" >/dev/null 2>&1; then
+VENV_PYTHON="$(find_venv_python)"
+if [ -z "$VENV_PYTHON" ] || ! "$VENV_PYTHON" -c "import sys, uvicorn, fastapi" >/dev/null 2>&1; then
     echo "Environment not initialized or incompatible with current OS. Running setup.sh..."
     "$PROJECT_DIR/setup.sh"
+    VENV_PYTHON="$(find_venv_python)"
 fi
 
 # 1. Start Python Backend
 echo "[1/2] Launching Python backend (FastAPI) on port 8000..."
 cd "$PROJECT_DIR/backend"
 
-PYTHONPATH=. ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 &
+PYTHONPATH=. "$VENV_PYTHON" -m uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # 2. Start Frontend Dev Server

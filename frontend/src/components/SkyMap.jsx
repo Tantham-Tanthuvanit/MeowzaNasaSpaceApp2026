@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAP_W, MAP_H, MAP_RX, MAP_RY, MAX_ZOOM, project, inverse, gridLines, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
-import SkyImage from './SkyImage';
+import { MAP_W, MAP_H, MAP_RX, MAP_RY, project, inverse, pathFrom, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
+import SkyCanvas from './SkyCanvas';
 
 const pct = (v, total) => `${(v / total) * 100}%`;
 
@@ -34,13 +34,27 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
   const P = (ra, dec) => project(ra, dec, view);
 
   const { grid, hours } = useMemo(() => {
+    const lines = [];
+    for (const dec of [-60, -30, 0, 30, 60]) {
+      const pts = [];
+      for (let ra = 0; ra <= 360; ra += 3) pts.push(P(ra, dec));
+      lines.push(pathFrom(pts));
+    }
+    for (let ra = 0; ra < 360; ra += 30) {
+      const pts = [];
+      for (let dec = -88; dec <= 88; dec += 3) pts.push(P(ra, dec));
+      lines.push(pathFrom(pts));
+    }
     const labels = [];
     for (let h = 0; h < 24; h += 3) {
       const q = P(h * 15, 0);
       const onFront = Math.abs(q[2]) < (160 * Math.PI) / 180;
       if (onFront && q[0] > 20 && q[0] < MAP_W - 20 && q[1] > 30 && q[1] < MAP_H - 20) labels.push({ h, x: q[0], y: q[1] });
     }
-    return { grid: gridLines(view), hours: labels };
+    return {
+      grid: lines,
+      hours: labels,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.rot, view.tilt, view.zoom]);
 
@@ -94,19 +108,18 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
       className={`relative w-full touch-none select-none overflow-hidden rounded-2xl ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ aspectRatio: `${MAP_W} / ${MAP_H}` }}
     >
-      {/* Back to front: plain dark sky (shows until the picture loads), the real picture, the grid. */}
-      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
-        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="#0B1230" />
-      </svg>
-      <SkyImage view={view} />
-      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full">
+      <SkyCanvas view={view} />
+
+      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="absolute inset-0 h-full w-full pointer-events-none">
         <defs>
           <clipPath id="sky-oval"><ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} /></clipPath>
         </defs>
-        <g clipPath="url(#sky-oval)" fill="none" stroke="#6F82BA" strokeWidth="0.9" opacity="0.55">
-          {grid.map((d, i) => <path key={i} d={d} />)}
+        <g clipPath="url(#sky-oval)">
+          <g fill="none" stroke="#7A93D0" strokeWidth="0.8" opacity="0.5">
+            {grid.map((d, i) => <path key={i} d={d} />)}
+          </g>
         </g>
-        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="none" stroke="#56689C" strokeWidth="1.4" />
+        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="none" stroke="#667EA8" strokeWidth="1.5" />
       </svg>
 
       {hours.map((l) => (

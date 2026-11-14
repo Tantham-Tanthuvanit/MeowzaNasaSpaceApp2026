@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # setup.sh — Automated cross-platform environment setup script for NASA SPHEREx Sky Viewer
-# Detects OS (macOS / Linux / Windows WSL/GitBash), creates a dedicated virtual environment,
+# Detects OS (macOS / Linux / Windows Git Bash / MSYS2 / WSL), creates a dedicated virtual environment,
 # and installs all required backend Python packages and frontend Node dependencies.
 
 set -e
@@ -9,8 +9,12 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 
-# Ensure common paths (including Homebrew on macOS)
+# Ensure common paths (including Homebrew on macOS and LocalAppData Python on Windows)
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+if [ -n "${LOCALAPPDATA:-}" ]; then
+    WIN_LOCALAPPDATA="$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA")"
+    export PATH="$WIN_LOCALAPPDATA/Python/bin:$WIN_LOCALAPPDATA/Programs/Python/Python314:$WIN_LOCALAPPDATA/Programs/Python/Python313:$WIN_LOCALAPPDATA/Programs/Python/Python312:$WIN_LOCALAPPDATA/Programs/Python/Python311:$PATH"
+fi
 
 echo "=========================================================="
 echo "    NASA SPHEREx Sky Viewer — OS Setup & Initialization   "
@@ -21,17 +25,48 @@ OS_NAME="$(uname -s 2>/dev/null || echo "Unknown")"
 ARCH_NAME="$(uname -m 2>/dev/null || echo "Unknown")"
 echo " Detected OS: $OS_NAME ($ARCH_NAME)"
 
-# 2. Find compatible Python 3 executable (prefer 3.12, 3.11, 3.10, 3.9, or system python3)
-PYTHON_BIN=""
-for py_candidate in python3.12 python3.11 python3.10 python3.9 python3 python; do
-    if command -v "$py_candidate" >/dev/null 2>&1; then
-        # Check python version
-        if "$py_candidate" -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" 2>/dev/null; then
-            PYTHON_BIN="$(command -v "$py_candidate")"
-            break
-        fi
+# Helper to resolve venv python path across Unix (venv/bin/python) and Windows (venv/Scripts/python.exe)
+find_venv_python() {
+    if [ -x "$BACKEND_DIR/venv/Scripts/python.exe" ]; then
+        echo "$BACKEND_DIR/venv/Scripts/python.exe"
+    elif [ -x "$BACKEND_DIR/venv/bin/python" ]; then
+        echo "$BACKEND_DIR/venv/bin/python"
+    else
+        echo ""
     fi
+}
+
+# 2. Find compatible Python 3 executable (>= 3.9), skipping Windows Store stubs
+PYTHON_BIN=""
+PYTHON_ARGS=()
+
+check_python_candidate() {
+    local bin="$1"
+    shift
+    local args=("$@")
+    if "$bin" "${args[@]}" -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >/dev/null 2>&1; then
+        PYTHON_BIN="$bin"
+        PYTHON_ARGS=("${args[@]}")
+        return 0
+    fi
+    return 1
+}
+
+for py_candidate in python3.14 python3.13 python3.12 python3.11 python3.10 python3.9 python3 python; do
+    while IFS= read -r candidate_path; do
+        [ -z "$candidate_path" ] && continue
+        if check_python_candidate "$candidate_path"; then
+            break 2
+        fi
+    done < <(which -a "$py_candidate" 2>/dev/null || true)
 done
+
+# Fallback to Windows py launcher if available
+if [ -z "$PYTHON_BIN" ] && command -v py >/dev/null 2>&1; then
+    if check_python_candidate "$(command -v py)" -3; then
+        :
+    fi
+fi
 
 if [ -z "$PYTHON_BIN" ]; then
     echo " Error: No compatible Python (>= 3.9) found in PATH." >&2
@@ -39,18 +74,19 @@ if [ -z "$PYTHON_BIN" ]; then
     exit 1
 fi
 
-PY_VERSION="$("$PYTHON_BIN" --version 2>&1)"
-echo " Found Python: $PYTHON_BIN ($PY_VERSION)"
+PY_VERSION="$("$PYTHON_BIN" "${PYTHON_ARGS[@]}" --version 2>&1)"
+echo " Found Python: $PYTHON_BIN ${PYTHON_ARGS[*]} ($PY_VERSION)"
 
 # 3. Setup Python Virtual Environment for this OS
 cd "$BACKEND_DIR"
 
+VENV_PYTHON="$(find_venv_python)"
 NEED_NEW_VENV=false
-if [ ! -d "venv" ]; then
+if [ -z "$VENV_PYTHON" ]; then
     NEED_NEW_VENV=true
 else
     # Check if existing venv's python is working and matches this OS/interpreter
-    if ! ./venv/bin/python -c "import sys" >/dev/null 2>&1; then
+    if ! "$VENV_PYTHON" -c "import sys" >/dev/null 2>&1; then
         echo " Existing virtual environment in backend/venv is incompatible with this system."
         NEED_NEW_VENV=true
     fi
@@ -59,13 +95,19 @@ fi
 if [ "$NEED_NEW_VENV" = true ]; then
     echo " Creating fresh virtual environment at backend/venv..."
     rm -rf venv
-    "$PYTHON_BIN" -m venv venv
+    "$PYTHON_BIN" "${PYTHON_ARGS[@]}" -m venv venv
+    VENV_PYTHON="$(find_venv_python)"
+fi
+
+if [ -z "$VENV_PYTHON" ]; then
+    echo " Error: Failed to locate Python inside backend/venv." >&2
+    exit 1
 fi
 
 # 4. Install / Update Backend Dependencies
 echo " Installing/verifying backend Python dependencies..."
-./venv/bin/python -m pip install --upgrade pip --quiet
-./venv/bin/python -m pip install -r requirements.txt pytest pytest-asyncio --quiet
+"$VENV_PYTHON" -m pip install --upgrade pip --quiet
+"$VENV_PYTHON" -m pip install -r requirements.txt pytest pytest-asyncio --quiet
 
 echo " Backend virtual environment ready with all required dependencies."
 
@@ -99,5 +141,5 @@ fi
 
 echo "=========================================================="
 echo " Setup complete! Ready to launch."
-echo " Run ./start.sh to start the system."
+echo " Run ./start.sh (or .\\start.bat on Windows) to start the system."
 echo "=========================================================="

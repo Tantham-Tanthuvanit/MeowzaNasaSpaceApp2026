@@ -23,9 +23,9 @@ A public web tool that shows real SPHEREx pictures of any sky position as a flip
 ## Run and test
 
 ```bash
-./start.sh                                   # backend :8000, frontend :5173
+./start.sh                                   # backend :8000, frontend :5173 (or .\start.bat on Windows)
 curl -s localhost:8000/api/health            # expect "version":"2.0.0"
-cd backend && PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py              # offline
+cd backend && PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py              # offline (use .\venv\Scripts\python.exe on Windows)
 cd backend && LIVE_TESTS=1 PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py # + IRSA and Supabase
 cd frontend && npx vitest run && npm run build
 ```

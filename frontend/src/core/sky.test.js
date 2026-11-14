@@ -41,6 +41,8 @@ describe('parseRa', () => {
 describe('parseDec', () => {
   it('reads degrees, minutes, seconds with a sign', () => {
     expect(parseDec('-7d14m42.53s')).toBeCloseTo(-7.245147, 5);
+    expect(parseDec('-7°14′42.53″')).toBeCloseTo(-7.245147, 5);
+    expect(parseDec('-7°14\'42.53"')).toBeCloseTo(-7.245147, 5);
     expect(parseDec('+66d45m18s')).toBeCloseTo(66.755, 5);
     expect(parseDec('−7° 14′ 42.5″')).toBeCloseTo(-7.245139, 5);
   });

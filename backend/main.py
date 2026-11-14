@@ -49,8 +49,9 @@ app.add_middleware(
 
 # Mount frontend production build if available
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
-if os.path.exists(frontend_dist_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist_dir, "assets")), name="assets")
+frontend_assets_dir = os.path.join(frontend_dist_dir, "assets")
+if os.path.isdir(frontend_assets_dir):
+    app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="assets")
 
 loader = SPHERExDataLoader()
 
