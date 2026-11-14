@@ -19,7 +19,7 @@ export default function Home() {
   const [view, setView] = useState(arrived ? centredOn(arrived) : START_VIEW);
   const [selectedId, setSelectedId] = useState(arrived ? arrived.id : null);
   const [pin, setPin] = useState(null);
-  const [draftName, setDraftName] = useState('');
+  const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState(null); // null | { editId, initial }
   const [actionError, setActionError] = useState('');
 
@@ -37,17 +37,27 @@ export default function Home() {
   const cardSide = spot && project(spot[0], spot[1], view)[0] > MAP_W / 2 ? 'left-4' : 'right-4';
   const zoomBy = (f) => setView((v) => ({ ...v, zoom: clamp(v.zoom * f, 1, MAX_ZOOM) }));
 
-  const openCreate = (name) =>
+  const openCreate = () =>
     setDialog({
       editId: null,
       initial: {
-        name,
+        name: '',
         desc: '',
         ra: pin ? fmtRa(pin[0], true) : '',
         dec: pin ? fmtDec(pin[1], true) : '',
         color: MARKER_COLORS[projects.length % MARKER_COLORS.length].color,
       },
     });
+
+  // Search the saved projects by name or description.
+  const q = query.trim().toLowerCase();
+  const matches = q ? projects.filter((p) => `${p.name} ${p.desc || ''}`.toLowerCase().includes(q)) : [];
+  const openFound = (p) => {
+    setQuery('');
+    setPin(null);
+    setSelectedId(p.id);
+    setView(centredOn(p));
+  };
 
   const openEdit = (p) =>
     setDialog({ editId: p.id, initial: { name: p.name, desc: p.desc, ra: fmtRa(p.ra, true), dec: fmtDec(p.dec, true), color: p.color } });
@@ -60,7 +70,6 @@ export default function Home() {
       if (id) await updateProject(id, fields);
       else id = await addProject(fields);
       setActionError('');
-      setDraftName('');
       setPin(null);
       setSelectedId(id);
       setView((v) => ({ ...v, rot: fields.ra, tilt: fields.dec }));
@@ -88,7 +97,7 @@ export default function Home() {
       onDelete={removeSelected}
     />
   ) : pin ? (
-    <PinCard pin={pin} onClose={() => setPin(null)} onSave={() => openCreate('')} />
+    <PinCard pin={pin} onClose={() => setPin(null)} onSave={openCreate} />
   ) : null;
 
   const zoomControls = (
@@ -106,14 +115,45 @@ export default function Home() {
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rust">Free sky viewer for everyone</p>
           <h1 className="font-display text-[28px] font-medium leading-[1.08] tracking-[-0.01em] sm:text-4xl lg:text-[clamp(28px,4.5vh,48px)]">Watch the night sky change.</h1>
-          <p className="text-[15px] leading-relaxed text-muted sm:text-base">Drag the map to turn the sky, scroll to zoom. Click a project to see what it’s watching.</p>
+          <p className="text-[15px] leading-relaxed text-muted sm:text-base">Drag the map to turn the sky, scroll to zoom. Click a project to see what it’s watching, or click any spot to start one.</p>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); openCreate(draftName); }} className="flex w-full flex-col gap-2 lg:max-w-[480px]">
-          <label htmlFor="start-name" className="text-[15px] font-semibold">Start a project</label>
+        <form role="search" onSubmit={(e) => { e.preventDefault(); if (matches[0]) openFound(matches[0]); }} className="relative flex w-full flex-col gap-2 lg:max-w-[480px]">
+          <label htmlFor="project-search" className="text-[15px] font-semibold">Find a project</label>
           <div className="flex flex-wrap gap-3">
-            <input id="start-name" type="text" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter project name" className="field h-12 min-w-[180px] flex-1 rounded-xl" />
-            <button type="submit" className="btn-primary h-12 rounded-xl px-6 text-base">Create project</button>
+            <input
+              id="project-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+              placeholder="Search projects"
+              autoComplete="off"
+              aria-controls="project-search-results"
+              className="field h-12 min-w-[180px] flex-1 rounded-xl"
+            />
+            <button type="submit" disabled={!matches.length} className="btn-primary h-12 rounded-xl px-6 text-base disabled:opacity-50">Search</button>
           </div>
+          {q && (
+            <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-white p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
+              {!loaded && !error ? (
+                <li className="px-3 py-2.5 text-[15px] text-muted">Loading the saved projects…</li>
+              ) : matches.length === 0 ? (
+                <li className="px-3 py-2.5 text-[15px] text-muted">No projects match “{query.trim()}”. Click a spot on the map to start one.</li>
+              ) : (
+                matches.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" onClick={() => openFound(p)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-[#EEF1F8] focus:bg-[#EEF1F8] focus:outline-none">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-semibold">{p.name}</span>
+                        {p.desc && <span className="block truncate text-sm text-muted">{p.desc}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
         </form>
       </div>
 
