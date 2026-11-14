@@ -47,6 +47,9 @@ Thumbs.db
 *.swp
 *~
 
+# Secrets
+.env
+
 # Local logs & cache data
 data/cache/*
 !data/cache/.gitkeep

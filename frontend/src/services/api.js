@@ -1,303 +1,146 @@
-/**
- * api.js — NASA SPHEREx Sky Viewer Frontend API Service.
- *
- * Centralizes all REST API interactions with the backend, with seamless fallback
- * to realistic mock data if the backend is temporarily offline or in standalone UI mode.
- */
+// Calls to the Python backend. Vite proxies /api to it in development.
 
-import { MOCK_PRESETS, MOCK_DETECTOR_ARRAYS, createMockSkyCutout } from './mockData';
+import { useEffect, useState } from 'react';
 
-const API_BASE = '';
+const NO_SERVER = 'Can’t reach the picture server. Check that the backend is running, then try again.';
+const POLL_MS = 3000;
 
-/**
- * Fetch official benchmark challenge targets.
- */
-export async function fetchPresets() {
+async function request(url, options) {
+  let res;
   try {
-    const res = await fetch(`${API_BASE}/api/presets`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.warn('[API Service] Backend unavailable for /api/presets, using mock presets:', err.message);
-    return MOCK_PRESETS;
-  }
-}
-
-/**
- * Fetch 102-channel detector array specifications.
- */
-export async function fetchDetectorBands() {
-  try {
-    const res = await fetch(`${API_BASE}/api/bands`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.warn('[API Service] Backend unavailable for /api/bands, using mock band data:', err.message);
-    return {
-      mission: 'NASA SPHEREx',
-      total_bands: 102,
-      wavelength_range_um: [0.75, 5.00],
-      detector_arrays: MOCK_DETECTOR_ARRAYS
-    };
-  }
-}
-
-/**
- * Fetch multi-epoch cutouts, difference image, and 102-band SED.
- */
-export async function fetchSkyCutout({
-  ra,
-  dec,
-  fov = 5.0,
-  bandGroup = 'stacked',
-  stretch = 'zscale',
-  colormap = 'inferno',
-  epochs = 4
-}) {
-  const query = new URLSearchParams({
-    ra: ra.trim(),
-    dec: dec.trim(),
-    fov: fov.toString(),
-    band_group: bandGroup,
-    stretch,
-    colormap,
-    epochs: epochs.toString()
-  });
-
-  try {
-    const res = await fetch(`${API_BASE}/api/sky-cutout?${query.toString()}`);
-    if (!res.ok) {
-      const errorJson = await res.json().catch(() => ({}));
-      throw new Error(errorJson.detail || errorJson.error || `HTTP error ${res.status}`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.warn(`[API Service] Live API request failed (${err.message}). Falling back to simulation mock.`);
-    // If backend fails or is not yet started, return rich mock data matching the query coordinates
-    const fallback = createMockSkyCutout(ra, dec, fov);
-    fallback.target_info.band_group = bandGroup;
-    fallback.target_info.stretch = stretch;
-    fallback.target_info.colormap = colormap;
-    return fallback;
-  }
-}
-
-/**
- * Helper to update browser URL query params without triggering a page reload.
- */
-export async function fetchShiftAndAdd({
-  ra,
-  dec,
-  fov = 5.0,
-  shiftX = 0.0,
-  shiftY = 0.0,
-  bandGroup = 'stacked',
-  stretch = 'zscale',
-  colormap = 'inferno',
-  filterMode = 'normal'
-}) {
-  const query = new URLSearchParams({
-    ra: (ra || '').trim(),
-    dec: (dec || '').trim(),
-    fov: fov.toString(),
-    shift_x: shiftX.toString(),
-    shift_y: shiftY.toString(),
-    band_group: bandGroup,
-    stretch,
-    colormap,
-    filter_mode: filterMode
-  });
-
-  try {
-    const res = await fetch(`${API_BASE}/api/shift-and-add?${query.toString()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.warn('[API Service] Failed to execute shift-and-add API:', err.message);
-    return null;
-  }
-}
-
-/**
- * Normalizes candidate record fields across backend snake_case and frontend camelCase.
- */
-export function normalizeCandidate(c) {
-  if (!c) return null;
-  return {
-    ...c,
-    id: c.id,
-    raDeg: c.ra_deg !== undefined ? c.ra_deg : c.raDeg,
-    decDeg: c.dec_deg !== undefined ? c.dec_deg : c.decDeg,
-    raHms: c.ra_hms || c.raHms || '',
-    decDms: c.dec_dms || c.decDms || '',
-    pixelX: c.pixel_x !== undefined ? c.pixel_x : (c.pixelX !== undefined ? c.pixelX : 128),
-    pixelY: c.pixel_y !== undefined ? c.pixel_y : (c.pixelY !== undefined ? c.pixelY : 128),
-    category: c.category || 'planet_x',
-    confidence: c.confidence !== undefined ? c.confidence : 4,
-    notes: c.notes || '',
-    observerCallsign: c.observer_callsign || c.observerCallsign || 'Citizen Scientist',
-    targetPreset: c.target_preset || c.targetPreset || '',
-    bandGroup: c.band_group || c.bandGroup || 'stacked',
-    epochLabel: c.epoch_label || c.epochLabel || '',
-    upvotes: c.upvotes !== undefined ? c.upvotes : 1,
-    createdAt: c.created_at || c.createdAt || c.flaggedAt || new Date().toISOString()
-  };
-}
-
-/**
- * Fetch candidates stored in the embedded SQLite database.
- */
-export async function fetchCandidatesApi({ category, ra, dec, radiusDeg } = {}) {
-  const query = new URLSearchParams();
-  if (category && category !== 'all') query.set('category', category);
-  if (ra !== undefined && ra !== null) query.set('ra', ra.toString());
-  if (dec !== undefined && dec !== null) query.set('dec', dec.toString());
-  if (radiusDeg !== undefined && radiusDeg !== null) query.set('radius_deg', radiusDeg.toString());
-
-  try {
-    const res = await fetch(`${API_BASE}/api/candidates?${query.toString()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return Array.isArray(data) ? data.map(normalizeCandidate) : [];
-  } catch (err) {
-    console.warn('[API Service] Failed to fetch candidates from DB:', err.message);
-    return null;
-  }
-}
-
-/**
- * Persist a newly flagged candidate to the database.
- */
-export async function createCandidateApi(candidateData) {
-  const payload = {
-    id: candidateData.id,
-    ra_deg: candidateData.raDeg ?? candidateData.ra_deg,
-    dec_deg: candidateData.decDeg ?? candidateData.dec_deg,
-    ra_hms: candidateData.raHms || candidateData.ra_hms || '',
-    dec_dms: candidateData.decDms || candidateData.dec_dms || '',
-    pixel_x: candidateData.pixelX ?? candidateData.pixel_x ?? 128.0,
-    pixel_y: candidateData.pixelY ?? candidateData.pixel_y ?? 128.0,
-    category: candidateData.category || 'planet_x',
-    confidence: candidateData.confidence ?? 4,
-    notes: candidateData.notes || '',
-    observer_callsign: candidateData.observerCallsign || candidateData.observer_callsign || 'Citizen Scientist',
-    target_preset: candidateData.targetPreset || candidateData.target_preset || '',
-    band_group: candidateData.bandGroup || candidateData.band_group || 'stacked',
-    epoch_label: candidateData.epochLabel || candidateData.epoch_label || '',
-    upvotes: candidateData.upvotes ?? 1
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}/api/candidates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return normalizeCandidate(data);
-  } catch (err) {
-    console.warn('[API Service] Failed to save candidate to DB:', err.message);
-    return normalizeCandidate(payload);
-  }
-}
-
-/**
- * Retrieve or generate a persistent unique client identifier for anti-spam voting.
- */
-export function getClientVoterId() {
-  try {
-    let id = localStorage.getItem('spherex_client_voter_id');
-    if (!id) {
-      id = 'voter_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
-      localStorage.setItem('spherex_client_voter_id', id);
-    }
-    return id;
+    res = await fetch(url, options);
   } catch {
-    return 'voter_anonymous';
+    throw new Error(NO_SERVER);
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body) {
+    // The dev proxy answers 500 with no JSON when the backend is down.
+    throw new Error((body && (body.error || body.detail)) || NO_SERVER);
+  }
+  return { status: res.status, body };
+}
+
+const sendJson = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+// ---- Saved projects (stored in Supabase by the backend) ----
+
+export const listProjects = async () => (await request('/api/projects')).body;
+export const createProject = async (fields) => (await request('/api/projects', sendJson('POST', fields))).body;
+export const patchProject = async (id, fields) => (await request(`/api/projects/${id}`, sendJson('PATCH', fields))).body;
+export const removeProject = async (id) => (await request(`/api/projects/${id}`, { method: 'DELETE' })).body;
+
+// ---- Sky pictures (real SPHEREx data from NASA/IPAC IRSA) ----
+
+const done = new Map();
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// GET a sky endpoint. The first time anyone looks at a spot, the backend downloads its pictures
+// from NASA and answers 202 with progress; this keeps asking every few seconds and reports
+// progress via onProgress({ cached_images, total_images }). Finished results are remembered,
+// so flipping between bands or pages doesn't reload them. isCancelled() stops the polling.
+async function poll(url, onProgress = () => {}, isCancelled = () => false) {
+  if (done.has(url)) return done.get(url);
+  for (;;) {
+    const { status, body } = await request(url);
+    if (status !== 202) {
+      done.set(url, body);
+      return body;
+    }
+    onProgress(body);
+    await wait(POLL_MS);
+    if (isCancelled()) return null;
   }
 }
 
-/**
- * Cast a community corroboration vote for a candidate with anti-spam voter deduplication.
- */
-export async function voteCandidateApi(candidateId, { voteType = 'corroborate', voterCallsign, voterId, comment = '' } = {}) {
+const spot = (ra, dec, more) => new URLSearchParams({ ra: ra.toFixed(6), dec: dec.toFixed(6), fov: '5.0', ...more }).toString();
+const LOOK = { stretch: 'zscale', colormap: 'grayscale' };
+
+// The time series of pictures for one sky position, plus difference_image_url.
+// `band` is any band_group the backend knows: 'stacked', 'array_1'..'array_6', or an id from fetchLightKinds().
+export const fetchSkyCutout = (ra, dec, band = 'stacked', onProgress, isCancelled) =>
+  poll(`/api/sky-cutout?${spot(ra, dec, { band_group: band, ...LOOK, epochs: '4' })}`, onProgress, isCancelled);
+
+// { unit, channels: [{ channel, detector, wavelength_um, flux_mjy_sr, n_measurements }] }.
+// Needs every picture of the spot, so the first request can report progress for 15 minutes or more.
+export const fetchSpectrum = (ra, dec, onProgress, isCancelled) => poll(`/api/spectrum?${spot(ra, dec)}`, onProgress, isCancelled);
+
+// { sources: [{ id, catalog, pixel_x, pixel_y, mag, mag_band, ... }] } with pixels on the pictures' 0-256 grid.
+export const fetchCatalog = (ra, dec) => poll(`/api/catalog-overlay?${spot(ra, dec)}`);
+
+// All pictures of the spot added together after sliding each one by (shiftX, shiftY) pixels per visit.
+export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, onProgress, isCancelled) =>
+  poll(`/api/shift-and-add?${spot(ra, dec, { band_group: band, shift_x: shiftX, shift_y: shiftY, ...LOOK })}`, onProgress, isCancelled);
+
+// Every kind of light the backend can show: { id: { name, category, description } }.
+export const fetchLightKinds = async () => (await poll('/api/bands')).wavelength_filters;
+
+// ---- Things people have flagged (stored in Supabase by the backend) ----
+
+// There is no login, so the backend counts one vote per browser: a random id made once and kept
+// in this browser. It holds nothing about the person. Without storage it lasts until the page closes.
+let voter = null;
+function voterId() {
+  if (voter) return voter;
   try {
-    const callsign = voterCallsign || localStorage.getItem('spherex_observer_callsign') || 'Citizen Scientist';
-    const clientVoterId = voterId || getClientVoterId();
-
-    const res = await fetch(`${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}/vote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        vote_type: voteType,
-        voter_callsign: callsign,
-        voter_id: clientVoterId,
-        comment
-      })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return normalizeCandidate(data);
-  } catch (err) {
-    console.warn('[API Service] Failed to record vote:', err.message);
-    return null;
+    voter = localStorage.getItem('skyflip_voter_id');
+    if (!voter) localStorage.setItem('skyflip_voter_id', (voter = crypto.randomUUID()));
+  } catch {
+    voter = voter || crypto.randomUUID();
   }
+  return voter;
 }
 
-/**
- * Delete a candidate from the database.
- */
-export async function deleteCandidateApi(candidateId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}`, {
-      method: 'DELETE'
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn('[API Service] Failed to delete candidate:', err.message);
-    return false;
-  }
+// Flags near a position (within the 5 arcminute picture), or every flag when ra is null.
+// Each has upvotes and user_voted (whether this browser has voted for it).
+export const listCandidates = async (ra, dec) =>
+  (await request(`/api/candidates?voter_id=${voterId()}${ra == null ? '' : `&ra=${ra}&dec=${dec}&radius_deg=0.06`}`)).body;
+// Votes for a flag, or takes the vote back with remove = true.
+export const voteCandidate = async (id, remove = false) =>
+  (await request(`/api/candidates/${id}/vote`, sendJson('POST', { voter_id: voterId(), vote_type: remove ? 'unvote' : 'corroborate' }))).body;
+
+// Flags the point (x, y) on the 0-256 picture grid of the picture centred on (ra, dec).
+export async function flagCandidate(ra, dec, x, y, fields) {
+  const where = (await request(`/api/pixel-to-radec?pixel_x=${x}&pixel_y=${y}&center_ra=${ra}&center_dec=${dec}`)).body;
+  const { ra_deg, dec_deg, ra_hms, dec_dms } = where;
+  return (await request('/api/candidates', sendJson('POST', { ra_deg, dec_deg, ra_hms, dec_dms, pixel_x: x, pixel_y: y, ...fields }))).body;
 }
 
-/**
- * Fetch official Minor Planet Center (MPC) formatted batch report from database.
- */
-export async function fetchMpcDossierApi() {
-  try {
-    const res = await fetch(`${API_BASE}/api/candidates/export-mpc`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
-  } catch (err) {
-    console.warn('[API Service] Failed to fetch MPC export:', err.message);
-    return null;
-  }
+// ---- Loading hooks ----
+
+const IDLE = { data: null, error: null, loading: false, progress: null };
+
+// Runs load(onProgress, isCancelled) whenever `key` changes. Pass key = null to load nothing.
+// Returns { data, error, loading, progress, retry }. The last result stays on screen while the
+// next one loads, unless the backend reports a download in progress.
+export function useRemote(key, load) {
+  const [state, setState] = useState(IDLE);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (key == null) {
+      setState(IDLE);
+      return;
+    }
+    let current = true;
+    setState((s) => ({ ...s, error: null, loading: true, progress: null }));
+    load((progress) => current && setState({ ...IDLE, loading: true, progress }), () => !current).then(
+      (data) => current && setState({ ...IDLE, data }),
+      (err) => current && setState({ ...IDLE, error: err.message })
+    );
+    return () => {
+      current = false;
+    };
+  }, [key, attempt]);
+
+  return { ...state, retry: () => setAttempt((n) => n + 1) };
 }
 
-/**
- * Helper to update browser URL query params without triggering a page reload.
- */
-export function syncUrlWithQuery(ra, dec, fov, band) {
-  const params = new URLSearchParams(window.location.search);
-  if (ra) params.set('ra', ra);
-  if (dec) params.set('dec', dec);
-  if (fov) params.set('fov', fov.toString());
-  if (band) params.set('band', band);
-
-  const newUrl = `${window.location.pathname}?${params.toString()}`;
-  window.history.replaceState({}, '', newUrl);
-}
-
-/**
- * Helper to read coordinates and view options from initial URL parameters.
- */
-export function readInitialUrlParams() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    ra: params.get('ra') || '08h55m10.831s',
-    dec: params.get('dec') || '-07d14m42.53s',
-    fov: params.get('fov') ? parseFloat(params.get('fov')) : 5.0,
-    band: params.get('band') || 'stacked',
-    hasCustomCoords: Boolean(params.get('ra') && params.get('dec'))
-  };
+// Loads the pictures for a position. Returns { frames, difference, error, loading, progress, retry }.
+// frames: [{ image_url, timestamp }] oldest first. difference: picture URL or null.
+// progress: null or { cached_images, total_images }. Pass ra = null to load nothing.
+export function useFrames(ra, dec, band = 'stacked') {
+  const { data, ...rest } = useRemote(ra == null || dec == null ? null : `${ra}|${dec}|${band}`, (onProgress, isCancelled) =>
+    fetchSkyCutout(ra, dec, band, onProgress, isCancelled)
+  );
+  return { frames: (data && data.epochs) || [], difference: (data && data.difference_image_url) || null, ...rest };
 }

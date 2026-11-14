@@ -1,236 +1,174 @@
-import React, { useState } from 'react';
-import { Activity, Info, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { BANDS } from '../core/targets';
+import { fetchSpectrum, useRemote } from '../services/api';
 
-const ARRAY_COLORS = {
-  1: '#818cf8', // Indigo
-  2: '#38bdf8', // Cyan
-  3: '#34d399', // Emerald
-  4: '#fbbf24', // Amber
-  5: '#fb923c', // Orange
-  6: '#f87171', // Red
-};
+// Chart geometry, in SVG units.
+const W = 700, H = 300;
+const LEFT = 58, RIGHT = 14, TOP = 12, BOTTOM = 62;
+const PLOT_W = W - LEFT - RIGHT, PLOT_H = H - TOP - BOTTOM;
+const MIN_UM = 0.75, MAX_UM = 5;
+const xOf = (um) => LEFT + ((um - MIN_UM) / (MAX_UM - MIN_UM)) * PLOT_W;
 
-export default function SpectrumChart({ spectrum = [], targetInfo }) {
-  const [hoveredBand, setHoveredBand] = useState(null);
+// Round axis steps: 1, 2 or 5 times a power of ten, giving about four gridlines.
+function niceStep(span) {
+  const raw = span / 4;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 5, 10].find((m) => m * pow >= raw) * pow;
+}
 
-  if (!spectrum || spectrum.length === 0) {
-    return null;
-  }
+function Chart({ channels, unit }) {
+  const points = channels.filter((c) => c.flux_mjy_sr != null);
+  const [picked, setPicked] = useState(null); // index into points
+  if (!points.length) return <p className="text-[15px] text-muted">NASA’s pictures of this spot have no usable measurements at its centre.</p>;
 
-  // Calculate SVG chart coordinates
-  const width = 800;
-  const height = 180;
-  const padding = { top: 25, right: 30, bottom: 40, left: 45 };
+  const values = points.map((c) => c.flux_mjy_sr);
+  const lo = Math.min(0, ...values), hi = Math.max(...values);
+  const step = niceStep(hi - lo || 1);
+  const top = Math.ceil(hi / step) * step, bottom = Math.floor(lo / step) * step;
+  const yOf = (v) => TOP + ((top - v) / (top - bottom)) * PLOT_H;
+  const ticks = [];
+  for (let v = bottom; v <= top + step / 2; v += step) ticks.push(v);
+  const digits = Math.max(0, -Math.floor(Math.log10(step)));
+  const line = points.map((c, i) => `${i ? 'L' : 'M'}${xOf(c.wavelength_um).toFixed(1)} ${yOf(c.flux_mjy_sr).toFixed(1)}`).join('');
+  const sel = picked === null ? null : points[picked];
 
-  const minWave = 0.75;
-  const maxWave = 5.00;
-
-  const fluxes = spectrum.map((s) => s.flux);
-  const maxFlux = Math.max(...fluxes, 1.0) * 1.15;
-  const minFlux = Math.max(0, Math.min(...fluxes, 0.0) * 0.9);
-
-  const getX = (wave) => padding.left + ((wave - minWave) / (maxWave - minWave)) * (width - padding.left - padding.right);
-  const getY = (flux) => height - padding.bottom - ((flux - minFlux) / (maxFlux - minFlux)) * (height - padding.top - padding.bottom);
-
-  // Build SVG path
-  const points = spectrum.map((d) => `${getX(d.wavelength_um)},${getY(d.flux)}`).join(' ');
-  const areaPath = `${points} L ${getX(spectrum[spectrum.length - 1].wavelength_um)},${height - padding.bottom} L ${getX(spectrum[0].wavelength_um)},${height - padding.bottom} Z`;
-
-  // Molecular absorption features
-  const molecules = [
-    { label: 'H2O', wave: 1.4, desc: 'Water vapor' },
-    { label: 'CH4', wave: 1.66, desc: 'Methane absorption' },
-    { label: 'H2O', wave: 1.9, desc: 'Water band' },
-    { label: 'CO', wave: 2.3, desc: 'Carbon Monoxide' },
-    { label: 'CH4', wave: 3.3, desc: 'Deep Methane in Brown Dwarfs' },
-    { label: 'CO2', wave: 4.25, desc: 'Carbon Dioxide' },
-    { label: 'CO', wave: 4.6, desc: 'Carbon Monoxide bandhead' },
-  ];
+  const pickAt = (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const um = MIN_UM + ((((e.clientX - box.left) / box.width) * W - LEFT) / PLOT_W) * (MAX_UM - MIN_UM);
+    let best = 0;
+    points.forEach((c, i) => {
+      if (Math.abs(c.wavelength_um - um) < Math.abs(points[best].wavelength_um - um)) best = i;
+    });
+    setPicked(best);
+  };
+  const onKey = (e) => {
+    const move = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!move) return;
+    e.preventDefault();
+    setPicked(Math.max(0, Math.min(points.length - 1, (picked ?? -1) + move)));
+  };
 
   return (
-    <div className="glass-panel p-5 mb-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-cyan-500/20">
-        <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-amber-400" />
-          <h3 className="text-sm font-semibold tracking-wider uppercase text-amber-400">
-            SPHEREx 102-Band Near-Infrared Spectrum Preview
-          </h3>
-          <span className="text-xs text-slate-400 mono">
-            ({targetInfo?.matched_preset || 'Target SED'} &bull; 0.75 - 5.00 μm)
-          </span>
-        </div>
-
-        {/* Array Color Key */}
-        <div className="flex items-center gap-2 text-[10px] mono">
-          <span className="text-slate-400">Arrays:</span>
-          {[1, 2, 3, 4, 5, 6].map((arrNum) => (
-            <span key={arrNum} className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ARRAY_COLORS[arrNum] }}></span>
-              <span className="text-slate-300">A{arrNum}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* SVG Spectrum Visualization */}
-      <div className="relative mt-4 bg-slate-950/80 rounded-xl p-2 border border-slate-800 overflow-x-auto">
-        {/* Hovered Tooltip */}
-        {hoveredBand && (
-          <div
-            className="absolute z-20 bg-slate-900 border border-cyan-400/60 rounded px-2.5 py-1 text-xs mono text-cyan-200 pointer-events-none shadow-lg -translate-x-1/2 -translate-y-full"
-            style={{
-              left: `${(getX(hoveredBand.wavelength_um) / width) * 100}%`,
-              top: '25%'
-            }}
-          >
-            <div>Band #{hoveredBand.band_index} &bull; Array {hoveredBand.detector_array}</div>
-            <div className="text-white font-bold">{hoveredBand.wavelength_um} μm: {hoveredBand.flux.toFixed(2)} Jy</div>
-          </div>
+    <div className="flex flex-col gap-2">
+      <p aria-live="polite" className="min-h-[40px] text-sm leading-snug text-body">
+        {sel ? (
+          <>
+            <span className="font-semibold text-ink">{sel.wavelength_um.toFixed(2)} µm</span> (colour {sel.channel} of 102, band {sel.detector}):
+            brightness <span className="font-mono">{sel.flux_mjy_sr.toFixed(3)}</span> {unit}, measured in {sel.n_measurements} {sel.n_measurements === 1 ? 'picture' : 'pictures'}
+          </>
+        ) : (
+          <span className="text-muted">Point at the chart to read one colour. With a keyboard, focus the chart and use the left and right arrow keys.</span>
         )}
-
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[600px] select-none">
-          {/* Background Grid Lines */}
-          <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="#334155" strokeWidth="1" />
-          <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="#334155" strokeWidth="1" />
-
-          {/* Detector Array Background Shading */}
-          {[
-            { start: 0.75, end: 1.11, arr: 1 },
-            { start: 1.11, end: 1.64, arr: 2 },
-            { start: 1.64, end: 2.42, arr: 3 },
-            { start: 2.42, end: 3.82, arr: 4 },
-            { start: 3.82, end: 4.42, arr: 5 },
-            { start: 4.42, end: 5.00, arr: 6 },
-          ].map((seg) => {
-            const x1 = getX(seg.start);
-            const x2 = getX(seg.end);
+      </p>
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          role="img"
+          tabIndex={0}
+          aria-label={`Line chart of brightness against wavelength, ${points.length} points from ${MIN_UM} to ${MAX_UM} micrometres. The same numbers are in the table below.`}
+          onPointerMove={pickAt}
+          onPointerDown={pickAt}
+          onPointerLeave={() => setPicked(null)}
+          onKeyDown={onKey}
+          className="min-w-[520px] touch-pan-y rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        >
+          {ticks.map((v) => (
+            <g key={v}>
+              <path d={`M${LEFT} ${yOf(v)}H${W - RIGHT}`} stroke={Math.abs(v) < step / 2 ? '#8A93A8' : '#E1E5EE'} strokeWidth="1" />
+              <text x={LEFT - 8} y={yOf(v) + 4} textAnchor="end" fontSize="12" fill="#5A6580" className="font-mono">{v.toFixed(digits)}</text>
+            </g>
+          ))}
+          {[1, 2, 3, 4, 5].map((um) => (
+            <g key={um}>
+              <path d={`M${xOf(um)} ${TOP + PLOT_H}v5`} stroke="#8A93A8" strokeWidth="1" />
+              <text x={xOf(um)} y={TOP + PLOT_H + 19} textAnchor={um === 5 ? 'end' : 'middle'} fontSize="12" fill="#5A6580" className="font-mono">{um} µm</text>
+            </g>
+          ))}
+          {/* Which detector band each stretch of the chart comes from. */}
+          {BANDS.map((b) => {
+            const [from, to] = b.range.split('–').map(Number);
             return (
-              <rect
-                key={seg.arr}
-                x={x1}
-                y={padding.top}
-                width={Math.max(1, x2 - x1)}
-                height={height - padding.top - padding.bottom}
-                fill={ARRAY_COLORS[seg.arr]}
-                opacity="0.05"
-              />
-            );
-          })}
-
-          {/* Area under curve */}
-          <path d={`M ${areaPath}`} fill="url(#spectrumGradient)" opacity="0.35" />
-
-          <defs>
-            <linearGradient id="spectrumGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#818cf8" />
-              <stop offset="25%" stopColor="#38bdf8" />
-              <stop offset="50%" stopColor="#34d399" />
-              <stop offset="70%" stopColor="#fbbf24" />
-              <stop offset="90%" stopColor="#f87171" />
-            </linearGradient>
-          </defs>
-
-          {/* Spectral Line */}
-          <polyline
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            points={points}
-          />
-
-          {/* Molecular Absorption Callout Vertical Lines */}
-          {molecules.map((m, idx) => {
-            const xPos = getX(m.wave);
-            return (
-              <g key={idx}>
-                <line
-                  x1={xPos}
-                  y1={padding.top + 5}
-                  x2={xPos}
-                  y2={height - padding.bottom}
-                  stroke="#f59e0b"
-                  strokeWidth="1"
-                  strokeDasharray="2 2"
-                  opacity="0.6"
-                />
-                <text
-                  x={xPos}
-                  y={padding.top - 2}
-                  fill="#f59e0b"
-                  fontSize="9"
-                  fontFamily="monospace"
-                  textAnchor="middle"
-                >
-                  {m.label}
-                </text>
+              <g key={b.n}>
+                <rect x={xOf(from) + 1} y={H - 30} width={xOf(to) - xOf(from) - 2} height="6" rx="3" fill={b.color} />
+                <text x={(xOf(from) + xOf(to)) / 2} y={H - 9} textAnchor="middle" fontSize="12" fill="#3A4560">Band {b.n}</text>
               </g>
             );
           })}
-
-          {/* Interactive Data Points for 102 bands */}
-          {spectrum.map((d) => (
-            <circle
-              key={d.band_index}
-              cx={getX(d.wavelength_um)}
-              cy={getY(d.flux)}
-              r="3.5"
-              fill={ARRAY_COLORS[d.detector_array]}
-              className="cursor-pointer hover:r-5 transition-all opacity-80 hover:opacity-100"
-              onMouseEnter={() => setHoveredBand(d)}
-              onMouseLeave={() => setHoveredBand(null)}
-            />
-          ))}
-
-          {/* X-Axis Ticks & Labels */}
-          {[1.0, 2.0, 3.0, 4.0, 5.0].map((tick) => (
-            <g key={tick}>
-              <line
-                x1={getX(tick)}
-                y1={height - padding.bottom}
-                x2={getX(tick)}
-                y2={height - padding.bottom + 5}
-                stroke="#64748b"
-                strokeWidth="1"
-              />
-              <text
-                x={getX(tick)}
-                y={height - padding.bottom + 18}
-                fill="#94a3b8"
-                fontSize="10"
-                fontFamily="monospace"
-                textAnchor="middle"
-              >
-                {tick}.0 μm
-              </text>
-            </g>
-          ))}
-
-          {/* Axis Titles */}
-          <text
-            x={width / 2}
-            y={height - 5}
-            fill="#64748b"
-            fontSize="10"
-            fontFamily="monospace"
-            textAnchor="middle"
-          >
-            Near-Infrared Wavelength (λ in micrometers)
-          </text>
-          <text
-            x={12}
-            y={height / 2}
-            fill="#64748b"
-            fontSize="10"
-            fontFamily="monospace"
-            textAnchor="middle"
-            transform={`rotate(-90 12 ${height / 2})`}
-          >
-            Flux Density
-          </text>
+          <path d={line} fill="none" stroke="#141A2E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {sel && (
+            <>
+              <path d={`M${xOf(sel.wavelength_um)} ${TOP}V${TOP + PLOT_H}`} stroke="#8A93A8" strokeWidth="1" />
+              <circle cx={xOf(sel.wavelength_um)} cy={yOf(sel.flux_mjy_sr)} r="5" fill="#FF8A3D" stroke="#FFFFFF" strokeWidth="2" />
+            </>
+          )}
         </svg>
       </div>
+      <p className="text-[13px] leading-relaxed text-muted">
+        Left to right: wavelength, from light just redder than the eye can see to deep infrared. Bottom to top: brightness in {unit}.
+      </p>
+      <details className="text-sm text-body">
+        <summary className="cursor-pointer py-2 font-medium text-ink">Show the numbers as a table</summary>
+        <div className="max-h-[320px] overflow-auto rounded-lg border border-soft bg-white">
+          <table className="w-full text-left font-mono text-[13px]">
+            <thead className="sticky top-0 bg-white font-sans text-muted">
+              <tr>
+                <th className="px-3 py-2 font-semibold">Colour</th>
+                <th className="px-3 py-2 font-semibold">Wavelength (µm)</th>
+                <th className="px-3 py-2 font-semibold">Brightness ({unit})</th>
+                <th className="px-3 py-2 font-semibold">Pictures</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((c) => (
+                <tr key={c.channel} className="border-t border-soft">
+                  <td className="px-3 py-1.5">{c.channel}</td>
+                  <td className="px-3 py-1.5">{c.wavelength_um.toFixed(3)}</td>
+                  <td className="px-3 py-1.5">{c.flux_mjy_sr.toFixed(4)}</td>
+                  <td className="px-3 py-1.5">{c.n_measurements}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
+  );
+}
+
+// The spectrum of the centre of the picture. It is only fetched when asked for, because the
+// backend has to download every picture of the spot first.
+export default function SpectrumPanel({ ra, dec }) {
+  const [asked, setAsked] = useState(false);
+  const { data, error, loading, progress, retry } = useRemote(asked ? `${ra}|${dec}` : null, (onProgress, isCancelled) =>
+    fetchSpectrum(ra, dec, onProgress, isCancelled)
+  );
+
+  return (
+    <section aria-labelledby="spectrum-title" className="flex w-full max-w-[700px] flex-col gap-3 border-t border-[#E1E5EE] pt-7">
+      <h2 id="spectrum-title" className="font-display text-[22px] font-medium">The light here, split into 102 colours</h2>
+      <p className="text-[15px] leading-relaxed text-muted">
+        SPHEREx sees 102 shades of infrared light. This chart shows how bright the centre of the picture, under the orange cross, is in each one. Astronomers call it a spectrum. Its shape hints at what is there and how hot it is.
+      </p>
+      {!asked && <button type="button" onClick={() => setAsked(true)} className="btn-plain self-start">Measure the light here</button>}
+      {loading && (
+        <div role="status" className="text-[15px] leading-relaxed text-body">
+          {progress ? (
+            <>
+              <p className="font-medium">Downloading picture {progress.cached_images} of {progress.total_images} from NASA…</p>
+              <p className="text-[13px] text-muted">This needs every picture NASA has of this spot, so the first time can take 15 minutes or more. You can keep using the flipbook while you wait.</p>
+            </>
+          ) : (
+            <p>Measuring…</p>
+          )}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <p className="text-[15px] font-medium text-danger">{error}</p>
+          <button type="button" onClick={retry} className="btn-plain">Try again</button>
+        </div>
+      )}
+      {data && <Chart channels={data.channels} unit={data.unit} />}
+    </section>
   );
 }

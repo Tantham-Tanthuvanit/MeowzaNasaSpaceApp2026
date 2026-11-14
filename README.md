@@ -6,97 +6,92 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
 ## 🌟 Key Features Implemented
 
-1. **Infrared Light Layering (102 Spectral Channels)**
-   - **All 102 Bands Stacked**: Co-adds across all SPHEREx near-infrared bands (0.75 μm to 5.00 μm) to boost the Signal-to-Noise Ratio (SNR) by $\sim \sqrt{102} \approx 10\times$ for detecting ultra-faint brown dwarfs.
-   - **Detector Arrays 1 to 6**: Toggle individual detector arrays to inspect spectral behavior:
-     - *Array 1 (0.75 - 1.11 μm)*: Short near-IR
-     - *Array 2 (1.11 - 1.64 μm)*: J-band region
-     - *Array 3 (1.64 - 2.42 μm)*: H & K region
-     - *Array 4 (2.42 - 3.82 μm)*: Methane ($CH_4$) and water ($H_2O$) absorption
-     - *Array 5 (3.82 - 4.42 μm)*: Carbon monoxide ($CO$) and carbon dioxide ($CO_2$)
-     - *Array 6 (4.42 - 5.00 μm)*: Thermal infrared edge
-   - **False-Color Infrared Composite (RGB)**: Synthesizes short, mid, and long near-infrared bands into 3-color RGB imagery.
+1. **Real SPHEREx Pictures, One per Survey Visit**
+   - For any RA/Dec, the backend asks the NASA/IPAC Infrared Science Archive (IRSA) which SPHEREx DR1/QR3 spectral images cover it, then downloads cutouts in the background.
+   - Images are grouped into survey visits (for WISE 0855: May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026). Each flipbook frame is one visit.
+   - Every cutout has the zodiacal light model subtracted and is reprojected onto one north-up grid, so frames line up when blinked.
+   - **Band groups**: `stacked` (all 6 detectors), `array_1`..`array_6`, `false_color_rgb`, plus narrow-band filters and indices (`filter_ch4_deep`, `ratio_ch4`, ...) built from the images whose wavelength at that spot matches. See `/api/bands`.
 
-2. **Query Sky Patches via URL**
-   - Direct coordinate linking and web embedding: `http://localhost:5173/?ra=08h55m10.831s&dec=-07d14m42.53s&fov=5.0`
-   - Accepts both sexagesimal strings (`08h55m10.831s -07d14m42.53s`) and decimal degrees (`133.795, -7.245`).
-   - Browser URL automatically syncs when coordinates change, allowing 1-click sharing of celestial discoveries.
+2. **Caching in Supabase (download once)**
+   - A cutout takes about 10–15 s to download from IRSA. Each is downloaded once (4 at a time, as a courtesy to IRSA), then stored in Supabase Storage with a row in `sky_cutouts`. Finished responses are stored in `sky_results`.
+   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "Downloading picture N of M from NASA…" and polls.
+   - The flipbook for a new spot is ready in about 1–2 minutes. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
 
-3. **Multi-Frame Epoch Snippet & Time-Lapse Player**
-   - Video-like playback advancing through consecutive 6-month survey epochs (`2025-06-15`, `2025-12-15`, `2026-06-15`, `2026-12-15`).
-   - Variable playback cadence controls (0.5x, 1x, 2x, 3x fps), frame scrubber, and step buttons.
+3. **Difference Imaging and Shift-and-Add**
+   - The difference image (last visit − first visit) uses a bipolar colormap, so moving objects show a dipole.
+   - `/api/shift-and-add` co-adds the real visits along a trial motion, to bring out faint moving objects.
 
-4. **Scientific Image Subtraction (Difference Imaging)**
-   - Computes $\Delta E = \text{Epoch}_2 - \text{Epoch}_1$ with a bipolar divergence colormap.
-   - Moving objects display an unmistakable **dipole signature** (negative dark hole alongside positive bright peak).
-   - Variable stars display large non-dipole flux residuals.
-   - Side-by-side comparison mode for detailed dual-epoch inspection.
+4. **102-Channel Spectrum**
+   - `/api/spectrum` bins the centre-pixel brightness of every SPHEREx image of a spot into the 102 SPHEREx channels. Channel wavelengths come from IRSA's DR1 all-sky cube. This is a quick-look spectrum, not calibrated photometry.
 
-5. **1-Click Official Challenge Benchmark Targets**
-   - **WISE 0855**: Fast-moving sub-brown dwarf 7.4 light-years away exhibiting high proper motion.
-   - **Barnard's Star**: Second closest stellar system exhibiting the highest known proper motion (10.3 arcsec/yr).
-   - **Epsilon Indi B**: Binary brown dwarf pair co-moving through near-IR bands.
-   - **RW Aurigae**: Classical T Tauri variable star undergoing dramatic dust occultations.
-   - **R Draconis**: Mira pulsating red giant exhibiting massive brightness variations.
+5. **Gaia DR3 and AllWISE Overlay**
+   - `/api/catalog-overlay` queries Gaia DR3 and AllWISE through IRSA's TAP service. An AllWISE source with W1−W2 ≥ 1 and no Gaia star within 3″ is flagged as a brown dwarf candidate (WISE 0855 is).
+   - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
-6. **Interactive 102-Band Spectrum Generator**
-   - Real-time spectral energy distribution (SED) preview from 0.75 μm to 5.00 μm.
-   - Highlights molecular absorption bands: Water ($H_2O$), Methane ($CH_4$), Carbon Monoxide ($CO$), and Silicates.
-   - Interactive hover inspection for individual wavelength channels and flux densities.
+6. **Saved Projects and Citizen-Science Candidates**
+   - Projects (the markers on the Home sky map), candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
 
-7. **Dual-Backend Support**
-   - **FastAPI** (`main.py`): High performance, asynchronous endpoints, auto-generated Swagger UI at `/docs`.
-   - **Flask** (`flask_app.py`): Lightweight alternative runner adhering to the identical REST API contract.
+   - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
+
+7. **All of It in the Viewer**
+   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
+
+8. **Query Sky Patches via URL**
+   - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.
 
 ---
 
 ## 🏗️ Project Architecture
 
 ```
-NASAspaceApp/
+MeowzaNasaSpaceApp2026/
 ├── backend/
-│   ├── venv/                      # Python virtual environment
-│   ├── coordinates.py             # Astropy coordinate parser & challenge preset targets
-│   ├── image_processor.py         # ZScale/Asinh contrast stretch, difference imaging, band stacking
-│   ├── data_loader.py             # SPHEREx multi-epoch generator, 102-band SED engine, FITS cache
-│   ├── main.py                    # FastAPI entrypoint, CORS & static mounts
-│   ├── flask_app.py               # Alternative Flask entrypoint
-│   ├── test_suite.py              # Backend unit test suite (FastAPI, coordinates, image processor)
-│   ├── test_flask.py              # Flask endpoint verification suite
-│   ├── static/                    # Cached cutout cutouts
-│   └── requirements.txt           # Python dependencies
+│   ├── main.py                    # FastAPI endpoints
+│   ├── data_loader.py             # IRSA queries, background cutout downloads, frames, spectrum
+│   ├── catalog_service.py         # Gaia DR3 + AllWISE via IRSA TAP
+│   ├── database.py                # Candidates, votes and projects in Supabase
+│   ├── supabase_client.py         # The one Supabase client (reads backend/.env)
+│   ├── coordinates.py             # Astropy coordinate parsing and pixel <-> RA/Dec
+│   ├── image_processor.py         # Contrast stretch, difference imaging, stacking, PNG export
+│   ├── test_suite.py              # Backend tests (offline; LIVE_TESTS=1 adds IRSA + Supabase)
+│   ├── .env.example               # SUPABASE_URL and SUPABASE_SECRET_KEY
+│   └── requirements.txt
+├── supabase/migrations/           # Database schema (tables, RLS, storage bucket)
 ├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── SearchBar.jsx      # Coordinates form & 1-click challenge target buttons
-│   │   │   ├── SkyViewer.jsx      # Canvas, blink player, difference image & crosshairs
-│   │   │   ├── TimelineSlider.jsx # Multi-frame time-lapse playback scrubber
-│   │   │   └── SpectrumChart.jsx  # 102-band near-infrared spectrum visualizer
-│   │   ├── App.jsx                # Main dashboard & URL state synchronization
-│   │   ├── main.jsx               # React entry point
-│   │   └── index.css              # NASA deep-space aesthetic stylesheet
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-├── data/
-│   └── cache/                     # Local FITS and cutout cache
-├── promps/
-│   ├── task.md                    # Original challenge instructions
-│   └── project_architecture_and_execution_plan.md
-├── start.sh                       # One-command startup script
+│   └── src/
+│       ├── pages/                 # Home (sky map) and Viewer (flipbook)
+│       ├── components/            # SkyMap, FlipPlayer, SpectrumChart, Flags, MapCards, ProjectDialog
+│       ├── core/                  # Sky projection, bands, projects store
+│       └── services/api.js        # Backend calls (polls while pictures download)
+├── logs/                          # One entry per code change
+├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
+├── setup.sh, start.sh             # Environment setup and one-command startup
+├── CLAUDE.md                      # Working rules for AI coding sessions
 └── README.md
 ```
+
+### Supabase
+
+All persistent data lives in the Supabase project **MeowZa**. Only the backend talks to it, with the secret key; every table has RLS enabled and no access for `anon`/`authenticated`.
+
+| Table / bucket | What it holds |
+|---|---|
+| `candidates`, `candidate_votes` | Citizen-science discoveries and votes |
+| `projects` | Saved sky positions |
+| `sky_positions` | Per position: the IRSA image list and download status |
+| `sky_cutouts` + bucket `sky-cutouts` | Every downloaded cutout (pixels as `.npy`, wavelength, centre flux, IRSA URI, pipeline version) |
+| `sky_results` | Finished API responses (rendered PNGs live in the bucket under `results/`) |
 
 ---
 
 ## 🚀 Quickstart Guide
 
-### 1. One-Time Setup (or automatic on first launch)
-
-Run the automated OS environment setup script to create a clean virtual environment and install dependencies suited for your platform (Linux / macOS / WSL):
+### 1. One-Time Setup
 
 ```bash
 ./setup.sh
+cp backend/.env.example backend/.env
+# then put a secret key (sb_secret_...) from Supabase > Project Settings > API Keys into backend/.env
 ```
 
 ### 2. Launch Both Backend & Frontend with One Command
@@ -106,24 +101,15 @@ Run the automated OS environment setup script to create a clean virtual environm
 ```
 *(If `setup.sh` has not been run yet or the venv was created on a different OS, `start.sh` will automatically run `setup.sh` first).*
 
-* Or to run with the Flask backend instead of FastAPI:
-```bash
-./start.sh flask
-```
-
 - **Frontend Application**: [http://localhost:5173](http://localhost:5173)
 - **Backend API Docs (FastAPI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
----
-
-### 2. Manual Startup (Separate Terminals)
+### 3. Manual Startup (Separate Terminals)
 
 #### Terminal 1 — Backend:
 ```bash
 cd backend
 PYTHONPATH=. ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-# Or with Flask:
-# PYTHONPATH=. ./venv/bin/python flask_app.py
 ```
 
 #### Terminal 2 — Frontend:
@@ -137,12 +123,20 @@ npm run dev
 ## 🧪 Running the Verification Test Suites
 
 ```bash
-# Test full backend pipeline & FastAPI endpoints (12 tests)
-PYTHONPATH=backend backend/venv/bin/python backend/test_suite.py
+# Backend, offline
+cd backend && PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py
 
-# Test Flask endpoints (4 tests)
-PYTHONPATH=backend backend/venv/bin/python backend/test_flask.py
+# Backend, plus live IRSA and Supabase checks
+cd backend && LIVE_TESTS=1 PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py
 
-# Verify frontend build
-cd frontend && npm run build
+# Frontend unit tests and build
+cd frontend && npx vitest run && npm run build
 ```
+
+---
+
+## 📜 Data Credits
+
+- **SPHEREx**: "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration." Data from the NASA/IPAC Infrared Science Archive ([terms of use](https://irsa.ipac.caltech.edu/data_use_terms.html): public data, no usage restrictions).
+- **Gaia DR3**: ESA/Gaia/DPAC, licensed [CC BY-NC 3.0 IGO](https://www.cosmos.esa.int/web/gaia-users/license) (attribution, non-commercial). Served through IRSA. Gaia results are cached in memory only.
+- **AllWISE**: Wide-field Infrared Survey Explorer, a joint project of UCLA and JPL/Caltech, funded by NASA. Served through IRSA.

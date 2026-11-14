@@ -2,265 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-space: #070a13;
-  --bg-panel: rgba(13, 21, 38, 0.88);
-  --bg-card: rgba(22, 34, 56, 0.8);
-  --border-cyan: rgba(56, 189, 248, 0.25);
-  --border-amber: rgba(245, 158, 11, 0.35);
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --accent-cyan: #38bdf8;
-  --accent-amber: #f59e0b;
-  --accent-violet: #818cf8;
-  --accent-emerald: #10b981;
-  --accent-rose: #f43f5e;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
 body {
-  background-color: var(--bg-space);
-  color: var(--text-main);
-  min-height: 100vh;
-  overflow-x: hidden;
-  background-image: 
-    radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(129, 140, 248, 0.05) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.04) 0%, transparent 50%);
+  @apply bg-page font-sans text-ink antialiased;
 }
 
-code, pre, .mono {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Glassmorphism panel */
-.glass-panel {
-  background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-cyan);
-  border-radius: 14px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-}
-
-.glass-card {
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  transition: all 0.2s ease-in-out;
-}
-
-.glass-card:hover {
-  border-color: var(--border-cyan);
-  transform: translateY(-1px);
-}
-
-/* Glow effects */
-.glow-cyan {
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
-}
-
-.glow-amber {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
-}
-
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(7, 10, 19, 0.6);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(56, 189, 248, 0.3);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(56, 189, 248, 0.6);
-}
-
-/* Pulsing radar dot */
-@keyframes radar-pulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.15); opacity: 0.3; }
-  100% { transform: scale(0.95); opacity: 0.8; }
-}
-
-.radar-dot {
-  animation: radar-pulse 2s infinite ease-in-out;
-}
-
-/* Crosshair overlay */
-.crosshair-reticle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* Custom range slider styling */
-input[type='range'] {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #38bdf8;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-  border: 2px solid #0f172a;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-input[type='range']::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.95);
-}
-
-input[type='range']::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #38bdf8;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-  border: 2px solid #0f172a;
-}
-
-/* ==========================================================================
-   Light Mode Theme Styles (Observatory Clean Mode)
-   ========================================================================== */
-html.light {
-  --bg-space: #f8fafc;
-  --bg-panel: rgba(255, 255, 255, 0.94);
-  --bg-card: rgba(241, 245, 249, 0.95);
-  --border-cyan: rgba(2, 132, 199, 0.35);
-  --border-amber: rgba(217, 119, 6, 0.4);
-  --text-main: #0f172a;
-  --text-muted: #475569;
-  --accent-cyan: #0284c7;
-  --accent-amber: #d97706;
-}
-
-html.light body {
-  background-color: #f8fafc;
-  color: #0f172a;
-  background-image: 
-    radial-gradient(circle at 15% 20%, rgba(2, 132, 199, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(217, 119, 6, 0.05) 0%, transparent 50%);
-}
-
-html.light .glass-panel {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(203, 213, 225, 0.9);
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-}
-
-html.light .glass-card {
-  background: rgba(248, 250, 252, 0.95);
-  border-color: rgba(226, 232, 240, 0.9);
-}
-
-html.light header {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  border-color: #e2e8f0 !important;
-}
-
-html.light footer {
-  background-color: rgba(248, 250, 252, 0.9) !important;
-  border-color: #e2e8f0 !important;
-}
-
-/* Light mode background surface mapping */
-html.light .bg-slate-950\/90,
-html.light .bg-slate-950\/85,
-html.light .bg-slate-950\/80,
-html.light .bg-slate-950\/70,
-html.light .bg-slate-950\/60,
-html.light .bg-slate-950 {
-  background-color: #ffffff !important;
-}
-
-html.light .bg-slate-900\/90,
-html.light .bg-slate-900\/80,
-html.light .bg-slate-900\/70,
-html.light .bg-slate-900\/60,
-html.light .bg-slate-900 {
-  background-color: #f1f5f9 !important;
-}
-
-html.light .bg-slate-800 {
-  background-color: #e2e8f0 !important;
-}
-
-/* Light mode borders */
-html.light .border-slate-800\/80,
-html.light .border-slate-800\/60,
-html.light .border-slate-800,
-html.light .border-slate-700\/80,
-html.light .border-slate-700 {
-  border-color: #cbd5e1 !important;
-}
-
-/* Light mode typography */
-html.light .text-white {
-  color: #0f172a !important;
-}
-
-html.light .text-slate-100,
-html.light .text-slate-200,
-html.light .text-slate-300 {
-  color: #1e293b !important;
-}
-
-html.light .text-slate-400 {
-  color: #475569 !important;
-}
-
-html.light .text-slate-500 {
-  color: #64748b !important;
-}
-
-/* Input fields & controls in light mode */
-html.light input[type="text"],
-html.light input[type="number"],
-html.light select,
-html.light textarea {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
-
-html.light input[type="text"]::placeholder,
-html.light textarea::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* Keep the astronomy canvas background true dark for deep-space contrast */
-html.light .bg-slate-950\/90.min-h-\[380px\],
-html.light .bg-slate-950\/90.min-h-\[460px\],
-html.light .bg-slate-950\/90.relative {
-  background-color: #050811 !important;
-}
-
-/* Scrollbars in light mode */
-html.light ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-html.light ::-webkit-scrollbar-thumb {
-  background: rgba(2, 132, 199, 0.4);
+@layer components {
+  /* Text inputs */
+  .field {
+    @apply h-[52px] w-full rounded-[10px] border border-line bg-white px-4 text-base text-ink;
+  }
+  /* Pill buttons */
+  .btn {
+    @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-[#0B1020];
+  }
+  .btn-plain {
+    @apply btn border border-line bg-white font-medium text-ink;
+  }
+  /* Small round icon button (close, step) */
+  .btn-round {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0F2F7] text-ink;
+  }
+  /* Small uppercase label */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.08em] text-muted;
+  }
 }
