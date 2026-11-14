@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MAP_W, MAP_H, MAP_RX, MAP_RY } from '../core/sky';
 import { renderSky, MAX_ORDER } from '../core/skyImage';
-import { loadSky, requestTiles, retryTiles } from '../services/skyTiles';
+import { SURVEYS, loadSky, requestTiles, retryTiles } from '../services/skyTiles';
 
 const QUICK = 2; // while the map is moving it is drawn at half size, then sharpened when it rests
 const REST_MS = 140;
 
-// The real SPHEREx picture of the sky, drawn under the grid and markers of the Home map.
-export default function SkyImage({ view }) {
+// Real all-sky picture (Visible DSS2 or Infrared SPHEREx), drawn under the grid and markers of the Home map.
+export default function SkyImage({ view, survey = 'visible' }) {
   const canvasRef = useRef(null);
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -21,13 +21,16 @@ export default function SkyImage({ view }) {
 
   useEffect(() => {
     let live = true;
+    clearTimeout(timer.current);
     setStatus('loading');
-    loadSky().then(
+    setMissing(false);
+    setSharpening(false);
+    loadSky(survey).then(
       (s) => { if (live) { setSrc(s); setStatus('ready'); } },
       () => { if (live) setStatus('error'); },
     );
     return () => { live = false; };
-  }, [attempt]);
+  }, [survey, attempt]);
 
   // Working memory, made once: full-size and half-size pixel buffers and the tile wish list.
   if (!buf.current && typeof document !== 'undefined') {
@@ -70,17 +73,21 @@ export default function SkyImage({ view }) {
     });
     clearTimeout(timer.current);
     timer.current = setTimeout(drawSharp, REST_MS);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer.current);
+    };
   }, [src, drawSharp, view.rot, view.tilt, view.zoom]);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const retry = () => {
     if (status === 'error') setAttempt((n) => n + 1);
-    else { retryTiles(); setMissing(false); drawSharp(); }
+    else { retryTiles(src); setMissing(false); drawSharp(); }
   };
 
   const rx = (MAP_RX * view.zoom * 100) / MAP_W, ry = (MAP_RY * view.zoom * 100) / MAP_H;
+  const activeSurvey = SURVEYS[survey] || SURVEYS.visible;
   const problem = status === 'error'
     ? 'Couldn’t load the real picture of the sky from NASA.'
     : missing ? 'Couldn’t load the sharper picture for part of this view.' : null;
@@ -109,7 +116,7 @@ export default function SkyImage({ view }) {
           <p role="status" className="rounded-full bg-[rgba(7,11,24,0.82)] px-4 py-2 text-sm text-white">Loading a sharper picture…</p>
         )}
         {status === 'ready' && !problem && !sharpening && (
-          <p className="hidden rounded-full bg-[rgba(7,11,24,0.6)] px-3 py-1 text-[13px] text-[#D5DCF0] map-caption">Real picture of the sky in infrared light · NASA SPHEREx</p>
+          <p className="hidden rounded-full bg-[rgba(7,11,24,0.6)] px-3 py-1 text-[13px] text-[#D5DCF0] map-caption">{activeSurvey.caption}</p>
         )}
       </div>
     </>

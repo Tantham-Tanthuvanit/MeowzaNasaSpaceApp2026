@@ -31,7 +31,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
 6. **Saved Projects and Citizen-Science Candidates**
-   - The Home sky map shows the real SPHEREx sky: the browser loads IRSA's "SPHEREx DR1 all-sky data cube" picture tiles (first layer, 0.75 µm) straight from `irsa.ipac.caltech.edu` and draws them under the grid and markers. The map zooms to 20,000%, loading sharper tiles and drawing finer grid lines as it goes. The tiles run out of detail at 5,000% (about 13 arcseconds per pixel); past that the same pixels are magnified. If IRSA does not answer, the map shows an error with "Try again" and no drawn stand-in.
+   - The Home sky map supports both **Visible light** (default, full-color optical **DSS2 Color** from NASA/STScI via IRSA HiPS tiles) and **Infrared** (**NASA SPHEREx DR1** all-sky data cube first layer at 0.75 µm) via a 1-click **Sky light** toggle (`Visible light` / `Infrared (SPHEREx)`), persisted in `localStorage` (`skyflip_sky_survey`). Progressive HEALPix tiles stream straight from `irsa.ipac.caltech.edu` under the coordinate grid and markers as the user zooms up to 20,000% (native sharp 512×512 tiles through `Norder5`, ~13 arcseconds/pixel at 5,000%), with `"Loading a sharper picture…"` feedback and `"Try again"` error recovery if IRSA is unreachable.
    - Projects (the markers on the Home sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
    - **Map Layers & Project Visibility Toggles**: The sky map features an interactive toggle control (`User projects` and `Official targets`) located both in the header search panel and as a floating chip on the map canvas. Users can easily hide or show community/user-created projects independently from official benchmark targets (Barnard's Star, WISE 0855, Epsilon Indi B, RW Aurigae, R Draconis), with live counts and preference persistence in `localStorage` (`skyflip_show_user_projects`). Search results and project detail cards clearly distinguish between official and user-created targets.
 
@@ -86,7 +86,7 @@ MeowzaNasaSpaceApp2026/
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Home (sky map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, SkyCanvas, FlipPlayer, SplitPlayer, DemoTour, TutorialModal, SpectrumChart, Flags, MapCards, ProjectDialog
+│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SplitPlayer, DemoTour, TutorialModal, SettingsModal, SpectrumChart, Flags, MapCards, ProjectDialog
 │       ├── core/                  # Sky projection, sky picture drawing, bands, projects store
 │       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change

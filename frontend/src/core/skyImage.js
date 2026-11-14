@@ -69,6 +69,51 @@ export function makeLut() {
   return lut;
 }
 
+// Per-channel lookup tables (0-255 -> 0-255) for visible-light (DSS2) RGB tiles.
+// Lifts faint stars and nebulae while mapping dark photographic plate background onto the #0B1230 navy floor.
+export function makeRgbLut() {
+  const r = new Uint8Array(256), g = new Uint8Array(256), b = new Uint8Array(256);
+  const denom = 1 - Math.exp(-5);
+  for (let v = 0; v < 256; v++) {
+    const x = Math.max(0, (v - 6) / 249);
+    const t = (1 - Math.exp(-5 * x)) / denom;
+    r[v] = Math.round(11 + t * (255 - 11));
+    g[v] = Math.round(18 + t * (255 - 18));
+    b[v] = Math.round(48 + t * (255 - 48));
+  }
+  return { r, g, b };
+}
+
+// Convert an RGBA Uint8ClampedArray/Uint8Array into packed 32-bit RGBA pixels (Uint32Array).
+export function packRgb(rgba, rgbLut = makeRgbLut()) {
+  const { r, g, b } = rgbLut;
+  const n = rgba.length >> 2;
+  const out = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    const j = i << 2;
+    const a = rgba[j + 3];
+    const rv = ((rgba[j] * a + 127) / 255) | 0;
+    const gv = ((rgba[j + 1] * a + 127) / 255) | 0;
+    const bv = ((rgba[j + 2] * a + 127) / 255) | 0;
+    out[i] = ((255 << 24) | (b[bv] << 16) | (g[gv] << 8) | r[rv]) >>> 0;
+  }
+  return out;
+}
+
+// Halve a packed-RGBA picture (Uint32Array) by averaging each 2 x 2 block per R, G, B channel.
+export function halveRgb({ data, width, height, cell }) {
+  const w = width / 2, h = height / 2, out = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = 2 * y * width + 2 * x;
+    const p0 = data[i], p1 = data[i + 1], p2 = data[i + width], p3 = data[i + width + 1];
+    const r = ((p0 & 255) + (p1 & 255) + (p2 & 255) + (p3 & 255) + 2) >> 2;
+    const g = (((p0 >>> 8) & 255) + ((p1 >>> 8) & 255) + ((p2 >>> 8) & 255) + ((p3 >>> 8) & 255) + 2) >> 2;
+    const b = (((p0 >>> 16) & 255) + ((p1 >>> 16) & 255) + ((p2 >>> 16) & 255) + ((p3 >>> 16) & 255) + 2) >> 2;
+    out[y * w + x] = ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+  }
+  return { data: out, width: w, height: h, cell: cell / 2 };
+}
+
 // Which tile order suits a canvas `w` pixels wide at this zoom: 0 means the preview is enough.
 export function orderFor(zoom, w) {
   const degPerPx = ((2 * Math.SQRT2) / (MAP_RX * zoom) / RAD) * (MAP_W / w);
@@ -130,7 +175,7 @@ export function renderSky(out, w, h, view, src, wanted) {
         const top = ((n / PREVIEW_COLS) | 0) * mCell + ((fx >> mShift) & mMask);
         v = mData[top * mW + (n % PREVIEW_COLS) * mCell + ((fy >> mShift) & mMask)];
       }
-      out[row + i] = lut[v];
+      out[row + i] = lut ? lut[v] : v;
     }
   }
   return order;

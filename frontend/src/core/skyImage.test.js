@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { inverse, MAP_W, MAP_H } from './sky';
-import { nestedIndex, renderSky, orderFor, makeLut, PREVIEW_COLS, PREVIEW_TILES } from './skyImage';
+import { nestedIndex, renderSky, orderFor, makeLut, makeRgbLut, packRgb, halveRgb, PREVIEW_COLS, PREVIEW_TILES } from './skyImage';
 
 // Reference values from astropy_healpix (HEALPix(nside=2**order, order='nested').lonlat_to_healpix).
 const POINTS = [[0.3, 0.1], [45.3, 0.2], [133.795129, -7.245147], [217.429167, -62.679444], [10, 89], [200, -89.5], [359.9, 41.9], [90, 41.81], [266.4, -28.94], [315, 60], [44.9, -45], [180, 0.01], [271, 75], [123.4, -80]];
@@ -132,5 +132,56 @@ describe('makeLut', () => {
     expect(lut[0] >>> 0).toBe(0xff30120b);
     for (let v = 1; v < 256; v++) expect(lut[v] & 255).toBeGreaterThanOrEqual(lut[v - 1] & 255);
     expect(lut[255] & 255).toBe(248);
+  });
+});
+
+describe('RGB visible-light helpers', () => {
+  it('makeRgbLut maps 0 to #0B1230 navy floor, increases monotonically, and reaches white at 255', () => {
+    const { r, g, b } = makeRgbLut();
+    expect([r[0], g[0], b[0]]).toEqual([11, 18, 48]);
+    for (let v = 1; v < 256; v++) {
+      expect(r[v]).toBeGreaterThanOrEqual(r[v - 1]);
+      expect(g[v]).toBeGreaterThanOrEqual(g[v - 1]);
+      expect(b[v]).toBeGreaterThanOrEqual(b[v - 1]);
+    }
+    expect([r[255], g[255], b[255]]).toEqual([255, 255, 255]);
+  });
+
+  it('packRgb and halveRgb pack RGBA bytes and average 2x2 blocks per channel', () => {
+    const identityLut = {
+      r: Uint8Array.from({ length: 256 }, (_, i) => i),
+      g: Uint8Array.from({ length: 256 }, (_, i) => i),
+      b: Uint8Array.from({ length: 256 }, (_, i) => i),
+    };
+    const rgba = new Uint8Array([
+      10, 20, 30, 255,   30, 40, 50, 255,
+      50, 60, 70, 255,   70, 80, 90, 255,
+    ]);
+    const packed = packRgb(rgba, identityLut);
+    expect(packed).toHaveLength(4);
+    expect(packed[0]).toBe(((255 << 24) | (30 << 16) | (20 << 8) | 10) >>> 0);
+    const half = halveRgb({ data: packed, width: 2, height: 2, cell: 64 });
+    expect(half.width).toBe(1);
+    expect(half.height).toBe(1);
+    expect(half.cell).toBe(32);
+    expect(half.data[0]).toBe(((255 << 24) | (60 << 16) | (50 << 8) | 40) >>> 0);
+  });
+
+  it('renderSky supports pre-packed Uint32Array RGB tiles when lut is null', () => {
+    const view = { rot: 0, tilt: 0, zoom: 6 }, w = MAP_W, h = 20;
+    const width = PREVIEW_COLS * 64, rows = Math.ceil(PREVIEW_TILES / PREVIEW_COLS) * 64;
+    const previewColor = 0xffaa5511 >>> 0;
+    const tileColor = 0xff22cc88 >>> 0;
+    const mip = { data: new Uint32Array(width * rows).fill(previewColor), width, cell: 64 };
+    const centre = nestedIndex(0, 0, 2);
+    const wanted = { 2: new Uint8Array(192) };
+    const src = { mips: [mip], tiles: { 1: [], 2: [] }, lut: null };
+    src.tiles[2][centre] = new Uint32Array(512 * 512).fill(tileColor);
+    const out = new Uint32Array(w * h);
+    expect(renderSky(out, w, h, view, src, wanted)).toBe(2);
+    expect(wanted[2][centre]).toBe(1);
+    const seen = new Set(out);
+    expect(seen.has(tileColor)).toBe(true);
+    expect(seen.has(previewColor)).toBe(true);
   });
 });

@@ -36,6 +36,15 @@ export default function Home({ onOpenTutorial }) {
     }
   });
 
+  const [skySurvey, setSkySurvey] = useState(() => {
+    try {
+      const saved = localStorage.getItem('skyflip_sky_survey');
+      return saved === 'infrared' ? 'infrared' : 'visible';
+    } catch {
+      return 'visible';
+    }
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem('skyflip_show_user_projects', String(showUserProjects));
@@ -51,6 +60,14 @@ export default function Home({ onOpenTutorial }) {
       // ignore
     }
   }, [showOfficialProjects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('skyflip_sky_survey', skySurvey);
+    } catch {
+      // ignore
+    }
+  }, [skySurvey]);
 
   // Coming back from the viewer with ?project=id opens that project on the map.
   const arrived = projects.find((p) => p.id === params.get('project'));
@@ -280,6 +297,37 @@ export default function Home({ onOpenTutorial }) {
               </button>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+            <span className="font-semibold text-muted">Sky light:</span>
+            <button
+              type="button"
+              onClick={() => setSkySurvey('visible')}
+              aria-pressed={skySurvey === 'visible'}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all ${
+                skySurvey === 'visible'
+                  ? 'border-accent bg-accent/15 text-ink'
+                  : 'border-line bg-surface/60 text-muted hover:border-ink hover:text-ink'
+              }`}
+              title="Show the real sky in optical visible light (DSS2)"
+            >
+              <span className={`h-2 w-2 rounded-full ${skySurvey === 'visible' ? 'bg-accent' : 'bg-muted'}`} />
+              Visible light
+            </button>
+            <button
+              type="button"
+              onClick={() => setSkySurvey('infrared')}
+              aria-pressed={skySurvey === 'infrared'}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all ${
+                skySurvey === 'infrared'
+                  ? 'border-[#FF8A3D] bg-[#FF8A3D]/15 text-ink'
+                  : 'border-line bg-surface/60 text-muted hover:border-ink hover:text-ink'
+              }`}
+              title="Show the real sky in infrared light (NASA SPHEREx)"
+            >
+              <span className={`h-2 w-2 rounded-full ${skySurvey === 'infrared' ? 'bg-[#FF8A3D]' : 'bg-muted'}`} />
+              Infrared (SPHEREx)
+            </button>
+          </div>
           {q && (
             <ul id="project-search-results" aria-live="polite" className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-soft bg-surface p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
               {!loaded && !error ? (
@@ -322,6 +370,7 @@ export default function Home({ onOpenTutorial }) {
       <SkyMap
         view={view}
         onView={setView}
+        survey={skySurvey}
         projects={visibleProjects}
         selectedId={selectedId}
         onSelect={(id) => { setSelectedId(id); setPin(null); }}
@@ -330,8 +379,38 @@ export default function Home({ onOpenTutorial }) {
       >
         <div
           data-map-ui
-          className={`absolute ${cardSide === 'left-4' && card ? 'right-4' : 'left-4'} top-4 z-[8] hidden items-center gap-2 rounded-full border border-soft bg-surface/90 px-3 py-1.5 shadow-md backdrop-blur lg:flex`}
+          className={`absolute ${cardSide === 'left-4' && card ? 'right-4' : 'left-4'} top-4 z-[8] hidden flex-wrap items-center gap-2 rounded-full border border-soft bg-surface/90 px-3 py-1.5 shadow-md backdrop-blur lg:flex`}
         >
+          <span className="text-xs font-semibold text-muted">Sky:</span>
+          <div className="inline-flex items-center rounded-full bg-soft p-0.5" role="group" aria-label="Sky light wavelength">
+            <button
+              type="button"
+              onClick={() => setSkySurvey('visible')}
+              aria-pressed={skySurvey === 'visible'}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
+                skySurvey === 'visible'
+                  ? 'bg-accent text-[var(--color-accent-text,#0B1020)] shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+              title="Visible light · DSS2 (NASA/STScI)"
+            >
+              Visible
+            </button>
+            <button
+              type="button"
+              onClick={() => setSkySurvey('infrared')}
+              aria-pressed={skySurvey === 'infrared'}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
+                skySurvey === 'infrared'
+                  ? 'bg-[#FF8A3D] text-[#0B1020] shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+              title="Infrared · NASA SPHEREx"
+            >
+              Infrared
+            </button>
+          </div>
+          <span className="h-3.5 w-px bg-soft" aria-hidden="true" />
           <span className="text-xs font-semibold text-muted">User projects:</span>
           <button
             type="button"
