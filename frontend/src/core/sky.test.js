@@ -1,5 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, MAP_W, MAP_H } from './sky';
+import { parseRa, parseDec, fmtRa, fmtDec, project, inverse, skyToPixel, gridStep, gridLines, MAX_ZOOM, MAP_W, MAP_H } from './sky';
+
+describe('gridLines', () => {
+  const onScreen = (d) => (d.match(/[\d.-]+ [\d.-]+/g) || []).some((p) => {
+    const [x, y] = p.split(' ').map(Number);
+    return x >= 0 && x <= MAP_W && y >= 0 && y <= MAP_H;
+  });
+  it('draws the whole-sky grid every 30 degrees when zoomed out', () => {
+    expect(gridStep(1)).toBe(30);
+    expect(gridLines({ rot: 0, tilt: 0, zoom: 1 })).toHaveLength(5 + 12);
+  });
+  it('gets finer with zoom and always leaves lines in view', () => {
+    expect([3, 10, 20, 50, 100, MAX_ZOOM].map(gridStep)).toEqual([15, 5, 2, 1, 0.5, 0.25]);
+    for (const zoom of [1, 2.4, 3, 6, 10, 16, 30, 50, 69, 100, 139, MAX_ZOOM]) {
+      for (const [rot, tilt] of [[0, 0], [133.8, -7.2], [359.5, 44], [217.4, -62.7], [10, 89.5], [200, -90]]) {
+        const lines = gridLines({ rot, tilt, zoom });
+        expect(lines.length).toBeLessThan(120);
+        expect(lines.filter(onScreen).length).toBeGreaterThanOrEqual(zoom === 1 ? 17 : 3);
+      }
+    }
+  });
+});
 
 describe('parseRa', () => {
   it('reads hours, minutes, seconds', () => {

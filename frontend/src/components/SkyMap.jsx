@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAP_W, MAP_H, MAP_RX, MAP_RY, project, inverse, pathFrom, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
-import { MILKY_WAY, GALACTIC_CENTRE } from '../core/milkyWay';
+import { MAP_W, MAP_H, MAP_RX, MAP_RY, MAX_ZOOM, project, inverse, gridLines, wrap360, clamp, fmtRa, fmtDec } from '../core/sky';
+import SkyImage from './SkyImage';
 
 const pct = (v, total) => `${(v / total) * 100}%`;
 
@@ -10,7 +10,7 @@ function toMap(e, el) {
   return [((e.clientX - r.left) / r.width) * MAP_W, ((e.clientY - r.top) / r.height) * MAP_H];
 }
 
-// The drag-and-zoom all-sky map with project markers and the dropped pin.
+// The drag-and-zoom all-sky map: the real SPHEREx sky picture, project markers and the dropped pin.
 // view: { rot, tilt, zoom }. Children are drawn on top (controls, cards).
 export default function SkyMap({ view, onView, projects, selectedId, onSelect, pin, onPin, children }) {
   const ref = useRef(null);
@@ -25,7 +25,7 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
     const el = ref.current;
     const onWheel = (e) => {
       e.preventDefault();
-      onView((v) => ({ ...v, zoom: clamp(v.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 6) }));
+      onView((v) => ({ ...v, zoom: clamp(v.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, MAX_ZOOM) }));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -33,30 +33,14 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
 
   const P = (ra, dec) => project(ra, dec, view);
 
-  const { grid, milkyWay, centre, hours } = useMemo(() => {
-    const lines = [];
-    for (const dec of [-60, -30, 0, 30, 60]) {
-      const pts = [];
-      for (let ra = 0; ra <= 360; ra += 3) pts.push(P(ra, dec));
-      lines.push(pathFrom(pts));
-    }
-    for (let ra = 0; ra < 360; ra += 30) {
-      const pts = [];
-      for (let dec = -88; dec <= 88; dec += 3) pts.push(P(ra, dec));
-      lines.push(pathFrom(pts));
-    }
+  const { grid, hours } = useMemo(() => {
     const labels = [];
     for (let h = 0; h < 24; h += 3) {
       const q = P(h * 15, 0);
       const onFront = Math.abs(q[2]) < (160 * Math.PI) / 180;
       if (onFront && q[0] > 20 && q[0] < MAP_W - 20 && q[1] > 30 && q[1] < MAP_H - 20) labels.push({ h, x: q[0], y: q[1] });
     }
-    return {
-      grid: lines,
-      milkyWay: pathFrom(MILKY_WAY.map((q) => P(q[0], q[1]))),
-      centre: P(GALACTIC_CENTRE[0], GALACTIC_CENTRE[1]),
-      hours: labels,
-    };
+    return { grid: gridLines(view), hours: labels };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.rot, view.tilt, view.zoom]);
 
@@ -110,27 +94,23 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
       className={`relative w-full touch-none select-none overflow-hidden rounded-2xl ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ aspectRatio: `${MAP_W} / ${MAP_H}` }}
     >
+      {/* Back to front: plain dark sky (shows until the picture loads), the real picture, the grid. */}
       <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
+        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="#0B1230" />
+      </svg>
+      <SkyImage view={view} />
+      <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full">
         <defs>
           <clipPath id="sky-oval"><ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} /></clipPath>
-          <filter id="mw-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={30 * zoom} /></filter>
-          <filter id="gc-blur" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation={30 * zoom} /></filter>
-          <filter id="mw-blur-s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={9 * zoom} /></filter>
         </defs>
-        <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="#0B1230" />
-        <g clipPath="url(#sky-oval)">
-          <path d={milkyWay} fill="none" stroke="#5B6FA8" strokeWidth={150 * zoom} strokeLinecap="round" strokeLinejoin="round" opacity="0.45" filter="url(#mw-blur)" />
-          <path d={milkyWay} fill="none" stroke="#B9C6EA" strokeWidth={36 * zoom} strokeLinecap="round" strokeLinejoin="round" opacity="0.35" filter="url(#mw-blur-s)" />
-          <ellipse cx={centre[0]} cy={centre[1]} rx={96 * zoom} ry={52 * zoom} fill="#E9D9B8" opacity="0.35" filter="url(#gc-blur)" />
-          <g fill="none" stroke="#3A4A7A" strokeWidth="0.9" opacity="0.7">
-            {grid.map((d, i) => <path key={i} d={d} />)}
-          </g>
+        <g clipPath="url(#sky-oval)" fill="none" stroke="#6F82BA" strokeWidth="0.9" opacity="0.55">
+          {grid.map((d, i) => <path key={i} d={d} />)}
         </g>
         <ellipse cx={MAP_W / 2} cy={MAP_H / 2} rx={MAP_RX * zoom} ry={MAP_RY * zoom} fill="none" stroke="#56689C" strokeWidth="1.4" />
       </svg>
 
       {hours.map((l) => (
-        <span key={l.h} className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-full pb-1 font-mono text-sm text-[#B4BFDB] sm:block" style={{ left: pct(l.x, MAP_W), top: pct(l.y, MAP_H) }}>
+        <span key={l.h} className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-full pb-1 font-mono text-sm text-[#E3E9F8] [text-shadow:0_0_3px_#070B18,0_0_6px_#070B18] sm:block" style={{ left: pct(l.x, MAP_W), top: pct(l.y, MAP_H) }}>
           {l.h}h
         </span>
       ))}

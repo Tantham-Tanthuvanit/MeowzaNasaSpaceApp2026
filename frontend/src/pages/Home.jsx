@@ -5,7 +5,7 @@ import ProjectDialog from '../components/ProjectDialog';
 import { ProjectCard, PinCard, CoordInfo } from '../components/MapCards';
 import { useProjects } from '../core/projects';
 import { MARKER_COLORS } from '../core/targets';
-import { MAP_W, project, clamp, fmtRa, fmtDec } from '../core/sky';
+import { MAP_W, MAX_ZOOM, project, clamp, fmtRa, fmtDec } from '../core/sky';
 
 const START_VIEW = { rot: 0, tilt: 0, zoom: 1 };
 const centredOn = (p) => ({ rot: p.ra, tilt: p.dec, zoom: 1 });
@@ -35,7 +35,7 @@ export default function Home() {
   // The open card docks on the side of the map away from the marker or pin it describes.
   const spot = selected ? [selected.ra, selected.dec] : pin;
   const cardSide = spot && project(spot[0], spot[1], view)[0] > MAP_W / 2 ? 'left-4' : 'right-4';
-  const zoomBy = (f) => setView((v) => ({ ...v, zoom: clamp(v.zoom * f, 1, 6) }));
+  const zoomBy = (f) => setView((v) => ({ ...v, zoom: clamp(v.zoom * f, 1, MAX_ZOOM) }));
 
   const openCreate = (name) =>
     setDialog({
