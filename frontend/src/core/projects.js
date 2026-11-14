@@ -1,12 +1,30 @@
 // Saved projects, stored in Supabase through the backend's /api/projects. Everyone sees the
 // same list (there is no login yet).
 //
-// Project (as the UI uses it): { id, name, desc, color, ra, dec, bands, created }  (ra/dec in degrees)
+// Project (as the UI uses it): { id, name, desc, color, ra, dec, bands, created, isOfficial, isUser }  (ra/dec in degrees)
 
 import { useEffect, useState } from 'react';
 import { createProject, listProjects, patchProject, removeProject } from '../services/api';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export const OFFICIAL_PROJECT_NAMES = [
+  "Barnard's Star",
+  'Epsilon Indi B',
+  'WISE 0855',
+  'RW Aurigae',
+  'R Draconis',
+];
+
+export function isOfficialProject(project) {
+  if (!project || !project.name) return false;
+  const name = String(project.name).trim().toLowerCase();
+  return OFFICIAL_PROJECT_NAMES.some((n) => n.toLowerCase() === name);
+}
+
+export function isUserProject(project) {
+  return !isOfficialProject(project);
+}
 
 function fmtCreated(iso) {
   const d = new Date(iso);
@@ -14,8 +32,20 @@ function fmtCreated(iso) {
 }
 
 // API row -> UI project. Ids are strings so they compare with the ?project= address-bar value.
-function fromApi(p) {
-  return { id: String(p.id), name: p.name, desc: p.description, color: p.color, ra: p.ra_deg, dec: p.dec_deg, bands: p.bands, created: fmtCreated(p.created_at) };
+export function fromApi(p) {
+  const isOfficial = isOfficialProject({ name: p.name });
+  return {
+    id: String(p.id),
+    name: p.name,
+    desc: p.description,
+    color: p.color,
+    ra: p.ra_deg,
+    dec: p.dec_deg,
+    bands: p.bands,
+    created: fmtCreated(p.created_at),
+    isOfficial,
+    isUser: !isOfficial,
+  };
 }
 
 // UI fields -> API fields, leaving out anything not given.
