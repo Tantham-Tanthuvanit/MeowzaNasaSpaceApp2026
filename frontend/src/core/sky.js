@@ -6,6 +6,9 @@ export const MAP_H = 780;
 const CX = 820, CY = 390, RX = 776, RY = 386;
 export const MAP_RX = RX;
 export const MAP_RY = RY;
+// Up to 50 (5,000%) the sky picture gains detail: there, one screen pixel is about one pixel of
+// the sharpest sky tiles. Past that the same pixels are only magnified, up to 4 times.
+export const MAX_ZOOM = 200;
 const RAD = Math.PI / 180;
 
 export const wrap360 = (v) => ((v % 360) + 360) % 360;
@@ -52,6 +55,43 @@ export function pathFrom(points) {
     prev = q;
   }
   return out.trim();
+}
+
+// Degrees between grid lines: every 30 when the whole sky shows, down to every quarter at full zoom.
+export const gridStep = (zoom) => (zoom < 2.5 ? 30 : zoom < 6 ? 15 : zoom < 16 ? 5 : zoom < 35 ? 2 : zoom < 70 ? 1 : zoom < 140 ? 0.5 : 0.25);
+
+// SVG paths for the RA/Dec grid lines, only for the part of the sky the view shows.
+export function gridLines(view) {
+  const { rot, tilt, zoom } = view;
+  const step = gridStep(zoom), ds = clamp(step / 4, 0.125, 3);
+  // The window of sky to cover: everything within `reach` degrees of the centre (the map's
+  // corners are about 215 / zoom degrees away), as a Dec range and an RA range `wide` each side.
+  const reach = 215 / zoom + step;
+  const cap = zoom < 2.5 ? 88 : 89.9; // how close to the poles the lines run
+  const decLo = reach >= 90 ? -cap : Math.max(-cap, tilt - reach), decHi = reach >= 90 ? cap : Math.min(cap, tilt + reach);
+  // RA lines crowd together towards the poles, so space them wider there.
+  const crowd = step / Math.max(Math.cos(tilt * RAD), 0.01);
+  const raGap = zoom < 2.5 ? step : [0.25, 0.5, 1, 2, 5, 15, 30].find((v) => v >= crowd) ?? 30;
+  const maxAbs = Math.max(Math.abs(decLo), Math.abs(decHi));
+  const wide = maxAbs >= 85 ? 180 : Math.min(180, reach / Math.cos(maxAbs * RAD));
+  const raLo = wide >= 180 ? 0 : rot - wide, raHi = wide >= 180 ? 360 : rot + wide;
+
+  const lines = [];
+  for (let dec = Math.ceil(decLo / step) * step; dec <= decHi; dec += step) {
+    const raStep = Math.min(3, ds / Math.cos(dec * RAD));
+    const pts = [];
+    for (let ra = raLo; ra < raHi; ra += raStep) pts.push(project(ra, dec, view));
+    pts.push(project(raHi, dec, view));
+    lines.push(pathFrom(pts));
+  }
+  const raEnd = wide >= 180 ? 360 - raGap : raHi;
+  for (let ra = Math.ceil(raLo / raGap) * raGap; ra <= raEnd; ra += raGap) {
+    const pts = [];
+    for (let dec = decLo; dec < decHi; dec += ds) pts.push(project(ra, dec, view));
+    pts.push(project(ra, decHi, view));
+    lines.push(pathFrom(pts));
+  }
+  return lines;
 }
 
 // Where a sky position lands on a 256 x 256 picture centred on (ra0, dec0) that shows `fov`

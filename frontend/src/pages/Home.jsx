@@ -5,7 +5,7 @@ import ProjectDialog from '../components/ProjectDialog';
 import { ProjectCard, PinCard, CoordInfo } from '../components/MapCards';
 import { useProjects } from '../core/projects';
 import { MARKER_COLORS } from '../core/targets';
-import { MAP_W, project, clamp, fmtRa, fmtDec } from '../core/sky';
+import { MAP_W, MAX_ZOOM, project, clamp, fmtRa, fmtDec } from '../core/sky';
 
 const START_VIEW = { rot: 0, tilt: 0, zoom: 1 };
 const centredOn = (p) => ({ rot: p.ra, tilt: p.dec, zoom: 1 });
@@ -35,7 +35,7 @@ export default function Home() {
   // The open card docks on the side of the map away from the marker or pin it describes.
   const spot = selected ? [selected.ra, selected.dec] : pin;
   const cardSide = spot && project(spot[0], spot[1], view)[0] > MAP_W / 2 ? 'left-4' : 'right-4';
-  const zoomBy = (f) => setView((v) => ({ ...v, zoom: clamp(v.zoom * f, 1, 6) }));
+  const zoomBy = (f) => setView((v) => ({ ...v, zoom: clamp(v.zoom * f, 1, MAX_ZOOM) }));
 
   const openCreate = (name) =>
     setDialog({
@@ -101,18 +101,18 @@ export default function Home() {
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-[1720px] flex-col gap-5 px-4 py-6 sm:px-8">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-16">
-        <div className="flex flex-col gap-2.5">
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-rust">Free sky viewer for everyone</p>
-          <h1 className="font-display text-4xl font-medium leading-[1.08] tracking-[-0.01em] sm:text-[52px]">Watch the night sky change.</h1>
-          <p className="text-lg leading-relaxed text-muted">Drag the map to turn the sky, scroll to zoom. Click a project to see what it’s watching.</p>
+    <main className="mx-auto flex w-full max-w-[1720px] flex-col gap-4 px-4 py-5 sm:px-8 lg:min-h-0 lg:flex-1">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rust">Free sky viewer for everyone</p>
+          <h1 className="font-display text-[28px] font-medium leading-[1.08] tracking-[-0.01em] sm:text-4xl lg:text-[clamp(28px,4.5vh,48px)]">Watch the night sky change.</h1>
+          <p className="text-[15px] leading-relaxed text-muted sm:text-base">Drag the map to turn the sky, scroll to zoom. Click a project to see what it’s watching.</p>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); openCreate(draftName); }} className="flex w-full flex-col gap-2 lg:max-w-[560px]">
+        <form onSubmit={(e) => { e.preventDefault(); openCreate(draftName); }} className="flex w-full flex-col gap-2 lg:max-w-[480px]">
           <label htmlFor="start-name" className="text-[15px] font-semibold">Start a project</label>
           <div className="flex flex-wrap gap-3">
-            <input id="start-name" type="text" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter project name" className="field h-14 min-w-[180px] flex-1 rounded-xl" />
-            <button type="submit" className="btn-primary h-14 rounded-xl px-7 text-[17px]">Create project</button>
+            <input id="start-name" type="text" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter project name" className="field h-12 min-w-[180px] flex-1 rounded-xl" />
+            <button type="submit" className="btn-primary h-12 rounded-xl px-6 text-base">Create project</button>
           </div>
         </form>
       </div>
@@ -121,6 +121,9 @@ export default function Home() {
         <p role="alert" className="text-sm font-medium text-danger">{actionError || `Couldn’t load the saved projects. ${error}`}</p>
       )}
 
+      {/* On large screens the map takes the height that is left, keeping its shape. */}
+      <div className="lg:flex lg:min-h-0 lg:flex-1 lg:items-center lg:justify-center lg:[container-type:size]">
+      <div className="lg:w-[min(100cqw,100cqh*1640/780)] lg:[container-type:inline-size]">
       <SkyMap
         view={view}
         onView={setView}
@@ -142,8 +145,10 @@ export default function Home() {
           {zoomControls}
         </div>
       </SkyMap>
+      </div>
+      </div>
 
-      <p className="text-center text-sm text-muted">Drag to turn · Scroll or use the buttons to zoom · Click for coordinates</p>
+      <p className="text-center text-sm text-muted lg:hidden">Drag to turn · Scroll or use the buttons to zoom · Click for coordinates</p>
 
       {/* On small screens the controls, card and explainer sit under the map instead of on it. */}
       <div className="flex flex-col gap-4 lg:hidden">

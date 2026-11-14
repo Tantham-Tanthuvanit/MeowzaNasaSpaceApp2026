@@ -14,8 +14,8 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
 2. **Caching in Supabase (download once)**
    - A cutout takes about 10–15 s to download from IRSA. Each is downloaded once (4 at a time, as a courtesy to IRSA), then stored in Supabase Storage with a row in `sky_cutouts`. Finished responses are stored in `sky_results`.
-   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "Downloading picture N of M from NASA…" and polls.
-   - The flipbook for a new spot is ready in about 1–2 minutes. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
+   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "N of M pictures are here" with one slot per picture, and polls.
+   - The viewer opens a spot in one band (Band 1, `array_1`), which needs one picture per visit (up to 4) and is ready in under a minute. "All bands combined" (`stacked`, `?band=all`) needs up to 24 and takes a few minutes the first time. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
 
 3. **Difference Imaging and Shift-and-Add**
    - The difference image (last visit − first visit) uses a bipolar colormap, so moving objects show a dipole.
@@ -29,12 +29,13 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
 6. **Saved Projects and Citizen-Science Candidates**
+   - The Home sky map shows the real SPHEREx sky: the browser loads IRSA's "SPHEREx DR1 all-sky data cube" picture tiles (first layer, 0.75 µm) straight from `irsa.ipac.caltech.edu` and draws them under the grid and markers. The map zooms to 20,000%, loading sharper tiles and drawing finer grid lines as it goes. The tiles run out of detail at 5,000% (about 13 arcseconds per pixel); past that the same pixels are magnified. If IRSA does not answer, the map shows an error with "Try again" and no drawn stand-in.
    - Projects (the markers on the Home sky map), candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
 
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate; "I see it too" votes for one.
 
 7. **All of It in the Viewer**
-   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
+   - The viewer page shows every feature above: the flipbook, a "What changed" view (difference image), a "Combined" view (shift-and-add with two drift sliders), a "More kinds of light…" list (filters and indices), a "Mark known stars" switch (Gaia and AllWISE marks), the spectrum chart, and the flags panel.
 
 8. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s` opens the viewer on that spot. Sexagesimal and decimal degrees both work.
@@ -60,9 +61,9 @@ MeowzaNasaSpaceApp2026/
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Home (sky map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, FlipPlayer, SpectrumChart, Flags, MapCards, ProjectDialog
-│       ├── core/                  # Sky projection, bands, projects store
-│       └── services/api.js        # Backend calls (polls while pictures download)
+│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SpectrumChart, Flags, MapCards, ProjectDialog
+│       ├── core/                  # Sky projection, sky picture drawing, bands, projects store
+│       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change
 ├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
 ├── setup.sh, start.sh             # Environment setup and one-command startup (macOS / Linux / Git Bash)

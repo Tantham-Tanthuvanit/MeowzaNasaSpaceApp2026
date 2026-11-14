@@ -10,7 +10,7 @@ function toMap(e, el) {
   return [((e.clientX - r.left) / r.width) * MAP_W, ((e.clientY - r.top) / r.height) * MAP_H];
 }
 
-// The drag-and-zoom all-sky map with project markers and the dropped pin.
+// The drag-and-zoom all-sky map: the real SPHEREx sky picture, project markers and the dropped pin.
 // view: { rot, tilt, zoom }. Children are drawn on top (controls, cards).
 export default function SkyMap({ view, onView, projects, selectedId, onSelect, pin, onPin, children }) {
   const ref = useRef(null);
@@ -25,7 +25,7 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
     const el = ref.current;
     const onWheel = (e) => {
       e.preventDefault();
-      onView((v) => ({ ...v, zoom: clamp(v.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 6) }));
+      onView((v) => ({ ...v, zoom: clamp(v.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, MAX_ZOOM) }));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -123,7 +123,7 @@ export default function SkyMap({ view, onView, projects, selectedId, onSelect, p
       </svg>
 
       {hours.map((l) => (
-        <span key={l.h} className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-full pb-1 font-mono text-sm text-[#B4BFDB] sm:block" style={{ left: pct(l.x, MAP_W), top: pct(l.y, MAP_H) }}>
+        <span key={l.h} className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-full pb-1 font-mono text-sm text-[#E3E9F8] [text-shadow:0_0_3px_#070B18,0_0_6px_#070B18] sm:block" style={{ left: pct(l.x, MAP_W), top: pct(l.y, MAP_H) }}>
           {l.h}h
         </span>
       ))}

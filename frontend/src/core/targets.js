@@ -10,6 +10,9 @@ export const BANDS = [
   { n: 6, id: 'array_6', range: '4.42–5.00', color: '#D2362F' },
 ];
 export const ALL_BANDS = [1, 2, 3, 4, 5, 6];
+// The band a spot opens in. One band needs a sixth of the downloads of all six together,
+// and most stars are bright in this one.
+export const DEFAULT_BAND = 1;
 
 export const MARKER_COLORS = [
   { color: '#FF8A3D', label: 'Orange' },

@@ -6,7 +6,7 @@ import SpectrumPanel from '../components/SpectrumChart';
 import ProjectDialog from '../components/ProjectDialog';
 import { CheckIcon, PlusIcon } from '../components/icons';
 import { useProjects } from '../core/projects';
-import { BANDS, ALL_BANDS, DEFAULT_LOOK } from '../core/targets';
+import { BANDS, ALL_BANDS, DEFAULT_BAND, DEFAULT_LOOK } from '../core/targets';
 import { parseRa, parseDec, fmtRa, fmtDec, skyToPixel } from '../core/sky';
 import { fetchCatalog, fetchLightKinds, fetchShiftAndAdd, listCandidates, useFrames, useRemote } from '../services/api';
 
@@ -55,12 +55,15 @@ export default function Viewer() {
   const hasSpot = ra !== null && dec !== null;
 
   const bands = BANDS.filter((b) => (project ? project.bands : ALL_BANDS).includes(b.n));
-  const band = bands.find((b) => String(b.n) === params.get('band')) || null; // null = all bands together
+  // ?band= is a band number, 'all' for every band together, or another kind of light. With none,
+  // the spot opens in one band, so only that band's pictures are downloaded.
+  const asked = params.get('band');
+  const band = (asked ? bands.find((b) => String(b.n) === asked) : bands.find((b) => b.n === DEFAULT_BAND) || bands[0]) || null;
 
   // Every other kind of light the backend offers (colour picture, narrow filters, comparisons).
   const kinds = useRemote('kinds', fetchLightKinds).data || {};
   const extras = Object.entries(kinds).filter(([id]) => id !== 'stacked' && !id.startsWith('array_'));
-  const extraId = !band && extras.some(([id]) => id === params.get('band')) ? params.get('band') : null;
+  const extraId = extras.some(([id]) => id === asked) ? asked : null;
   const bandId = band ? band.id : extraId || 'stacked';
   const { frames, difference, error, loading, progress, retry } = useFrames(ra, dec, bandId);
 
@@ -167,6 +170,7 @@ export default function Viewer() {
     </>
   );
 
+  const bandCell = (on) => `flex min-h-[52px] flex-col items-start justify-center rounded-xl border px-3 py-1.5 text-left ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
   const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`;
 
   return (
@@ -186,19 +190,65 @@ export default function Viewer() {
             <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7°14′42.53″" className="field mt-1 font-mono" />
           </label>
           {formError && <p role="alert" className="text-sm font-medium text-danger">{formError}</p>}
-          <button type="submit" className="btn-primary h-[52px] text-base">Show me</button>
+          <button type="submit" className="btn-primary h-11 text-base">Show me</button>
         </form>
 
+        <div className="flex flex-col gap-8 max-lg:order-4">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-rust">{kind}</p>
+              {project && (
+                <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-[#E6F6EE] px-2.5 text-[13px] font-semibold text-[#1B6B45]">
+                  <CheckIcon />Saved
+                </span>
+              )}
+            </div>
+            <h2 className="flex items-center gap-3 font-display text-[26px] font-medium leading-tight">
+              {project && <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: project.color }} aria-hidden="true" />}
+              {title}
+            </h2>
+            {project && project.desc && <p className="text-[15px] leading-relaxed text-body">{project.desc}</p>}
+
+            {project ? (
+              <Link to={`/?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
+            ) : hasSpot && (
+              <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-white text-ink">
+                <PlusIcon />Save as project
+              </button>
+            )}
+            {saveError && <p role="alert" className="text-sm font-medium text-danger">{saveError}</p>}
+
+          </div>
+
+          <Flags ra={ra} dec={dec} flags={flags} point={point} setPoint={setPoint} band={bandId} />
+
+          <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
+            <h3 className="text-[17px] font-semibold">What to watch for</h3>
+            <p className="text-[15px] leading-relaxed text-muted">{DEFAULT_LOOK}</p>
+          </div>
+
+          <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
+            <h3 className="text-[17px] font-semibold">How it works</h3>
+            <p className="text-[15px] leading-relaxed text-muted">
+              A NASA space telescope called SPHEREx takes pictures of the whole sky, over and over. We put the pictures of your spot in order, oldest to newest, and play them like a flipbook. Most stars stay still, so anything that moves or gets brighter or dimmer is easy to spot.
+            </p>
+          </div>
+
+          <p className="text-[13px] leading-relaxed text-muted">
+            These are real pictures from NASA’s SPHEREx space telescope, from the NASA/IPAC Infrared Science Archive. The first look at a new spot takes up to a minute while the pictures of one band download; after that it opens straight away.
+          </p>
+        </div>
       </aside>
 
-      <section aria-label="Image player" className="flex min-w-0 flex-col items-center gap-4 max-lg:order-1">
+      <section aria-label="Image player" className="flex min-w-0 flex-col items-center gap-4 max-lg:contents lg:overflow-y-auto">
+        <div className="flex w-full justify-center max-lg:order-1">
         <FlipPlayer
           frames={frames}
           loading={loading}
           error={error}
           onRetry={retry}
           progress={progress}
-          emptyText={hasSpot ? '' : 'Type a position on the left and press Show me.'}
+          emptyText={hasSpot ? '' : 'Type a position and press Show me.'}
           slowText={extraId && oneColour ? SLOW_TEXT : ''}
           {...(hasSpot ? still : null)}
           overlay={overlay}
@@ -208,193 +258,158 @@ export default function Viewer() {
           bandDot={band ? band.color : '#FFFFFF'}
           bandLabel={lightLabel}
         />
-
-        <div className="flex w-full max-w-[700px] flex-wrap gap-2">
-          <div role="group" aria-label="What to show" className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setView('flipbook')} aria-pressed={view === 'flipbook'} className={tab(view === 'flipbook')}>Flipbook</button>
-            <button type="button" onClick={() => setView('changes')} aria-pressed={view === 'changes'} disabled={!hasSpot || !oneColour} className={`${tab(view === 'changes')} disabled:opacity-40`}>What changed</button>
-            <button type="button" onClick={() => setView('combine')} aria-pressed={view === 'combine'} disabled={!hasSpot || !oneColour} className={`${tab(view === 'combine')} disabled:opacity-40`}>Combined</button>
-          </div>
-          <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} ml-auto disabled:opacity-40`}>Known stars</button>
         </div>
 
-        {hasSpot && view === 'changes' && difference && (
-          <p className="w-full max-w-[700px] text-[15px] leading-relaxed text-body">
-            The newest picture minus the oldest.{' '}
-            <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#B40426] align-baseline" aria-hidden="true" /> Red got brighter,{' '}
-            <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#3B4CC0] align-baseline" aria-hidden="true" /> blue got dimmer, and pale grey stayed the same. Something that moved leaves a blue dot where it was and a red dot where it went.
-          </p>
-        )}
-
-        {hasSpot && view === 'combine' && (
-          <div className="flex w-full max-w-[700px] flex-col gap-3">
-            <p className="text-[15px] leading-relaxed text-body">
-              Something faint that drifts across the sky can be too dim to see in any one picture. Guess its drift, and each newer picture is slid back by that much before all of them are combined. Stars then smear out, but anything moving at your guess piles up into one clear dot. With no drift, this is simply every visit combined.
-            </p>
-            {[['x', 'Sideways drift'], ['y', 'Up-and-down drift']].map(([axis, name]) => (
-              <label key={axis} className="flex flex-wrap items-center gap-x-3 text-sm font-medium text-body">
-                <span className="w-[130px]">{name}</span>
-                <input type="range" min="-8" max="8" step="0.5" value={drift[axis]} onChange={(e) => setDrift({ ...drift, [axis]: Number(e.target.value) })} className="h-11 min-w-[120px] flex-1 accent-accent" />
-                <span className="w-[150px] text-right font-mono text-[13px]">{drift[axis]} pixels per visit</span>
-              </label>
-            ))}
-            <button type="button" onClick={() => setSent(drift)} disabled={drift.x === sent.x && drift.y === sent.y} className="btn-primary self-start disabled:opacity-40">Combine with this drift</button>
-          </div>
-        )}
-
-        {hasSpot && showStars && (
-          <div className="flex w-full max-w-[700px] flex-col gap-2 text-sm leading-relaxed text-body">
-            {catalog.loading && <p role="status">Looking up known stars in the Gaia and WISE catalogues… This takes about half a minute.</p>}
-            {catalog.error && (
-              <div role="alert" className="flex flex-wrap items-center gap-3">
-                <p className="font-medium text-danger">{catalog.error}</p>
-                <button type="button" onClick={catalog.retry} className="btn-plain">Try again</button>
-              </div>
-            )}
-            {!catalog.loading && catalog.data && (
-              <>
-                <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: STAR_COLORS.gaia }} aria-hidden="true" />
-                    {stars.filter((s) => s.catalog === 'Gaia DR3').length} stars seen in visible light (Gaia)
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-3 w-3 border-2" style={{ borderColor: STAR_COLORS.wise }} aria-hidden="true" />
-                    {stars.filter((s) => s.catalog !== 'Gaia DR3' && !s.is_brown_dwarf_candidate).length} objects seen in infrared (WISE)
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rotate-45 border-2" style={{ borderColor: STAR_COLORS.dwarf }} aria-hidden="true" />
-                    {dwarfs.length} possible brown {dwarfs.length === 1 ? 'dwarf' : 'dwarfs'}
-                  </span>
-                </p>
-                {dwarfs.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {dwarfs.map((s, i) => (
-                      <button key={s.id} type="button" onClick={() => setSource(s)} aria-pressed={source === s} className={`btn-plain h-10 px-4 text-sm ${source === s ? 'border-ink' : ''}`}>
-                        Possible brown dwarf {i + 1}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {source ? (
-                  <div className="flex flex-col gap-1 rounded-xl border border-soft bg-white p-3.5">
-                    <span className="font-mono text-[13px] text-ink">{source.id}</span>
-                    {source.mag != null && <span>Brightness: magnitude {source.mag} in {source.mag_band}. Smaller numbers are brighter.</span>}
-                    {source.proper_motion_mas_yr != null && (
-                      <span>
-                        Drifts {source.proper_motion_mas_yr} thousandths of an arcsecond a year{source.is_high_proper_motion ? ', which is fast for a star.' : '.'}
-                      </span>
-                    )}
-                    {source.is_brown_dwarf_candidate && (
-                      <span>
-                        Much brighter in longer infrared light than shorter (W1 − W2 = {source.w1_w2_color}), with no Gaia star at the same place. Cold brown dwarfs look like this. It is a hint, not proof.
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-muted">Click a mark on the picture to read about it.</p>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        <div role="group" aria-label="Which light to show" className="flex w-full max-w-[700px] flex-wrap gap-2">
-          <button type="button" onClick={() => pickBand(null)} aria-pressed={!band} className={tab(!band)}>All bands</button>
-          {bands.map((b) => (
-            <button key={b.n} type="button" onClick={() => pickBand(b.n)} aria-pressed={band === b} className={tab(band === b)}>
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} aria-hidden="true" />
-              Band {b.n}
-            </button>
-          ))}
-          {extras.length > 0 && (
-            <select
-              aria-label="More kinds of light"
-              value={extraId || ''}
-              onChange={(e) => pickBand(e.target.value || null)}
-              className={`h-11 max-w-full rounded-full border px-4 text-sm font-medium ${extraId ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`}
-            >
-              <option value="">More kinds of light…</option>
-              {KIND_GROUPS.map(([category, heading]) => (
-                <optgroup key={category} label={heading}>
-                  {extras.filter(([, k]) => k.category === category).map(([id, k]) => <option key={id} value={id}>{cleanName(k.name)}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          )}
-        </div>
-        {extraId && (
-          <p className="w-full max-w-[700px] text-sm leading-relaxed text-muted">
-            {kinds[extraId].description}{oneColour ? ' The first time, this needs every picture NASA has of this spot, which can take 15 minutes or more.' : ''}
-          </p>
-        )}
-
-        {hasSpot && <SpectrumPanel key={`${ra}|${dec}`} ra={ra} dec={dec} />}
+        {hasSpot && <div className="flex w-full justify-center max-lg:order-3"><SpectrumPanel key={`${ra}|${dec}`} ra={ra} dec={dec} /></div>}
       </section>
 
-      <aside aria-label="About this patch" className="flex flex-col gap-8 max-lg:order-3 lg:col-span-2 xl:col-span-1">
-        <div className="flex flex-col gap-2.5">
-          <div className="flex items-center gap-2.5">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-rust">{kind}</p>
-            {project && (
-              <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-[#E6F6EE] px-2.5 text-[13px] font-semibold text-[#1B6B45]">
-                <CheckIcon />Saved
-              </span>
-            )}
+      <aside aria-label="What to show" className="flex flex-col gap-7 max-lg:order-2 lg:overflow-y-auto">
+        <div className="flex flex-col gap-3">
+          <h2 className="text-[15px] font-semibold">Show</h2>
+          <div role="group" aria-label="What to show" className="grid grid-cols-3 gap-1 rounded-full border border-line bg-white p-1">
+            {[['flipbook', 'Flipbook'], ['changes', 'What changed'], ['combine', 'Combined']].map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setView(id)}
+                aria-pressed={view === id}
+                disabled={id !== 'flipbook' && (!hasSpot || !oneColour)}
+                className={`h-10 rounded-full px-1 text-[13px] font-medium xl:text-sm disabled:opacity-40 ${view === id ? 'bg-ink text-white' : 'text-ink'}`}
+              >
+                {name}
+              </button>
+            ))}
           </div>
-          <h2 className="flex items-center gap-3 font-display text-[30px] font-medium leading-tight sm:text-4xl">
-            {project && <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: project.color }} aria-hidden="true" />}
-            {title}
-          </h2>
-          {project && project.desc && <p className="text-[15px] leading-relaxed text-body">{project.desc}</p>}
-
-          {hasSpot && (
-            <div className="flex flex-col gap-1 pt-1.5">
-              <span className="eyebrow">Position · EQ-J2000</span>
-              <span className="font-mono text-sm text-body">RA&nbsp; {fmtRa(ra)}</span>
-              <span className="font-mono text-sm text-body">Dec {fmtDec(dec)}</span>
-            </div>
+          <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
+            <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-white bg-white' : 'border-ink'}`} aria-hidden="true" />
+            Mark known stars
+          </button>
+          {hasSpot && view === 'changes' && difference && (
+            <p className="w-full text-[15px] leading-relaxed text-body">
+              The newest picture minus the oldest.{' '}
+              <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#B40426] align-baseline" aria-hidden="true" /> Red got brighter,{' '}
+              <span className="mx-0.5 inline-block h-3 w-3 rounded-full bg-[#3B4CC0] align-baseline" aria-hidden="true" /> blue got dimmer, and pale grey stayed the same. Something that moved leaves a blue dot where it was and a red dot where it went.
+            </p>
           )}
 
-          {project ? (
-            <Link to={`/?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
-          ) : hasSpot && (
-            <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-white text-ink">
-              <PlusIcon />Save as project
-            </button>
-          )}
-          {saveError && <p role="alert" className="text-sm font-medium text-danger">{saveError}</p>}
-
-          <div className="flex flex-col gap-2 pt-2.5">
-            <span className="text-[13px] font-semibold text-muted">Spectral coverage</span>
-            <div className="flex flex-wrap gap-1.5">
-              {bands.map((b) => (
-                <span key={b.n} className="inline-flex h-[30px] items-center gap-1.5 rounded-full border border-soft bg-white px-2.5 text-[13px] text-body">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} aria-hidden="true" />
-                  Band {b.n} · {b.range} µm
-                </span>
+          {hasSpot && view === 'combine' && (
+            <div className="flex w-full flex-col gap-3">
+              <p className="text-[15px] leading-relaxed text-body">
+                Something faint that drifts across the sky can be too dim to see in any one picture. Guess its drift, and each newer picture is slid back by that much before all of them are combined. Stars then smear out, but anything moving at your guess piles up into one clear dot. With no drift, this is simply every visit combined.
+              </p>
+              {[['x', 'Sideways drift'], ['y', 'Up-and-down drift']].map(([axis, name]) => (
+                <label key={axis} className="flex flex-wrap items-center gap-x-3 text-sm font-medium text-body">
+                  <span className="w-[130px]">{name}</span>
+                  <input type="range" min="-8" max="8" step="0.5" value={drift[axis]} onChange={(e) => setDrift({ ...drift, [axis]: Number(e.target.value) })} className="h-11 min-w-[120px] flex-1 accent-accent" />
+                  <span className="w-[150px] text-right font-mono text-[13px]">{drift[axis]} pixels per visit</span>
+                </label>
               ))}
+              <button type="button" onClick={() => setSent(drift)} disabled={drift.x === sent.x && drift.y === sent.y} className="btn-primary self-start disabled:opacity-40">Combine with this drift</button>
             </div>
+          )}
+
+          {hasSpot && showStars && (
+            <div className="flex w-full flex-col gap-2 text-sm leading-relaxed text-body">
+              {catalog.loading && <p role="status">Looking up known stars in the Gaia and WISE catalogues… This takes about half a minute.</p>}
+              {catalog.error && (
+                <div role="alert" className="flex flex-wrap items-center gap-3">
+                  <p className="font-medium text-danger">{catalog.error}</p>
+                  <button type="button" onClick={catalog.retry} className="btn-plain">Try again</button>
+                </div>
+              )}
+              {!catalog.loading && catalog.data && (
+                <>
+                  <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: STAR_COLORS.gaia }} aria-hidden="true" />
+                      {stars.filter((s) => s.catalog === 'Gaia DR3').length} stars seen in visible light (Gaia)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 border-2" style={{ borderColor: STAR_COLORS.wise }} aria-hidden="true" />
+                      {stars.filter((s) => s.catalog !== 'Gaia DR3' && !s.is_brown_dwarf_candidate).length} objects seen in infrared (WISE)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rotate-45 border-2" style={{ borderColor: STAR_COLORS.dwarf }} aria-hidden="true" />
+                      {dwarfs.length} possible brown {dwarfs.length === 1 ? 'dwarf' : 'dwarfs'}
+                    </span>
+                  </p>
+                  {dwarfs.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {dwarfs.map((s, i) => (
+                        <button key={s.id} type="button" onClick={() => setSource(s)} aria-pressed={source === s} className={`btn-plain h-10 px-4 text-sm ${source === s ? 'border-ink' : ''}`}>
+                          Possible brown dwarf {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {source ? (
+                    <div className="flex flex-col gap-1 rounded-xl border border-soft bg-white p-3.5">
+                      <span className="font-mono text-[13px] text-ink">{source.id}</span>
+                      {source.mag != null && <span>Brightness: magnitude {source.mag} in {source.mag_band}. Smaller numbers are brighter.</span>}
+                      {source.proper_motion_mas_yr != null && (
+                        <span>
+                          Drifts {source.proper_motion_mas_yr} thousandths of an arcsecond a year{source.is_high_proper_motion ? ', which is fast for a star.' : '.'}
+                        </span>
+                      )}
+                      {source.is_brown_dwarf_candidate && (
+                        <span>
+                          Much brighter in longer infrared light than shorter (W1 − W2 = {source.w1_w2_color}), with no Gaia star at the same place. Cold brown dwarfs look like this. It is a hint, not proof.
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-muted">Click a mark on the picture to read about it.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="text-[15px] font-semibold">Light</h2>
+          <div role="group" aria-label="Which light to show" className="grid grid-cols-3 gap-1.5 lg:grid-cols-2 xl:grid-cols-3">
+            <button type="button" onClick={() => pickBand('all')} aria-pressed={!band && !extraId} className={`${bandCell(!band && !extraId)} col-span-full`}>
+              <span className="text-sm font-medium">All bands combined</span>
+              <span className="text-xs opacity-80">A clearer picture, with six times the downloads</span>
+            </button>
+            {bands.map((b) => (
+              <button key={b.n} type="button" onClick={() => pickBand(b.n)} aria-pressed={band === b} className={bandCell(band === b)}>
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className={`h-2.5 w-2.5 rounded-full ${band === b && loading ? 'motion-safe:animate-pulse' : ''}`} style={{ background: b.color }} aria-hidden="true" />
+                  Band {b.n}
+                </span>
+                <span className="font-mono text-xs opacity-80">{b.range} µm</span>
+              </button>
+            ))}
           </div>
+          {band && !loading && frames.length === 1 && (
+            <p className="text-sm leading-relaxed text-body">NASA has only one picture of this spot in this band, so there is nothing to flip through. Try another band, or All bands combined.</p>
+          )}
+          <p className="text-[13px] leading-relaxed text-muted">Each band is one slice of infrared light, from shorter to longer waves (µm is a millionth of a metre). Cooler things glow more in the longer bands.</p>
+            {extras.length > 0 && (
+              <select
+                aria-label="More kinds of light"
+                value={extraId || ''}
+                onChange={(e) => pickBand(e.target.value || null)}
+                className={`h-11 w-full rounded-full border px-4 text-sm font-medium ${extraId ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`}
+              >
+                <option value="">More kinds of light…</option>
+                {KIND_GROUPS.map(([category, heading]) => (
+                  <optgroup key={category} label={heading}>
+                    {extras.filter(([, k]) => k.category === category).map(([id, k]) => <option key={id} value={id}>{cleanName(k.name)}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+          {extraId && (
+            <p className="w-full text-sm leading-relaxed text-muted">
+              {kinds[extraId].description}{oneColour ? ' The first time, this needs every picture NASA has of this spot, which can take 15 minutes or more.' : ''}
+            </p>
+          )}
+
         </div>
-
-        <Flags ra={ra} dec={dec} flags={flags} point={point} setPoint={setPoint} band={bandId} />
-
-        <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
-          <h3 className="text-[17px] font-semibold">What to watch for</h3>
-          <p className="text-[15px] leading-relaxed text-muted">{DEFAULT_LOOK}</p>
-        </div>
-
-        <div className="flex flex-col gap-2.5 border-t border-[#E1E5EE] pt-7">
-          <h3 className="text-[17px] font-semibold">How it works</h3>
-          <p className="text-[15px] leading-relaxed text-muted">
-            A NASA space telescope called SPHEREx takes pictures of the whole sky, over and over. We put the pictures of your spot in order, oldest to newest, and play them like a flipbook. Most stars stay still, so anything that moves or gets brighter or dimmer is easy to spot.
-          </p>
-        </div>
-
-        <p className="text-[13px] leading-relaxed text-muted">
-          These are real pictures from NASA’s SPHEREx space telescope, from the NASA/IPAC Infrared Science Archive. The first look at a new spot takes a minute or two while the pictures download; after that it opens straight away.
-        </p>
       </aside>
 
       {saving && (

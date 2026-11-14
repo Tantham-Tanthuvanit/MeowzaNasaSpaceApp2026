@@ -33,6 +33,45 @@ export function useFlipbook(count, resetKey, startPlaying = true) {
   return { frame: count ? Math.min(frame, count - 1) : 0, playing, setPlaying, speed, setSpeed, show };
 }
 
+const AT_ONCE = 4; // the backend downloads this many pictures at a time from NASA
+const MAX_SLOTS = 24; // more pictures than this are shown as a bar
+
+// What the picture square shows while pictures load. Before the backend reports progress it is
+// one line; after that, one slot per picture: filled when it has arrived, pulsing while it downloads.
+function Loading({ progress, bandLabel, bandDot, slowText }) {
+  const have = progress ? progress.cached_images : 0, total = progress ? progress.total_images : 0;
+  return (
+    <div role="status" className="absolute inset-0 flex items-center justify-center bg-[rgba(4,6,13,0.88)] p-6 text-[#C5CDE0]">
+      <div className="flex w-full max-w-[340px] flex-col items-start gap-3">
+        <p className="flex items-center gap-2 text-[13px]">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: bandDot }} aria-hidden="true" />
+          {bandLabel}
+        </p>
+        {progress ? (
+          <>
+            <p className="font-display text-[22px] font-medium leading-tight text-[#E8ECF5]">Downloading from NASA</p>
+            {total <= MAX_SLOTS ? (
+              <div aria-hidden="true" className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(total, 6)}, 28px)` }}>
+                {Array.from({ length: total }, (_, i) => (
+                  <span key={i} className={`h-7 rounded-[3px] border ${i < have ? 'border-accent bg-accent' : i < have + AT_ONCE ? 'border-accent bg-accent/25 motion-safe:animate-pulse' : 'border-[#5A6580]'}`} />
+                ))}
+              </div>
+            ) : (
+              <div aria-hidden="true" className="h-2 w-full overflow-hidden rounded-full bg-[#232B45]">
+                <div className="h-full rounded-full bg-accent transition-[width] duration-500 motion-safe:animate-pulse" style={{ width: `${Math.max(2, (have / total) * 100)}%` }} />
+              </div>
+            )}
+            <p className="text-[15px] leading-relaxed">{have} of {total} pictures are here.</p>
+            <p className="text-[13px] leading-relaxed">{slowText || 'Each picture is downloaded once. After that this spot opens straight away.'}</p>
+          </>
+        ) : (
+          <p className="text-[15px] motion-safe:animate-pulse">Finding the pictures of this spot…</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // The flipbook: one square picture plus play controls, scrubber and a thumbnail per frame.
 // frames: [{ image_url, timestamp }] oldest first. progress: null or { cached_images, total_images }
 // while the backend downloads the pictures from NASA. emptyText shows when there is nothing to load.
@@ -51,14 +90,15 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
   };
 
   return (
-    <div className="flex w-full max-w-[700px] flex-col gap-3.5">
+    <div className="flex w-full player-w flex-col gap-3.5">
       <div
         role="img"
         aria-label={current ? `${caption || `Sky picture ${frame + 1} of ${count}, taken ${fmtDate(current.timestamp)}`}. ${label}` : label}
         onClick={current && onPick ? pick : undefined}
         className={`${current && onPick ? 'cursor-crosshair ' : ''}relative aspect-square w-full overflow-hidden rounded-md border border-soft bg-[#04060D] shadow-[0_8px_24px_rgba(20,26,46,0.12)]`}
       >
-        {current && <img src={current.image_url} alt="" className="absolute inset-0 h-full w-full" />}
+        {/* Every picture is in the page from the start, so flipping never waits for one to load. */}
+        {frames.map((f, i) => <img key={f.image_url} src={f.image_url} alt="" className={`absolute inset-0 h-full w-full ${i === frame ? '' : 'invisible'}`} />)}
 
         {current && (
           <svg viewBox="0 0 700 700" aria-hidden="true" className="absolute inset-0 h-full w-full">
@@ -90,18 +130,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
             <button type="button" onClick={onRetry} className="btn-primary">Try again</button>
           </div>
         )}
-        {loading && !current && (
-          <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-[15px] text-[#C5CDE0]">
-            {progress ? (
-              <>
-                <p>Downloading picture {progress.cached_images} of {progress.total_images} from NASA…</p>
-                <p className="max-w-[360px] text-[13px] leading-relaxed">{slowText || 'The first look at a new spot takes a minute or two. After that it opens straight away.'}</p>
-              </>
-            ) : (
-              <p>Loading pictures…</p>
-            )}
-          </div>
-        )}
+        {loading && <Loading progress={progress} bandLabel={bandLabel} bandDot={bandDot} slowText={slowText} />}
         {emptyText && !loading && !current && !error && (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-[15px] text-[#C5CDE0]">{emptyText}</div>
         )}
@@ -126,7 +155,7 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
           value={frame}
           disabled={!count}
           onChange={(e) => show(Number(e.target.value))}
-          className="h-11 min-w-[120px] flex-1 accent-accent"
+          className="h-11 min-w-[80px] flex-1 accent-accent"
         />
         <label className="flex items-center gap-2 text-sm text-muted">
           Speed
