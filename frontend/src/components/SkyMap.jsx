@@ -157,10 +157,14 @@ export default function SkyMap({ view, onView, survey = 'visible', projects, sel
       )}
 
       {hover && !dragging && (
-        <div className="pointer-events-none absolute left-1/2 top-3 hidden -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full border border-soft bg-surface/90 px-4 py-2 font-mono text-sm text-ink backdrop-blur lg:flex">
-          <span className="font-sans text-[13px] font-semibold text-muted">Pointer</span>
-          <span>RA {fmtRa(hover[0])}</span>
-          <span>Dec {fmtDec(hover[1])}</span>
+        <div className="pointer-events-none absolute left-1/2 top-3 z-10 hidden -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full border border-amber-400/40 bg-[#070B18]/95 px-4 py-2 font-mono text-sm shadow-[0_4px_24px_rgba(0,0,0,0.6)] backdrop-blur lg:flex">
+          <span className="font-sans text-[11px] font-bold uppercase tracking-wider rounded-full bg-accent/20 px-2.5 py-0.5 text-accent border border-accent/40">Pointer</span>
+          <span className="font-semibold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            <span className="font-medium text-amber-400/80">RA</span> {fmtRa(hover[0])}
+          </span>
+          <span className="font-semibold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            <span className="font-medium text-amber-400/80">Dec</span> {fmtDec(hover[1])}
+          </span>
         </div>
       )}
 
