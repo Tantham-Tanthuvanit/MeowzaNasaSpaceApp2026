@@ -12,6 +12,8 @@
   --color-soft: #DDE2EC;
   --color-rust: #B4460F;
   --color-danger: #B42318;
+  --color-accent: #FF8A3D;
+  --color-accent-text: #0B1020;
   color-scheme: light;
 }
 
@@ -25,6 +27,8 @@ html.dark {
   --color-soft: #232E4D;
   --color-rust: #FF9F5A;
   --color-danger: #F97066;
+  --color-accent: #FF8A3D;
+  --color-accent-text: #0B1020;
   color-scheme: dark;
 }
 
@@ -42,7 +46,7 @@ body {
     @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold;
   }
   .btn-primary {
-    @apply btn bg-accent text-[#0B1020];
+    @apply btn bg-accent text-[var(--color-accent-text,#0B1020)];
   }
   .btn-plain {
     @apply btn border border-line bg-surface font-medium text-ink hover:border-ink;
