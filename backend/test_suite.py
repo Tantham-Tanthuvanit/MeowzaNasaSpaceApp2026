@@ -67,6 +67,28 @@ class TestImageProcessorEngine(unittest.TestCase):
         self.assertEqual(diff[25, 25], 40.0)
         self.assertEqual(diff[0, 0], 0.0)
 
+    def test_noise_scaled_difference_shows_faint_change(self):
+        # A faint line (3x the noise) next to one very bright star leftover. The default scale is set
+        # by the bright leftover, so the line stays almost grey; the noise scale makes it clearly red.
+        from PIL import Image
+        import io
+        rng = np.random.default_rng(1)
+        diff = rng.normal(0.5, 1.0, (64, 64)).astype(np.float32)  # offset 0.5: the median should be grey
+        diff[0:7, 0:7] = 500.0  # a bright star leftover, bigger than the top 0.5% of pixels
+        diff[40, 5:60] += 3.0
+        def red_minus_blue(scale):
+            px = np.asarray(Image.open(io.BytesIO(image_processor.array_to_png_bytes(diff, is_difference=True, diff_scale=scale)))).astype(int)
+            return px[40, 5:60, 0].mean() - px[40, 5:60, 2].mean(), px[50:60, 5:60, 0].mean() - px[50:60, 5:60, 2].mean()
+        line_peak, _ = red_minus_blue("peak")
+        line_noise, background_noise = red_minus_blue("noise")
+        self.assertGreater(line_noise, line_peak + 40)
+        self.assertLess(abs(background_noise), 25)  # the background stays near grey
+
+    def test_default_difference_scale_is_unchanged(self):
+        arr = np.random.default_rng(2).normal(0, 1, (32, 32)).astype(np.float32)
+        self.assertEqual(image_processor.array_to_png_bytes(arr, is_difference=True),
+                         image_processor.array_to_png_bytes(arr, is_difference=True, diff_scale="peak"))
+
     def test_base64_export(self):
         arr = np.arange(64 * 64, dtype=np.float32).reshape(64, 64)
         uri = image_processor.array_to_base64_data_uri(arr)
@@ -240,6 +262,15 @@ class TestApiMapping(unittest.TestCase):
         with mock.patch.object(main.loader, "get_spectrum", side_effect=data_loader.NoData("nothing here")):
             res = self.client.get("/api/spectrum", params={"ra": "1", "dec": "1"})
         self.assertEqual(res.status_code, 404)
+
+    def test_difference_scale_is_checked_and_passed_on(self):
+        params = {"ra": "133.795", "dec": "-7.245", "early_idx": 0, "late_idx": 1}
+        self.assertEqual(self.client.get("/api/difference-image", params={**params, "diff_scale": "loud"}).status_code, 422)
+        with mock.patch.object(main.loader, "get_difference_image", return_value={"ok": True}) as call:
+            self.assertEqual(self.client.get("/api/difference-image", params=params).status_code, 200)
+            self.assertEqual(call.call_args.kwargs["diff_scale"], "peak")
+            self.client.get("/api/difference-image", params={**params, "diff_scale": "noise"})
+            self.assertEqual(call.call_args.kwargs["diff_scale"], "noise")
 
     def test_presets_and_element_density_are_gone(self):
         self.assertEqual(self.client.get("/api/presets").status_code, 404)

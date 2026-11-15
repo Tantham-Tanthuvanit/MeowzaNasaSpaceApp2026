@@ -24,6 +24,7 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
 
 3. **Difference Imaging and Shift-and-Add**
    - The difference image (user-selectable visits, e.g. visit $B$ − visit $A$) uses a bipolar colormap, so moving objects show a dipole. All visit pairs are pre-computed and selectable via dropdowns and quick presets.
+   - `/api/difference-image?diff_scale=noise` is an extra way to colour it: scaled to the noise instead of the strongest change, so faint changes show. The default (`peak`) is unchanged. The guided demo uses `noise`.
    - `/api/shift-and-add` co-adds the real visits along a trial motion, to bring out faint moving objects.
 
 4. **102-Channel Absorption & Emission Spectra Graph**
@@ -69,9 +70,11 @@ A public-facing web platform built for the **NASA Space Apps Challenge** to expl
    - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "Difference image", keyboard shortcuts (`Space`, `←` / `→`, `G`, `C`), and citizen-science flagging.
    - Accessible anytime via **How to use** in the header or **New here? How to use SkyFlip** on the Sky Map page.
 
-10. **Guided Demo Mode (5-Step Interactive Walkthrough)**
-   - Clicking **Guided demo** in the header (or **Start guided demo (WISE 0855)** in the viewer) launches an interactive 5-step tour on the cached WISE 0855 brown dwarf target (`RA 08h55m10.831s, Dec -07°14′42.53″`).
-   - Steps automatically walk through: (1) Infrared Flipbook in Band 6 (`4.42 µm`), (2) Side-by-Side Split View (`V1` vs `V4`), (3) Difference Imaging ("Difference image" dipole signature), (4) Shift-and-Add Co-addition ("Combined"), and (5) Gaia/AllWISE Catalogue Overlay + SPHEREx 102-channel Spectrum.
+10. **Guided Demo (2 minutes, for beginners)**
+   - **Guided demo** in the header (or **Take the 2-minute demo** in the viewer, on the welcome page, the sky map or in How to use) opens `#/viewer?demo=1`. While it runs the viewer is in focus mode: only one picture with a circle on it, and one step card. Side panels and tools are hidden.
+   - Five plain-language steps: (1) a real photo of space, (2) flip through the pictures and answer "in which picture does a line go through the circle?", (3) two pictures side by side, (4) the difference picture (noise-scaled), (5) what it was and how this is used to hunt for moving things. Technical details sit under "What am I looking at?".
+   - The example is a real streak in the cached wide view of WISE 0855 (Band 1, 15′): a line crosses only the 2 May 2026 picture, most likely a satellite. To show an asteroid instead, fill in `DEMO_ASTEROID` in `frontend/src/components/DemoTour.jsx`.
+   - An **advanced tour** (`?demo=a1`, `a2`) runs in the full viewer on WISE 0855: Combined (shift-and-add), then known stars and the 102-colour spectrum.
 
 11. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
@@ -97,7 +100,7 @@ MeowzaNasaSpaceApp2026/
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Intro (welcome page at /), Home (sky map at /map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SplitPlayer, DemoTour, TutorialModal, SettingsModal, SpectrumChart, RulerOverlay, RulerPanel, Flags, MapCards, ProjectDialog
+│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SplitPlayer, DemoTour, DemoFocus, TutorialModal, SettingsModal, SpectrumChart, RulerOverlay, RulerPanel, Flags, MapCards, ProjectDialog
 │       ├── core/                  # Sky projection, sky picture drawing, bands, spectral features, astronomical ruler, projects store
 │       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
 ├── logs/                          # One entry per code change

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { BookIcon, CompassIcon, InfoIcon, MoonIcon, SunIcon, PaletteIcon } from './components/icons';
-import { DEMO_TARGET } from './components/DemoTour';
+import { DEMO_HREF } from './components/DemoTour';
 import TutorialModal from './components/TutorialModal';
 import SettingsModal from './components/SettingsModal';
 import { getInitialTheme, getTheme, applyTheme } from './core/themes';
@@ -64,7 +64,7 @@ export default function App() {
   const { pathname } = useLocation();
   const onIntro = pathname === '/';
   const inDemo = Boolean(params.get('demo'));
-  const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
+  const demoHref = DEMO_HREF();
 
   const [themeId, setThemeId] = useState(() => getInitialTheme().id);
   const [showSettings, setShowSettings] = useState(false);
@@ -135,7 +135,7 @@ export default function App() {
                   ? 'border-accent bg-accent text-[var(--color-accent-text,#0B1020)]'
                   : 'border-accent bg-surface text-ink hover:bg-page'
               }`}
-              title="Interactive 5-step walkthrough on real NASA SPHEREx data of brown dwarf WISE 0855"
+              title="A 2-minute walkthrough: find a real asteroid in NASA SPHEREx pictures"
             >
               <CompassIcon />
               Guided demo

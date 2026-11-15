@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import FlipPlayer, { fmtDate } from '../components/FlipPlayer';
 import SplitPlayer from '../components/SplitPlayer';
 import SkyPatchGrid from '../components/SkyPatchGrid';
-import DemoTour, { DEMO_STEPS, DEMO_TARGET } from '../components/DemoTour';
+import DemoTour, { ADVANCED_STEPS, DEMO_STEPS, demoHref, parseDemo } from '../components/DemoTour';
+import DemoFocus from '../components/DemoFocus';
 import Flags from '../components/Flags';
 import SpectrumPanel from '../components/SpectrumChart';
 import ProjectDialog from '../components/ProjectDialog';
@@ -155,33 +156,20 @@ export default function Viewer() {
   const dwarfs = visibleStars.filter((s) => s.is_brown_dwarf_candidate);
   const [source, setSource] = useState(null);
 
-  // Judge Demo / Guided Discovery Tour state
-  const demoStepNum = parseInt(params.get('demo'), 10);
-  const demoActive = Number.isInteger(demoStepNum) && demoStepNum >= 1 && demoStepNum <= DEMO_STEPS.length;
+  // Guided demo. ?demo=1..5 is the beginner demo, shown on its own in focus mode;
+  // ?demo=a1, a2 is the advanced tour, a card above the full viewer.
+  const demo = parseDemo(params.get('demo'));
+  const demoActive = Boolean(demo);
+  const advancedStep = demo && demo.advanced ? demo.step : null;
   useEffect(() => {
-    if (!demoActive) return;
-    const stepCfg = DEMO_STEPS[demoStepNum - 1];
-    if (stepCfg) {
-      setView(stepCfg.view);
-      setShowStars(Boolean(stepCfg.showStars));
-      if (frames.length > 1) {
-        setSplitLeft(0);
-        setSplitRight(frames.length - 1);
-        setDiffEarly(0);
-        setDiffLate(frames.length - 1);
-      }
-    }
-  }, [demoActive, demoStepNum, frames.length]);
+    if (!advancedStep) return;
+    setView(advancedStep.view);
+    setShowStars(Boolean(advancedStep.showStars));
+  }, [advancedStep]);
 
-  const goToDemoStep = (idx) => {
-    const stepCfg = DEMO_STEPS[idx] || DEMO_STEPS[0];
-    const next = new URLSearchParams();
-    next.set('demo', String(stepCfg.step));
-    next.set('ra', DEMO_TARGET.ra);
-    next.set('dec', DEMO_TARGET.dec);
-    if (stepCfg.band) next.set('band', stepCfg.band);
-    setParams(next);
-  };
+  const goToDemo = (id) => setParams(new URLSearchParams(demoHref(id).split('?')[1]));
+  const goToDemoStep = (idx) => goToDemo(DEMO_STEPS[Math.max(0, Math.min(DEMO_STEPS.length - 1, idx))].id);
+  const goToAdvancedStep = (idx) => (idx < 0 ? goToDemo(DEMO_STEPS[DEMO_STEPS.length - 1].id) : goToDemo(ADVANCED_STEPS[idx].id));
 
   const exitDemo = () => {
     const next = new URLSearchParams(params);
@@ -268,6 +256,7 @@ export default function Viewer() {
     if (fov !== 5.0) next.set('fov', String(fov));
     else next.delete('fov');
     next.delete('project');
+    next.delete('demo');
     setParams(next);
   };
 
@@ -315,8 +304,8 @@ export default function Viewer() {
     }
   };
 
-  const title = project ? project.name : demoActive ? 'WISE 0855' : 'Your spot in the sky';
-  const kind = project ? 'Project' : demoActive ? 'Guided Demo Target' : 'Your choice';
+  const title = project ? project.name : advancedStep ? 'WISE 0855' : 'Your spot in the sky';
+  const kind = project ? 'Project' : advancedStep ? 'Advanced tour' : 'Your choice';
   const lightLabel = band ? `Band ${band.n} · ${band.range} µm` : extraId ? cleanName(kinds[extraId].name) : 'All bands combined';
   const still = {
     changes: {
@@ -375,6 +364,28 @@ export default function Viewer() {
 
   const bandCell = (on) => `flex min-h-[52px] flex-col items-start justify-center rounded-xl border px-3 py-1.5 text-left ${on ? 'border-ink bg-ink text-white dark:text-[#0B1020]' : 'border-line bg-surface text-ink'}`;
   const tab = (on) => `flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium ${on ? 'border-ink bg-ink text-white dark:text-[#0B1020]' : 'border-line bg-surface text-ink'}`;
+
+  if (demo && !demo.advanced) {
+    return (
+      <DemoFocus
+        frames={frames}
+        loading={loading}
+        progress={progress}
+        error={error}
+        onRetry={retry}
+        ra={ra}
+        dec={dec}
+        bandId={bandId}
+        fov={fov}
+        colormap={colormap}
+        stepIndex={demo.index}
+        onStep={goToDemoStep}
+        onExit={exitDemo}
+        onRandom={pickRandomPatch}
+        onAdvanced={() => goToDemo(ADVANCED_STEPS[0].id)}
+      />
+    );
+  }
 
   return (
     <main className="mx-auto grid w-full max-w-[1720px] gap-8 px-4 py-6 sm:px-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:gap-6 lg:overflow-hidden xl:grid-cols-[340px_minmax(0,1fr)_360px] xl:gap-10">
@@ -452,7 +463,7 @@ export default function Viewer() {
               className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
-              Start guided demo (WISE 0855)
+              Take the 2-minute demo
             </button>
           )}
         </form>
@@ -505,9 +516,9 @@ export default function Viewer() {
       </aside>
 
       <section aria-label="Image player" className="flex min-w-0 flex-col items-center gap-4 max-lg:contents lg:overflow-y-auto">
-        {demoActive && (
+        {advancedStep && (
           <div className="flex w-full justify-center max-lg:order-1">
-            <DemoTour stepIndex={demoStepNum - 1} onStep={goToDemoStep} onExit={exitDemo} />
+            <DemoTour index={demo.index} onStep={goToAdvancedStep} onExit={exitDemo} />
           </div>
         )}
         <div className="flex w-full justify-center max-lg:order-1">
