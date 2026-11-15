@@ -148,7 +148,7 @@ Users can blink frames across observation epochs, perform difference imaging, an
 
 ### 7. 🎨 Theming, Field Guide & Guided Demo
 - **Monkeytype-Style Themes**: Includes dark/light palettes (Deep Spruce, Retro Sunset, Ocean Coral, Midnight SPHEREx, Cyberpunk Neon).
-- **Interactive Guided Tour**: 5-step automated walkthrough demonstrating the discovery of cold brown dwarf **WISE 0855**.
+- **Interactive Guided Tour**: a 2-minute, 5-step demo in focus mode for beginners: spot a real streak that crosses only one SPHEREx picture, then compare and subtract the pictures. An optional advanced tour shows the tools on the cold brown dwarf **WISE 0855**.
 - **Field Guide**: Integrated newcomer tutorial explaining infrared bands, blinking strategies, and dipole signatures.
 
 ---
