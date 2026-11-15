@@ -162,10 +162,10 @@ export function fmtRa(ra, compact = false) {
   return `${pad2(h % 24)}h${sep}${pad2(m)}m${sep}${s}s`;
 }
 
-// compact: "-7d14m42.5s". Otherwise "−7° 14′ 42.5″".
+// compact: "-7°14′42.5″". Otherwise "−7° 14′ 42.5″".
 export function fmtDec(dec, compact = false) {
   const [d, m, s] = sexagesimal(Math.abs(dec));
-  if (compact) return `${dec < 0 ? '-' : '+'}${d}d${pad2(m)}m${s}s`;
+  if (compact) return `${dec < 0 ? '-' : '+'}${d}°${pad2(m)}′${s}″`;
   return `${dec < 0 ? '−' : '+'}${d}° ${pad2(m)}′ ${s}″`;
 }
 

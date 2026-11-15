@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import FlipPlayer, { fmtDate } from '../components/FlipPlayer';
 import SplitPlayer from '../components/SplitPlayer';
@@ -11,6 +11,9 @@ import { CheckIcon, CompassIcon, PlusIcon, ShuffleIcon } from '../components/ico
 import { useProjects } from '../core/projects';
 import { BANDS, ALL_BANDS, DEFAULT_BAND, DEFAULT_LOOK } from '../core/targets';
 import { parseRa, parseDec, fmtRa, fmtDec, skyToPixel, randomSkyPoint } from '../core/sky';
+import { calculateMeasurement } from '../core/ruler';
+import RulerOverlay from '../components/RulerOverlay';
+import RulerPanel from '../components/RulerPanel';
 import { fetchCatalog, fetchLightKinds, fetchShiftAndAdd, fetchDifferenceImage, listCandidates, useFrames, useRemote } from '../services/api';
 
 // Headings for the extra kinds of light, by the backend's category.
@@ -190,6 +193,53 @@ export default function Viewer() {
   const flags = useRemote(hasSpot ? `${ra}|${dec}|${fov}` : 'all', () => listCandidates(ra, dec, fov));
   const [point, setPoint] = useState(null);
 
+  // Astronomical Ruler & separation measurement state
+  const [rulerActive, setRulerActive] = useState(false);
+  const [rulerP1, setRulerP1] = useState(null);
+  const [rulerP2, setRulerP2] = useState(null);
+  const [rulerHover, setRulerHover] = useState(null);
+
+  const measurement = useMemo(
+    () => (rulerP1 && hasSpot ? calculateMeasurement(rulerP1, rulerP2 || rulerHover, ra, dec, fov) : null),
+    [rulerP1, rulerP2, rulerHover, ra, dec, fov, hasSpot]
+  );
+
+  const rulerState = !rulerP1 ? 'idle' : !rulerP2 ? 'has_p1' : 'complete';
+
+  const handleRulerPick = (x, y) => {
+    if (!rulerP1 || rulerP2) {
+      setRulerP1({ x, y });
+      setRulerP2(null);
+      setRulerHover(null);
+    } else {
+      setRulerP2({ x, y });
+      setRulerHover(null);
+    }
+  };
+
+  const handleRulerPointerMove = (x, y) => {
+    if (rulerP1 && !rulerP2) {
+      setRulerHover({ x, y });
+    }
+  };
+
+  const handleRulerPointerLeave = () => {
+    if (rulerP1 && !rulerP2) {
+      setRulerHover(null);
+    }
+  };
+
+  const resetRuler = () => {
+    setRulerP1(null);
+    setRulerP2(null);
+    setRulerHover(null);
+  };
+
+  const closeRuler = () => {
+    setRulerActive(false);
+    resetRuler();
+  };
+
   // The form holds what the visitor is typing; it follows the position when that changes.
   const [form, setForm] = useState({ ra: '', dec: '' });
   const [formError, setFormError] = useState('');
@@ -198,6 +248,7 @@ export default function Viewer() {
     setFormError('');
     setSource(null);
     setPoint(null);
+    resetRuler();
     setDrift(NO_DRIFT);
     setSent(NO_DRIFT);
   }, [ra, dec]);
@@ -214,6 +265,17 @@ export default function Viewer() {
     const next = new URLSearchParams(params);
     next.set('ra', fmtRa(newRa, true));
     next.set('dec', fmtDec(newDec, true));
+    if (fov !== 5.0) next.set('fov', String(fov));
+    else next.delete('fov');
+    next.delete('project');
+    setParams(next);
+  };
+
+  const selectPatch = (newRa, newDec, newBand) => {
+    const next = new URLSearchParams(params);
+    next.set('ra', fmtRa(newRa, true));
+    next.set('dec', fmtDec(newDec, true));
+    if (newBand) next.set('band', String(newBand));
     if (fov !== 5.0) next.set('fov', String(fov));
     else next.delete('fov');
     next.delete('project');
@@ -299,6 +361,15 @@ export default function Viewer() {
           <circle cx={point.x} cy={point.y} r="8" stroke="#FF8A3D" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
         </g>
       )}
+      {hasSpot && (
+        <RulerOverlay
+          p1={rulerP1}
+          p2={rulerP2 || rulerHover}
+          measurement={measurement}
+          fov={fov}
+          showScaleBar={true}
+        />
+      )}
     </>
   );
 
@@ -318,7 +389,7 @@ export default function Viewer() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-body">
             Declination (Dec)
-            <span className="text-[13px] font-normal text-muted">Like latitude, but for the sky: how far north or south</span>
+            <span className="text-[13px] font-normal text-muted">Like latitude, but for the sky: how far north or south in degrees (° ′ ″)</span>
             <input type="text" value={form.dec} onChange={(e) => setForm({ ...form, dec: e.target.value })} placeholder="-7°14′42.53″" className="field mt-1 font-mono" />
           </label>
           <div className="flex flex-col gap-1.5 text-sm font-medium text-body">
@@ -461,7 +532,9 @@ export default function Viewer() {
               setView('changes');
             }}
             overlay={overlay}
-            onPick={point ? (x, y) => setPoint({ x, y }) : null}
+            onPick={point ? (x, y) => setPoint({ x, y }) : rulerActive ? handleRulerPick : null}
+            onPointerMove={rulerActive ? handleRulerPointerMove : null}
+            onPointerLeave={rulerActive ? handleRulerPointerLeave : null}
             bandDot={band ? band.color : '#FFFFFF'}
             bandLabel={lightLabel}
             label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
@@ -479,7 +552,9 @@ export default function Viewer() {
             slowText={extraId && oneColour ? SLOW_TEXT : ''}
             {...(hasSpot ? still : null)}
             overlay={overlay}
-            onPick={point ? (x, y) => setPoint({ x, y }) : null}
+            onPick={point ? (x, y) => setPoint({ x, y }) : rulerActive ? handleRulerPick : null}
+            onPointerMove={rulerActive ? handleRulerPointerMove : null}
+            onPointerLeave={rulerActive ? handleRulerPointerLeave : null}
             resetKey={`${ra}|${dec}|${fov}`}
             label={hasSpot ? `Centred on RA ${fmtRa(ra)}, Dec ${fmtDec(dec)} · FOV ${fov.toFixed(1)}′` : 'No position chosen yet'}
             bandDot={band ? band.color : '#FFFFFF'}
@@ -487,11 +562,35 @@ export default function Viewer() {
             colormap={colormap}
             onToggleColormap={toggleColormap}
             onToggleGrid={() => setShowGrid((g) => !g)}
+            onToggleRuler={() => setRulerActive((r) => !r)}
           />
         )}
         </div>
 
-        {hasSpot && <div className="flex w-full justify-center max-lg:order-3"><SpectrumPanel key={`${ra}|${dec}|${fov}`} ra={ra} dec={dec} fov={fov} /></div>}
+        {rulerActive && hasSpot && (
+          <div className="flex w-full justify-center max-lg:order-1">
+            <div className="w-full player-w">
+              <RulerPanel
+                measurement={measurement}
+                rulerState={rulerState}
+                onClear={resetRuler}
+                onClose={closeRuler}
+                frames={frames}
+                fov={fov}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex w-full justify-center max-lg:order-1">
+          <SpectrumPanel
+            key={`${ra}|${dec}|${fov}`}
+            ra={ra}
+            dec={dec}
+            fov={fov}
+            onSelectPatch={(patchRa, patchDec, patchBand) => selectPatch(patchRa, patchDec, patchBand)}
+          />
+        </div>
       </section>
 
       <aside aria-label="What to show" className="flex flex-col gap-7 max-lg:order-2 lg:overflow-y-auto">
@@ -527,6 +626,20 @@ export default function Viewer() {
             >
               <span className={`h-2.5 w-2.5 rounded-full border-2 ${showGrid ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
               RA &amp; Dec grid
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (rulerActive) closeRuler();
+                else setRulerActive(true);
+              }}
+              aria-pressed={rulerActive}
+              disabled={!hasSpot}
+              title="Toggle astronomical ruler and distance measurement tool (Shortcut: M)"
+              className={`${tab(rulerActive)} self-start disabled:opacity-40`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full border-2 ${rulerActive ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />
+              Ruler &amp; distance
             </button>
             <button type="button" onClick={() => setShowStars(!showStars)} aria-pressed={showStars} disabled={!hasSpot} className={`${tab(showStars)} self-start disabled:opacity-40`}>
               <span className={`h-2.5 w-2.5 rounded-full border-2 ${showStars ? 'border-current bg-current' : 'border-ink'}`} aria-hidden="true" />

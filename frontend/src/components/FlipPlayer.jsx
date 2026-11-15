@@ -98,7 +98,28 @@ function Loading({ progress, bandLabel, bandDot, slowText }) {
 // onPick(x, y): called with the grid point when the picture is clicked.
 // colormap: 'inferno' | 'grayscale'. onToggleColormap: toggles between inferno and grayscale.
 // onToggleGrid: toggles RA and Dec grid overlay.
-export default function FlipPlayer({ frames, loading, progress, error, onRetry, emptyText, resetKey, bandLabel, bandDot, label, caption, slowText, overlay, onPick, colormap, onToggleColormap, onToggleGrid }) {
+export default function FlipPlayer({
+  frames,
+  loading,
+  progress,
+  error,
+  onRetry,
+  emptyText,
+  resetKey,
+  bandLabel,
+  bandDot,
+  label,
+  caption,
+  slowText,
+  overlay,
+  onPick,
+  onPointerMove,
+  onPointerLeave,
+  colormap,
+  onToggleColormap,
+  onToggleGrid,
+  onToggleRuler,
+}) {
   const count = frames.length;
   const { frame, playing, setPlaying, speed, setSpeed, show } = useFlipbook(count, resetKey);
   const current = frames[frame];
@@ -131,15 +152,27 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
         }
         e.preventDefault();
         if (onToggleGrid) onToggleGrid();
+      } else if (e.key === 'm' || e.key === 'M') {
+        if (target && target.closest('input, textarea, select, [contenteditable]')) {
+          return;
+        }
+        e.preventDefault();
+        if (onToggleRuler) onToggleRuler();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [caption, count, setPlaying, show, onToggleColormap, onToggleGrid]);
+  }, [caption, count, setPlaying, show, onToggleColormap, onToggleGrid, onToggleRuler]);
 
   const pick = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
     onPick(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!onPointerMove) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    onPointerMove(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
   };
 
   return (
@@ -148,6 +181,8 @@ export default function FlipPlayer({ frames, loading, progress, error, onRetry, 
         role="img"
         aria-label={current ? `${caption || `Sky picture ${frame + 1} of ${count}, taken ${fmtDate(current.timestamp)}`}. ${label}` : label}
         onClick={current && onPick ? pick : undefined}
+        onPointerMove={current && onPointerMove ? handlePointerMove : undefined}
+        onPointerLeave={current && onPointerLeave ? onPointerLeave : undefined}
         className={`${current && onPick ? 'cursor-crosshair ' : ''}relative aspect-square w-full overflow-hidden rounded-md border border-soft bg-[#04060D] shadow-[0_8px_24px_rgba(20,26,46,0.12)]`}
       >
         {/* Every picture is in the page from the start, so flipping never waits for one to load. */}

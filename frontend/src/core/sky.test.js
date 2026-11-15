@@ -70,7 +70,7 @@ describe('formatting', () => {
     expect(fmtRa(133.795129)).toBe('08h 55m 10.8s');
     expect(fmtRa(133.795129, true)).toBe('08h55m10.8s');
     expect(fmtDec(-7.245147)).toBe('−7° 14′ 42.5″');
-    expect(fmtDec(-7.245147, true)).toBe('-7d14m42.5s');
+    expect(fmtDec(-7.245147, true)).toBe('-7°14′42.5″');
   });
   it('carries rounded-up seconds instead of printing 60', () => {
     expect(fmtRa(359.9999999)).toBe('00h 00m 00.0s');

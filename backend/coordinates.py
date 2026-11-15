@@ -16,11 +16,14 @@ import astropy.units as u
 
 def clean_coordinate_string(val: str) -> str:
     """
-    Clean up spaces, colon delimiters, or common typographical discrepancies
-    in coordinate strings.
+    Clean up spaces, colon delimiters, unicode minus, and degree/arcmin/arcsec
+    notation in coordinate strings so Astropy can parse reliably.
     """
-    val = val.strip()
-    # Normalize colons "08:55:10.83" to space or standard h/m/s representation if needed
+    val = val.strip().replace("−", "-")
+    # Normalize degree/arcminute/arcsecond notation for Astropy dms parsing
+    val = val.replace("°", "d").replace("deg", "d")
+    val = val.replace("′", "m").replace("'", "m")
+    val = val.replace("″", "s").replace('"', "s")
     return val
 
 

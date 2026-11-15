@@ -14,6 +14,8 @@ export default function SplitPlayer({
   onCompareDifference,
   overlay,
   onPick,
+  onPointerMove,
+  onPointerLeave,
   bandDot,
   bandLabel,
   label,
@@ -28,6 +30,12 @@ export default function SplitPlayer({
     if (!onPick) return;
     const box = e.currentTarget.getBoundingClientRect();
     onPick(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
+  };
+
+  const makePointerMove = (e) => {
+    if (!onPointerMove) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    onPointerMove(((e.clientX - box.left) / box.width) * 256, ((e.clientY - box.top) / box.height) * 256);
   };
 
   const renderPane = (f, idx, title, onChange, otherIdx) => (
@@ -59,6 +67,8 @@ export default function SplitPlayer({
         role="img"
         aria-label={`${title}, Picture ${idx + 1} of ${count}, taken ${f ? fmtDate(f.timestamp) : ''}`}
         onClick={f && onPick ? makePick : undefined}
+        onPointerMove={f && onPointerMove ? makePointerMove : undefined}
+        onPointerLeave={f && onPointerLeave ? onPointerLeave : undefined}
         className={`${f && onPick ? 'cursor-crosshair ' : ''}relative aspect-square w-full overflow-hidden rounded-md border border-soft bg-[#04060D] shadow-[0_8px_24px_rgba(20,26,46,0.12)]`}
       >
         {f && <img src={f.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />}

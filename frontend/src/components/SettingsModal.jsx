@@ -356,6 +356,8 @@ export default function SettingsModal({
                 {[
                   ['Spacebar', 'Play or pause the flipbook time-series loop'],
                   ['← / → Arrows', 'Step backward or forward one survey epoch'],
+                  ['M / m', 'Toggle astronomical ruler and distance measurement'],
+                  ['G / g', 'Toggle Right Ascension & Declination coordinate grid'],
                   ['C / c', 'Toggle between Inferno colormap and Grayscale'],
                   ['1 – 6', 'Jump straight to SPHEREx Detector Band 1 through 6'],
                   ['Escape', 'Close any open modal dialog or popup card'],
