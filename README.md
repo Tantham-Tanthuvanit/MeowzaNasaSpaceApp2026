@@ -94,7 +94,6 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 
 11. **Query Sky Patches via URL**
    - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
->>>>>>> 27980c5fea800c22913d2e0adfdbc0f3a88724ff
 
 ---
 
