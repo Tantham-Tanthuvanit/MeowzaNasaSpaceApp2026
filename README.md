@@ -21,7 +21,7 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 - [Prerequisites](#-prerequisites)
 - [Installation & Setup Guide](#-installation--setup-guide)
   - [1. Clone Repository](#1-clone-the-repository)
-  - [2. Configure Environment Variables](#2-configure-environment-variables)
+  - [2. Supabase settings (nothing to do)](#2-supabase-settings-nothing-to-do)
   - [3. Automated One-Click Setup](#3-automated-one-click-setup)
   - [4. Launch Application](#4-launch-the-application)
   - [5. Manual Setup (Alternative)](#5-manual-setup-alternative)
