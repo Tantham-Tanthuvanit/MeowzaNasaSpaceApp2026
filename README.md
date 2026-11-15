@@ -1,379 +1,227 @@
 # 🪐 SkyFlip — NASA SPHEREx Sky Viewer
-### *Multi-Epoch Infrared Transient & Celestial Discovery Tool*
+### *Spot things that move or change in real NASA infrared pictures*
 
 [![NASA Space Apps Challenge](https://img.shields.io/badge/NASA%20Space%20Apps-2026-blue.svg)](https://www.spaceappschallenge.org/)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-6.0-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E.svg?logo=supabase&logoColor=white)](https://supabase.com/)
 
-A public web application built for the **NASA Space Apps Challenge (SPHEREx Challenge)** to explore, blink, and discover moving celestial objects (brown dwarfs, high proper-motion stars, asteroids, comets) and variable transients using real multi-epoch infrared spectral observations from NASA's **SPHEREx** mission (*Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer*).
+SkyFlip was built by team Meowza for the **NASA Space Apps Challenge 2026** ("Planet X and SPHEREx"). Pick any spot in the sky and SkyFlip shows you the real pictures NASA's **SPHEREx** telescope took of it on each of its visits, as a flipbook. Flip between them to find things that move (brown dwarfs, fast stars, asteroids, comets) or change brightness, then flag what you find so others can check it.
+
+Everything comes from real data: NASA/IPAC's Infrared Science Archive (IRSA), Gaia DR3 and AllWISE. There are no sample pictures or made-up results.
 
 ---
 
-## 📑 Table of Contents
+## 📑 Contents
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [System Architecture](#-system-architecture)
-- [Prerequisites](#-prerequisites)
-- [Installation & Setup Guide](#-installation--setup-guide)
-  - [1. Clone Repository](#1-clone-the-repository)
-  - [2. Supabase settings (nothing to do)](#2-supabase-settings-nothing-to-do)
-  - [3. Automated One-Click Setup](#3-automated-one-click-setup)
-  - [4. Launch Application](#4-launch-the-application)
-  - [5. Manual Setup (Alternative)](#5-manual-setup-alternative)
-- [Benchmark Targets & Testing](#-benchmark-targets--testing)
-- [Running Test Suites](#-running-test-suites)
-- [Keyboard Shortcuts](#-keyboard-shortcuts)
-- [Data Credits](#-data-credits)
-
-0. **Welcome Page (`#/`)**
-   - The first page a visitor sees tells the story: how comparing pictures over time found Pluto (1930), WISE 0855 (2014) and the brown dwarfs of Backyard Worlds, what SPHEREx sees (102 colours, the whole sky every six months), why team Meowza built SkyFlip for the NASA Space Apps 2026 "Planet X and SPHEREx" challenge, four steps to hunt, and links to the challenge's test targets (from the official projects in Supabase).
-   - The hero flips through the real, cached SPHEREx Band 6 pictures of WISE 0855 (pause button; with reduced motion it shows one visit at a time with buttons instead of blinking). If the backend can't be reached it says so and offers "Try again"; there are no stand-in pictures.
-   - The page scrolls. The sky map lives at `#/map`; the first-visit tutorial waits until the visitor reaches the map or the viewer.
-
-1. **Real SPHEREx Pictures, One per Survey Visit**
-   - For any RA/Dec, the backend asks the NASA/IPAC Infrared Science Archive (IRSA) which SPHEREx DR1/QR3 spectral images cover it, then downloads cutouts in the background.
-   - Images are grouped into survey visits (for WISE 0855: May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026). Each flipbook frame is one visit.
-   - Every cutout has the zodiacal light model subtracted and is reprojected onto one north-up grid, so frames line up when blinked.
-   - **Band groups**: `stacked` (all 6 detectors), `array_1`..`array_6`, `false_color_rgb`, plus narrow-band filters and indices (`filter_ch4_deep`, `ratio_ch4`, ...) built from the images whose wavelength at that spot matches. See `/api/bands`.
-
-2. **Caching in Supabase (download once)**
-   - A cutout takes about 10–15 s (in theory) to download from IRSA. Each is downloaded once (4 at a time, as a courtesy to IRSA), then stored in Supabase Storage with a row in `sky_cutouts`. Finished responses are stored in `sky_results`.
-   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "N of M pictures are here" with one slot per picture, and polls.
-   - The viewer opens a spot in one band (Band 1, `array_1`), which needs one picture per visit (up to 4) and is ready in under a minute. "All bands combined" (`stacked`, `?band=all`) needs up to 24 and takes a few minutes the first time. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
-
-3. **Difference Imaging and Shift-and-Add**
-   - The difference image (user-selectable visits, e.g. visit $B$ − visit $A$) uses a bipolar colormap, so moving objects show a dipole. All visit pairs are pre-computed and selectable via dropdowns and quick presets.
-   - `/api/difference-image?diff_scale=noise` is an extra way to colour it: scaled to the noise instead of the strongest change, so faint changes show. The default (`peak`) is unchanged. The guided demo uses `noise`.
-   - `/api/shift-and-add` co-adds the real visits along a trial motion, to bring out faint moving objects.
-
-4. **102-Channel Absorption & Emission Spectra Graph**
-   - Positioned directly below the flipbook controls in the viewer.
-   - `/api/spectrum` bins the centre-pixel brightness of every SPHEREx image of a spot into the 102 SPHEREx channels (0.75 – 5.00 µm). Channel wavelengths come from IRSA's DR1 all-sky cube.
-   - The interactive graph identifies and visualizes key cosmic signatures:
-     - **Absorption lines / bands (dips)**: Cooler molecules and ice mantles swallowing background light (H₂O ice at 3.05 µm, CH₄ methane at 1.66 & 3.30 µm, CO₂ ice at 4.27 µm, atmospheric water vapor at 1.40 & 1.90 µm, CO gas at 4.67 µm).
-     - **Emission lines (peaks)**: Hot ionized gas, shocks, and dust radiating brightly (Hydrogen Brackett-α at 4.05 µm, Paschen-α at 1.875 µm, Brackett-γ at 2.166 µm, PAH dust at 3.30 & 3.40 µm, shock-excited H₂ at 2.12 µm).
-     - **Kirchhoff's Dual Visual Spectra Bars**: An absorption spectrum bar (continuous rainbow infrared gradient with dark absorption slits) and an emission spectrum bar (dark background with bright glowing emission lines).
-     - Feature filter controls (`All features`, `Absorption only`, `Emission only`, `Clean plot`), continuum baseline tracking, live hover & keyboard inspector, automated dip/peak detection summary, and benchmark sky patch shortcuts (WISE 0855 brown dwarf, Proxima Centauri).
-
-5. **Gaia DR3 and AllWISE Overlay + Contamination & Observation Metadata**
-   - `/api/catalog-overlay` queries Gaia DR3 (`parallax`, `ruwe`) and AllWISE (`cc_flags`, `ext_flg`, `ph_qual`) through IRSA's TAP service. An AllWISE source with W1−W2 ≥ 1 and no Gaia star within 3″ is flagged as a brown dwarf candidate (WISE 0855 is).
-   - Contamination flags (`cc_flags` decoding diffraction spikes `D`, persistence `P`, halos `H`, and optical ghosts `O`, plus Gaia `RUWE ≥ 1.4`) are shown per source with a **Hide flagged artifacts** filter toggle in the viewer.
-   - Each SPHEREx visit frame in the Flipbook also displays live observation metadata (`Release: DR1/QR3`, `MJD`, `Exposures stacked`, and `Calibration: Zodiacal light removed`).
-   - If IRSA can't be reached the API returns an error; there is no made-up fallback.
-
-6. **Saved Projects and Citizen-Science Candidates**
-   - The sky map (`#/map`) supports both **Visible light** (default, full-color optical **DSS2 Color** from NASA/STScI via IRSA HiPS tiles) and **Infrared** (**NASA SPHEREx DR1** all-sky data cube first layer at 0.75 µm) via a 1-click **Sky light** toggle (`Visible light` / `Infrared (SPHEREx)`), persisted in `localStorage` (`skyflip_sky_survey`). Progressive HEALPix tiles stream straight from `irsa.ipac.caltech.edu` under the coordinate grid and markers as the user zooms up to 20,000% (native sharp 512×512 tiles through `Norder5`, ~13 arcseconds/pixel at 5,000%), with `"Loading a sharper picture…"` feedback and `"Try again"` error recovery if IRSA is unreachable.
-   - Projects (the markers on the sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
-   - **Map Layers & Project Visibility Toggles**: The sky map features an interactive toggle control (`User projects` and `Official targets`) located both in the header search panel and as a floating chip on the map canvas. Users can easily hide or show community/user-created projects independently from official benchmark targets (Barnard's Star, WISE 0855, Epsilon Indi B, RW Aurigae, R Draconis), with live counts and preference persistence in `localStorage` (`skyflip_show_user_projects`). Search results and project detail cards clearly distinguish between official and user-created targets.
-
-   - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate (recording your browser's `skyflip_voter_id` as the owner without exposing it publicly); "I see it too" votes for one, and flag owners see a **"Your flag"** badge and **"Delete"** action (backed by owner-only `403` enforcement on `DELETE /api/candidates/{id}`).
-
-7. **Monkeytype-Style UI Theme Settings & Palettes**
-   - The top navigation bar includes a **Theme Settings modal** (`🎨 Themes`) modeled after Monkeytype's popular theme system, complete with:
-     - **Live theme search** and category filter chips (`All`, `Dark`, `Light`).
-     - **Five-color palette swatches** (`[Background] [Surface] [Text] [Subtext] [Accent]`) on every theme card for instant visual reference.
-     - **Miniature UI previews** inside each card depicting a simulated flipbook layout.
-     - **Random Theme shuffle** button (`ShuffleIcon`) to quickly cycle through palettes.
-     - **Curated community & astronomical palettes**, including:
-       1. **Deep Spruce** (Coolors [#01161e-#124559-#598392-#aec3b0-#eff6e0](https://coolors.co/palette/01161e-124559-598392-aec3b0-eff6e0)) — Rich boreal teal dark mode with ~17:1 text contrast.
-       2. **Retro Sunset** (Coolors [#0081a7-#00afb9-#fdfcdc-#fed9b7-#f07167](https://coolors.co/palette/0081a7-00afb9-fdfcdc-fed9b7-f07167)) — Warm cream and coral vintage light mode.
-       3. **Ocean Coral** (Coolors #2 Dark Variant) — Deep cerulean dark mode with coral accents.
-       4. **Midnight SPHEREx**, **SkyFlip Light**, **Nordic Frost**, **Cyberpunk Neon**, **Solarized Light**, and **Monokai Infrared**.
-     - Instant CSS custom property updates (`--color-page`, `--color-surface`, `--color-ink`, `--color-accent`, etc.) with persistence in `localStorage` (`skyflip_theme_id`).
-   - A dedicated **Keyboard & Controls** tab inside the modal outlines all flipbook shortcuts (`Space`, `←`/`→`, `1`-`6`, `D`, `S`, `G`, `C`, `Esc`).
-
-8. **All of It in the Viewer (+ RA & Dec Grid and Astronomical Ruler)**
-   - The viewer page brings all capabilities together: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **Difference image view** (subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), an interactive **Right Ascension and Declination (RA & Dec) coordinate grid** with edge ticks and astronomical orientation indicator (`N ↑`, `E ←`, shortcut `G`), an interactive **Astronomical Ruler & Measurement Tool** (two-point click/drag measurement computing angular separation in arcseconds/arcminutes/mas, detector pixels, Position Angle East of North, endpoint celestial coordinates, coordinate offsets, and multi-epoch proper motion velocity, shortcut `M`), an on-screen **Corner Scale Bar** dynamically calibrated to FOV, a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the absorption & emission spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
-
-9. **Newcomer Tutorial & Field Guide (`How to use`)**
-   - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "Difference image", keyboard shortcuts (`Space`, `←` / `→`, `G`, `C`), and citizen-science flagging.
-   - Accessible anytime via **How to use** in the header or **New here? How to use SkyFlip** on the Sky Map page.
-
-10. **Guided Demo (2 minutes, for beginners)**
-   - **Guided demo** in the header (or **Take the 2-minute demo** in the viewer, on the welcome page, the sky map or in How to use) opens `#/viewer?demo=1`. While it runs the viewer is in focus mode: only one picture with a circle on it, and one step card. Side panels and tools are hidden.
-   - Five plain-language steps: (1) a real photo of space, (2) flip through the pictures and answer "in which picture does a line go through the circle?", (3) two pictures side by side, (4) the difference picture (noise-scaled), (5) what it was and how this is used to hunt for moving things. Technical details sit under "What am I looking at?".
-   - The example is a real streak in the cached wide view of WISE 0855 (Band 1, 15′): a line crosses only the 2 May 2026 picture, most likely a satellite. To show an asteroid instead, fill in `DEMO_ASTEROID` in `frontend/src/components/DemoTour.jsx`.
-   - An **advanced tour** (`?demo=a1`, `a2`) runs in the full viewer on WISE 0855: Combined (shift-and-add), then known stars and the 102-colour spectrum.
-
-11. **Query Sky Patches via URL**
-   - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
+- [What you can do](#-what-you-can-do)
+- [Install and run](#-install-and-run)
+- [Try it](#-try-it)
+- [Keyboard shortcuts](#%EF%B8%8F-keyboard-shortcuts)
+- [For developers](#%EF%B8%8F-for-developers)
+- [Data credits](#-data-credits)
 
 ---
 
-## 🌌 Overview
+## ✨ What you can do
 
-**SkyFlip** connects citizen scientists, students, and astronomers directly to real NASA infrared observations. Rather than serving static presets or mock data, the platform queries NASA's **IPAC Infrared Science Archive (IRSA)** in real time, downloads calibrated multi-epoch cutouts across 6 SPHEREx detector arrays, subtracts the zodiacal foreground light, and reprojects them onto a common celestial grid.
-
-Users can blink frames across observation epochs, perform difference imaging, analyze 102-channel chemical absorption/emission spectra, measure proper motions with an astronomical ruler, and flag potential candidates for community review.
-
----
-
-## ✨ Key Features
-
-### 1. 🎞️ Real SPHEREx Multi-Epoch Flipbook
-- **True Scientific Data**: Direct ingestion from NASA/IPAC IRSA SPHEREx DR1/QR3 data products.
-- **Epoch Alignment**: Groups observations into distinct survey visits (e.g. May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026).
-- **Astrometric Calibration**: Zodiacal light background subtracted and reprojected onto a shared north-up WCS grid for seamless blinking.
-- **Spectral Bands**: Toggle between Individual Detector Arrays (`array_1` to `array_6`), All Bands Combined (`stacked`), False-Color Infrared RGB, or specific narrow-band filters/indices (e.g., Methane absorption `filter_ch4_deep`, `ratio_ch4`).
-
-### 2. 🌗 Difference Imaging & Shift-and-Add Co-addition
-- **Bipolar Difference Maps**: Subtracts reference visits from comparison visits ($B - A$) using a bipolar colormap. Stationary stars cancel out, while moving objects cleanly display a positive/negative dipole.
-- **Shift-and-Add Search**: Co-adds frames along trial proper motion vectors to uncover faint sub-threshold moving targets.
-
-### 3. 🌈 102-Channel Absorption & Emission Spectra Graph
-- **Spectroscopic Breakdown**: Plots center-pixel brightness across all 102 SPHEREx spectral channels ($0.75\,\mu\text{m} - 5.00\,\mu\text{m}$).
-- **Cosmic Fingerprints**:
-  - **Absorption Dips**: Identifies cool molecular atmospheres and ice grains ($\text{H}_2\text{O}$ ice at $3.05\,\mu\text{m}$, $\text{CH}_4$ methane at $1.66$ & $3.30\,\mu\text{m}$, $\text{CO}_2$ ice at $4.27\,\mu\text{m}$, atmospheric vapor at $1.40$ & $1.90\,\mu\text{m}$, $\text{CO}$ at $4.67\,\mu\text{m}$).
-  - **Emission Peaks**: Highlights shock fronts, ionized gases, and hot dust (Brackett-$\alpha$ at $4.05\,\mu\text{m}$, Paschen-$\alpha$ at $1.875\,\mu\text{m}$, Brackett-$\gamma$ at $2.166\,\mu\text{m}$, PAH dust at $3.30$ & $3.40\,\mu\text{m}$, shocked $\text{H}_2$ at $2.12\,\mu\text{m}$).
-- **Kirchhoff Spectral Bars**: Dual visual reference bars depicting continuous rainbow absorption slits and glowing emission lines.
-
-### 4. 🔭 Deep Catalog Overlay (Gaia DR3 & AllWISE)
-- **Automated Cross-matching**: Real-time TAP queries against Gaia DR3 (`parallax`, `ruwe`) and AllWISE (`cc_flags`, `ext_flg`, `ph_qual`).
-- **Brown Dwarf Detection**: Highlights objects with infrared excess ($\text{W1} - \text{W2} \ge 1$) lacking optical Gaia counterparts.
-- **Artifact Flagging**: Flags diffraction spikes ($D$), persistence ($P$), halos ($H$), optical ghosts ($O$), and high astrometric noise ($\text{RUWE} \ge 1.4$) with one-click filtering.
-
-### 5. 🗺️ HiPS Sky Map & Citizen Science
-- **Multi-Wavelength Sky Map**: Seamlessly switch between Optical (**DSS2 Color** via NASA/STScI) and Infrared (**NASA SPHEREx DR1** $0.75\,\mu\text{m}$) progressive HEALPix tiles up to $20,000\%$ zoom.
-- **Community Discoveries**: Save new points of interest, flag moving candidates, and participate in community voting.
-- **MPC Export**: Export verified discoveries in Minor Planet Center (MPC) report format.
-
-### 6. 📐 Astronomical Ruler & Coordinate Grid
-- **Celestial Coordinates**: Interactive Right Ascension & Declination coordinate grid with orientation arrows ($\text{N} \uparrow, \text{E} \leftarrow$).
-- **Two-Point Measuring Tool**: Measure angular separations (arcseconds/arcminutes), position angles (East of North), pixel distances, and multi-epoch proper motion velocities.
-
-### 7. 🎨 Theming, Field Guide & Guided Demo
-- **Monkeytype-Style Themes**: Includes dark/light palettes (Deep Spruce, Retro Sunset, Ocean Coral, Midnight SPHEREx, Cyberpunk Neon).
-- **Interactive Guided Tour**: a 2-minute, 5-step demo in focus mode for beginners: spot a real streak that crosses only one SPHEREx picture, then compare and subtract the pictures. An optional advanced tour shows the tools on the cold brown dwarf **WISE 0855**.
-- **Field Guide**: Integrated newcomer tutorial explaining infrared bands, blinking strategies, and dipole signatures.
+- **Welcome page** — the story of how comparing pictures over time found Pluto and the coldest brown dwarf (WISE 0855), with a live flipbook of WISE 0855.
+- **Sky map** — pan and zoom the whole sky in visible light (DSS2 colour) or infrared (SPHEREx). Search saved projects, click a spot to start a new one, or press **Random patch** to explore somewhere new. The layer toggles show or hide user-made projects and the official targets separately.
+- **Flipbook viewer** — one picture per SPHEREx visit, lined up so stars stay still and moving things jump:
+  - **Split view** to put two visits side by side.
+  - **Difference image** to subtract one visit from another: still stars cancel out, a moving object shows as a dark/bright pair.
+  - **Combined** view (shift-and-add) with two drift sliders, to bring out faint moving objects.
+  - Detector bands 1–6, all bands combined, false colour, and narrow filters (e.g. methane) under **More kinds of light…**
+  - Field of view from 1′ to 30′, an RA/Dec grid, a scale bar, and a **ruler** that measures distance, direction and speed between visits.
+  - **Mark known stars** to overlay Gaia DR3 and AllWISE stars (brown dwarf candidates and known artefacts such as diffraction spikes are labelled, and can be hidden).
+  - **Spectrum chart** — the light at the centre spot split into SPHEREx's 102 colours (0.75–5.0 µm), with common absorption and emission lines marked.
+- **Flag and vote** — **Flag something here** marks a point and saves it for everyone. Others can press **I see it too**. You can delete your own flags.
+- **Guided demo** (2 minutes) — the **Guided demo** button walks beginners through spotting a real streak in the WISE 0855 pictures. **How to use** opens the field guide at any time.
+- **Themes** — 🎨 **Themes** in the header has dark and light colour themes.
 
 ---
 
-## 🏗️ System Architecture
+## 🚀 Install and run
 
-```
-MeowzaNasaSpaceApp2026/
-├── backend/
-│   ├── main.py                 # FastAPI application & REST endpoints
-│   ├── data_loader.py          # NASA IRSA TAP queries & cutout downloader
-│   ├── catalog_service.py      # Gaia DR3 & AllWISE cross-matching
-│   ├── image_processor.py      # WCS reprojection, contrast stretch, difference imaging
-│   ├── coordinates.py          # Astropy celestial coordinate conversion
-│   ├── database.py             # Supabase data operations (candidates, votes, projects)
-│   ├── supabase_client.py      # Supabase client: publishable key + anonymous sign-in (session in .supabase-session.json)
-│   ├── test_suite.py           # Backend unit and live test suite
-│   ├── requirements.txt        # Python backend dependencies
-│   ├── public.env              # Shared Supabase URL + public key (read directly; nothing to copy)
-│   └── .env                    # Optional, git-ignored private overrides (e.g. an owner's secret key)
-├── frontend/
-│   └── src/
-│       ├── pages/                 # Intro (welcome page at /), Home (sky map at /map) and Viewer (flipbook)
-│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SplitPlayer, DemoTour, DemoFocus, TutorialModal, SettingsModal, SpectrumChart, RulerOverlay, RulerPanel, Flags, MapCards, ProjectDialog
-│       ├── core/                  # Sky projection, sky picture drawing, bands, spectral features, astronomical ruler, projects store
-│       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
-├── logs/                          # One entry per code change
-├── docs/API.md                    # Backend API reference
-├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
-├── setup.sh, start.sh             # Environment setup and one-command startup (macOS / Linux / Git Bash)
-├── setup.bat, start.bat           # Windows Command Prompt / PowerShell setup and startup
-├── setup.ps1, start.ps1           # Windows PowerShell setup and startup scripts
-├── CLAUDE.md                      # Working rules for AI coding sessions
-└── README.md
-```
+### You need
 
-### Database & Storage (Supabase)
+- **Python 3.11 or newer** — [python.org](https://www.python.org/downloads/)
+- **Node.js 18 or newer** (with npm) — [nodejs.org](https://nodejs.org/)
+- **Git** — [git-scm.com](https://git-scm.com/)
+- An internet connection (pictures and star catalogues are fetched from NASA's archive)
 
-| Table / Bucket | Description |
-|---|---|
-| `sky_cutouts` + bucket `sky-cutouts` | Cached raw FITS cutouts (`.npy`), wavelength metadata, and IRSA URIs |
-| `sky_results` | Pre-rendered composite flipbook frames and difference maps |
-| `sky_positions` | Ingestion status and metadata per celestial coordinate |
-| `projects` | User-saved sky regions and official benchmark targets |
-| `candidates` & `candidate_votes` | Community discovery flags, coordinates, and upvotes |
+No accounts or keys are needed: the app connects to the team's shared database by itself.
 
-**Access (row-level security):** the app uses the public publishable key, so everyone shares one database. Each install signs in as a Supabase anonymous user. Everyone can read everything; you can add flags, votes and projects and only change or delete your own (`owner_id`). Rows from before 2026-11-15 have no owner and are read-only to the public. The cache tables and the `sky-cutouts` bucket are write-once: anyone can read and add to them (5 MB per file, `.npy` and PNG only), nobody can overwrite or delete through the public key. One vote per user per flag, at most 300 new flags and 300 new projects per user a day, and size limits on every text and JSON column. See `supabase/migrations/20261115221500_publishable_key_access.sql` and `20261115224500_harden_public_access.sql`.
-
----
-
-## 📋 Prerequisites
-
-Before installing, ensure your system has the following installed:
-
-1. **Python**: Version `3.9` or higher ([python.org](https://www.python.org/downloads/))
-2. **Node.js**: Version `18.0` or higher with `npm` ([nodejs.org](https://nodejs.org/))
-3. **Git**: Installed and in your system `PATH` ([git-scm.com](https://git-scm.com/))
-4. **Nothing else**: the shared Supabase project's URL and public key are already in `backend/public.env`
-
----
-
-## 🚀 Installation & Setup Guide
-
-### 1. Clone the Repository
+### 1. Download
 
 ```bash
 git clone https://github.com/Tantham-Tanthuvanit/MeowzaNasaSpaceApp2026.git
 cd MeowzaNasaSpaceApp2026
 ```
 
-### 2. Supabase settings (nothing to do)
+### 2. Set up (once)
 
-The backend reads `backend/public.env`, which has the shared project's URL and publishable key (`sb_publishable_...`). That key is public on purpose; row-level security decides what it can do.
-
-On first start the backend signs in as an anonymous user and saves the session in `backend/.supabase-session.json`. Keep that file: it is how the app knows which flags and projects are yours. Delete it and you start as a new user.
-
-**What the database allows anyone:** read everything; add flags, votes and projects (at most 300 flags and 300 projects a day, one vote per flag) and change or delete only their own; add to the shared picture cache, never overwrite or delete it.
-
-> [!CAUTION]
-> Project owners can put `SUPABASE_SECRET_KEY=sb_secret_...` in `backend/.env` (git-ignored; it wins over `public.env`). The secret key bypasses row-level security. **Never put it in `public.env` or commit it.**
-
----
-
-### 3. Automated One-Click Setup
-
-The project includes automated setup scripts that verify Python and Node environments, install all backend packages in a local virtual environment (`backend/venv`), and install frontend npm dependencies.
-
-**Windows (Command Prompt / PowerShell):**
-```cmd
-.\setup.bat
-```
-*(or run `powershell -ExecutionPolicy Bypass -File .\setup.ps1`)*
-
-**macOS / Linux / Windows (Git Bash):**
+**macOS / Linux / Git Bash:**
 ```bash
-chmod +x setup.sh start.sh
 ./setup.sh
 ```
 
----
-
-### 4. Launch the Application
-
-Start both the FastAPI backend and React + Vite frontend concurrently with one command:
-
-**Windows:**
+**Windows (Command Prompt or PowerShell):**
 ```cmd
-.\start.bat
+.\setup.bat
 ```
-*(or `powershell -ExecutionPolicy Bypass -File .\start.ps1`)*
+
+This installs everything the app needs inside the project folder. It takes a few minutes the first time.
+
+### 3. Start
 
 **macOS / Linux / Git Bash:**
 ```bash
 ./start.sh
 ```
 
-Once running, access the services:
-- **Web App**: [http://localhost:5173](http://localhost:5173)
-- **FastAPI Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **API Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+**Windows:**
+```cmd
+.\start.bat
+```
 
-Press `Ctrl + C` in the terminal to cleanly terminate both processes.
+Then open **[http://localhost:5173](http://localhost:5173)** in your browser. Press `Ctrl + C` in the terminal to stop.
+
+> [!NOTE]
+> On first start the app creates `backend/.supabase-session.json`. Keep it: it is how SkyFlip knows which flags and projects are yours. If you delete it you start over as a new user.
 
 ---
 
-### 5. Manual Setup (Alternative)
+## 🔭 Try it
 
-If you prefer running services in separate terminals:
-
-#### Terminal 1 — Backend (FastAPI):
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt pytest pytest-asyncio
-
-# Run backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-#### Terminal 2 — Frontend (React + Vite):
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start Vite dev server
-npm run dev
-```
-
----
-
-## 🔭 Benchmark Targets & Testing
-
-To test the application immediately without waiting for IRSA background downloads, use pre-cached celestial benchmarks:
-
-| Target | Right Ascension | Declination | Characteristics |
+| Target | RA | Dec | What's ready |
 |---|---|---|---|
-| **WISE 0855** | `133.795129` (`08h55m10.83s`) | `-7.245147` (`-07°14′42.5″`) | Sub-zero brown dwarf with high proper motion. Fully pre-cached (flipbook, difference images, 102-channel spectrum, catalog overlay). |
-| **Proxima Centauri** | `217.429167` (`14h29m43.00s`) | `-62.679444` (`-62°40′46.0″`) | Closest stellar neighbor to Sol. High proper motion flipbook available. |
+| **WISE 0855** (cold brown dwarf, moves fast) | `133.795129` | `-7.245147` | Everything is saved already, so it opens in about a second. |
+| **Proxima Centauri** (nearest star to the Sun) | `217.429167` | `-62.679444` | The flipbook is saved; the spectrum still has to download. |
 
-#### Direct URL Deep Linking
-You can jump directly into any celestial coordinate via URL hash parameters:
+Open any spot straight from a link (decimal degrees or `08h55m10.8s` style both work; `fov` is the width in arcminutes, default 5):
+
 ```text
 http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10
 ```
 
----
+**A new spot takes a while the first time**, because every picture is downloaded from NASA once and then saved for everyone. The viewer shows "N of M pictures are here" while it waits:
 
-## 🧪 Running Test Suites
-
-### Backend Unit & Integration Tests
-
-```bash
-# Offline unit tests
-cd backend
-python -m pytest test_suite.py
-
-# Live integration tests (verifies active IRSA & Supabase connectivity)
-LIVE_TESTS=1 python -m pytest test_suite.py
-```
-
-### Frontend Tests & Production Build
-
-```bash
-cd frontend
-
-# Run frontend unit tests
-npx vitest run
-
-# Test production production build
-npm run build
-```
+| What you open | First time | After that |
+|---|---|---|
+| Flipbook, one band (the default) | under a minute | instant |
+| All bands combined | a few minutes | instant |
+| Spectrum or a narrow filter | 10–15 minutes or more | instant |
+| Mark known stars | about 30 seconds | about 30 seconds |
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## ⌨️ Keyboard shortcuts
+
+In the viewer:
 
 | Key | Action |
 |---|---|
-| `Space` | Play / Pause flipbook animation |
-| `←` / `→` | Step backward / forward one epoch visit |
-| `1` – `6` | Quick-switch SPHEREx detector array (`Band 1` to `Band 6`) |
-| `D` | Toggle Difference Image view ($B - A$) |
-| `S` | Toggle Side-by-Side Split view |
-| `C` | Toggle Shift-and-Add Combined view |
-| `G` | Toggle RA & Dec Coordinate Grid overlay |
-| `M` | Activate Astronomical Ruler & Measuring Tool |
-| `Esc` | Close active modal, tool, or viewer overlay |
+| `Space` | Play / pause the flipbook |
+| `←` / `→` | Previous / next visit |
+| `G` | Show / hide the RA & Dec grid |
+| `M` | Turn the ruler on / off |
+| `C` | Switch colours between Inferno and grayscale |
+| `Esc` | Close the open window or menu |
 
 ---
 
-## 📜 Data Credits
+## 🛠️ For developers
 
-- **SPHEREx Mission**: "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration." Data served by the [NASA/IPAC Infrared Science Archive (IRSA)](https://irsa.ipac.caltech.edu/).
+Working rules for the team (and AI assistants) are in [`CLAUDE.md`](CLAUDE.md): real data only, a `logs/` entry for every code change, and keeping this README up to date. The backend API is documented in [`docs/API.md`](docs/API.md) and at [http://localhost:8000/docs](http://localhost:8000/docs) while running.
+
+### Manual setup (two terminals)
+
+```bash
+# Terminal 1 — backend (FastAPI, http://localhost:8000)
+cd backend
+python3 -m venv venv               # Windows: python -m venv venv
+source venv/bin/activate            # Windows: .\venv\Scripts\activate
+pip install -r requirements.txt pytest pytest-asyncio
+uvicorn main:app --port 8000 --reload
+
+# Terminal 2 — frontend (Vite, http://localhost:5173)
+cd frontend
+npm install
+npm run dev
+```
+
+`./start.sh` runs the backend **without** auto-reload: restart it after a backend change and check `curl localhost:8000/api/health` (expect `"version":"2.0.0"`). An old process left on port 8000 has caused wrong test results before.
+
+### Tests
+
+```bash
+cd backend && ./venv/bin/python -m pytest test_suite.py     # offline unit tests (Windows: .\venv\Scripts\python.exe)
+cd frontend && npx vitest run && npm run build              # needs Node 22.12+ (Vitest 5)
+```
+
+Live tests against IRSA and Supabase: `LIVE_TESTS=1 ./venv/bin/python -m pytest test_suite.py`. They need an owner's `SUPABASE_SECRET_KEY` in `backend/.env`, because with the public key one install is one voter. Delete any test flags, votes or projects you create.
+
+### Project layout
+
+```
+backend/
+  main.py               FastAPI app and endpoints
+  data_loader.py        IRSA queries, cutout download, caching, spectrum
+  image_processor.py    reprojection, stretch, difference images, shift-and-add
+  catalog_service.py    Gaia DR3 + AllWISE overlay (IRSA TAP)
+  coordinates.py        RA/Dec parsing (sexagesimal or decimal)
+  database.py           candidates, votes, projects
+  supabase_client.py    publishable key + anonymous sign-in
+  public.env            shared Supabase URL + publishable key (read directly)
+  test_suite.py
+frontend/src/
+  pages/                Intro (#/), Home sky map (#/map), Viewer (#/viewer)
+  components/           FlipPlayer, SplitPlayer, SkyMap, DemoTour, SpectrumChart, Ruler*, ...
+  core/                 sky projection, bands, spectral features, ruler maths, projects store
+  services/api.js       backend calls; poll() handles the 202 "still downloading" answers
+supabase/migrations/    SQL for tables and row-level security
+docs/                   API reference and open team decisions
+logs/                   one entry per code change
+```
+
+### How the data flows
+
+- `/api/sky-cutout`, `/api/spectrum` and the filters ask IRSA which SPHEREx DR1/QR3 images cover a position, download cutouts in the background (4 at a time), subtract the zodiacal light and reproject them to one north-up grid. Images are grouped into survey visits; each flipbook frame is one visit.
+- While downloading, these endpoints answer **202** with `{cached_images, total_images}`; the frontend polls.
+- Cutouts are cached in Supabase Storage (bucket `sky-cutouts`, table `sky_cutouts`); finished responses in `sky_results`. If IRSA or Supabase fails, the API returns an error — there is no fallback data.
+- `/api/difference-image?diff_scale=noise` scales to the noise instead of the strongest change (the guided demo uses it). `/api/candidates/export-mpc` exports flags in MPC format.
+
+### Database and access (Supabase)
+
+| Table / bucket | Holds |
+|---|---|
+| `sky_cutouts` + bucket `sky-cutouts` | cached cutouts (`.npy`), wavelengths, IRSA URIs |
+| `sky_results` | finished flipbook frames and difference images |
+| `sky_positions` | download status per position |
+| `projects` | saved sky spots and official targets |
+| `candidates`, `candidate_votes` | flags and votes |
+
+The app uses the **public publishable key**, so row-level security is the only protection. Each install signs in as an anonymous Supabase user. Anyone can read everything and add flags, votes and projects, but only change or delete their own (`owner_id`); rows from before 2026-11-15 have no owner and are read-only. The cache is write-once (5 MB per file, `.npy` and PNG only): backend writes must insert-and-ignore-duplicates. Limits: one vote per user per flag, 300 flags and 300 projects per user a day, size limits on text and JSON columns. See `supabase/migrations/20261115221500_publishable_key_access.sql` and `20261115224500_harden_public_access.sql`. Any new table, column or storage use needs matching policies. There is one live database and no staging copy.
+
+> [!CAUTION]
+> Owners can put `SUPABASE_SECRET_KEY=sb_secret_...` in `backend/.env` (git-ignored; it overrides `public.env`). The secret key bypasses row-level security. **Never put it in `public.env` or commit it**, and never commit `backend/.supabase-session.json`.
+
+### Known issues
+
+- `frontend/node_modules/` and `frontend/dist/` are tracked in git (see issue #12), so they show as modified after `npm install` or a build. Leave them out of commits.
+- `setup.sh` / `setup.ps1` accept Python 3.9+, but `reproject==0.21.0` and recent `astropy` need **3.11+**, so setup fails at `pip install` on 3.9–3.10.
+- The in-app shortcut list (🎨 Themes → Keyboard & Controls) also lists `1`–`6` and `Shift + Click`; neither is implemented.
+- To make the guided demo show an asteroid instead of the satellite streak, fill in `DEMO_ASTEROID` in `frontend/src/components/DemoTour.jsx`. The advanced tour is at `#/viewer?demo=a1`.
+- `logs/CHANGELOG.md`, `promps/` and `frontend/FIGMA_PREP_GUIDE.md` describe the first prototype (simulated data, Flask) and are out of date.
+
+---
+
+## 📜 Data credits
+
+- **SPHEREx**: "This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration." Data served by the [NASA/IPAC Infrared Science Archive (IRSA)](https://irsa.ipac.caltech.edu/).
 - **Gaia DR3**: European Space Agency (ESA) Gaia mission, DPAC ([CC BY-NC 3.0 IGO](https://www.cosmos.esa.int/web/gaia-users/license)).
 - **AllWISE**: Wide-field Infrared Survey Explorer, a joint project of UCLA and JPL/Caltech, funded by NASA.
 - **Digitized Sky Survey (DSS2)**: Based on photographic data obtained using the UK Schmidt Telescope and the Oschin Schmidt Telescope on Palomar Mountain, funded by NASA and STScI.
