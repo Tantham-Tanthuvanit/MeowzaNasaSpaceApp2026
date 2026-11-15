@@ -13,7 +13,7 @@ import datetime
 import math
 from typing import Any, Dict, List, Optional
 
-from supabase_client import get_client
+from supabase_client import current_user_id, get_client
 
 CANDIDATE_FIELDS = ("ra_deg", "dec_deg", "ra_hms", "dec_dms", "pixel_x", "pixel_y", "category", "confidence",
                     "notes", "observer_callsign", "band_group", "epoch_label")
@@ -40,6 +40,16 @@ def _unpack_owner(row: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _me(voter_id: Optional[str]) -> Optional[str]:
+    """Who is asking. With the publishable key this is the install's signed-in user id, not the browser's
+    voter_id: the database only accepts votes whose voter_id is the signed-in user (one vote per user),
+    and only lets owners delete. With the secret key there is no user, so the browser's id is used."""
+    clean = (voter_id or "").strip()
+    if not clean:
+        return None
+    return current_user_id() or clean
+
+
 def _with_upvotes(row: Dict[str, Any]) -> Dict[str, Any]:
     """Turn PostgREST's embedded vote count into the API's `upvotes` field."""
     row["upvotes"] = (row.pop("candidate_votes", None) or [{"count": 0}])[0]["count"]
@@ -52,7 +62,7 @@ def _with_upvotes(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def add_candidate(data: Dict[str, Any]) -> Dict[str, Any]:
     """Store a newly flagged candidate discovery."""
-    voter_id = (data.get("voter_id") or "").strip() or None
+    voter_id = _me(data.get("voter_id"))
     row = {k: data[k] for k in CANDIDATE_FIELDS if data.get(k) is not None}
     row["epoch_label"] = _pack_epoch_owner(row.get("epoch_label", ""), voter_id)
     created = get_client().table("candidates").insert(row).execute().data[0]
@@ -72,6 +82,7 @@ def get_candidates(
     """Query candidates with optional category or coordinate proximity filters.
     With voter_id, each candidate also says whether that voter has voted for it (user_voted)
     and owns it (user_owned)."""
+    voter_id = _me(voter_id)
     query = get_client().table("candidates").select("*, candidate_votes(count)")
     if category and category != "all":
         query = query.eq("category", category)
@@ -108,6 +119,7 @@ def get_candidate_by_id(candidate_id: int, voter_id: Optional[str] = None) -> Op
             .eq("id", candidate_id).execute().data)
     if not rows:
         return None
+    voter_id = _me(voter_id)
     cand = rows[0]
     owner_id = _unpack_owner(cand)
     cand["user_owned"] = bool(voter_id and owner_id and owner_id == voter_id)
@@ -129,6 +141,7 @@ def vote_candidate(
     A voter counts once per candidate: voting again changes nothing (the database enforces it)."""
     if get_candidate_by_id(candidate_id) is None:
         return None
+    browser_id, voter_id = voter_id, _me(voter_id)
     votes = get_client().table("candidate_votes")
     if vote_type == "unvote":
         votes.delete().eq("candidate_id", candidate_id).eq("voter_id", voter_id).execute()
@@ -137,7 +150,7 @@ def vote_candidate(
             "candidate_id": candidate_id, "voter_id": voter_id, "vote_type": vote_type,
             "voter_callsign": voter_callsign, "comment": comment,
         }, on_conflict="candidate_id,voter_id", ignore_duplicates=True).execute()
-    cand = get_candidate_by_id(candidate_id, voter_id=voter_id)
+    cand = get_candidate_by_id(candidate_id, voter_id=browser_id)
     cand["user_voted"] = vote_type != "unvote"
     return cand
 
@@ -149,11 +162,12 @@ def delete_candidate(candidate_id: int, voter_id: Optional[str] = None) -> str:
     if not rows:
         return "not_found"
     owner_id = _unpack_owner(rows[0])
-    clean_voter = (voter_id or "").strip()
+    clean_voter = _me(voter_id) or ""
     if not clean_voter or not owner_id or owner_id != clean_voter:
         return "forbidden"
-    get_client().table("candidates").delete().eq("id", candidate_id).execute()
-    return "deleted"
+    # With the publishable key, row-level security also checks that this install made the flag.
+    deleted = get_client().table("candidates").delete().eq("id", candidate_id).execute().data
+    return "deleted" if deleted else "forbidden"
 
 
 def export_mpc_dossier() -> str:
@@ -199,14 +213,25 @@ def add_project(data: Dict[str, Any]) -> Dict[str, Any]:
     return get_client().table("projects").insert(row).execute().data[0]
 
 
+def _project_exists(project_id: int) -> bool:
+    return bool(get_client().table("projects").select("id").eq("id", project_id).execute().data)
+
+
 def update_project(project_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Returns the updated project, None if there is none with that id.
+    Raises PermissionError when row-level security refuses (someone else saved it)."""
     row = {k: data[k] for k in PROJECT_FIELDS if data.get(k) is not None}
     if not row:
         rows = get_client().table("projects").select("*").eq("id", project_id).execute().data
     else:
         rows = get_client().table("projects").update(row).eq("id", project_id).execute().data
+        if not rows and _project_exists(project_id):
+            raise PermissionError("Only the person who saved this project can change it")
     return rows[0] if rows else None
 
 
-def delete_project(project_id: int) -> bool:
-    return bool(get_client().table("projects").delete().eq("id", project_id).execute().data)
+def delete_project(project_id: int) -> str:
+    """Returns 'deleted', 'not_found', or 'forbidden' (someone else saved it)."""
+    if get_client().table("projects").delete().eq("id", project_id).execute().data:
+        return "deleted"
+    return "forbidden" if _project_exists(project_id) else "not_found"

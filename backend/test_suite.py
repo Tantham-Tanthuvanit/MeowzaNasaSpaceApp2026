@@ -299,6 +299,35 @@ class TestApiMapping(unittest.TestCase):
             res_missing = self.client.delete("/api/candidates/99", params={"voter_id": "owner-user"})
         self.assertEqual(res_missing.status_code, 404)
 
+    def test_project_owned_by_someone_else_is_403(self):
+        with mock.patch.object(main.database, "delete_project", return_value="forbidden"):
+            self.assertEqual(self.client.delete("/api/projects/7").status_code, 403)
+        with mock.patch.object(main.database, "delete_project", return_value="not_found"):
+            self.assertEqual(self.client.delete("/api/projects/7").status_code, 404)
+        with mock.patch.object(main.database, "update_project", side_effect=PermissionError("not yours")):
+            res = self.client.patch("/api/projects/7", json={"name": "x"})
+        self.assertEqual((res.status_code, res.json()["detail"]), (403, "not yours"))
+
+
+class TestSessionStorage(unittest.TestCase):
+    """The anonymous Supabase session survives a restart in a local file."""
+
+    def test_file_storage_round_trip(self):
+        import tempfile
+        import supabase_client
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "session.json")
+            store = supabase_client.FileSessionStorage(path)
+            self.assertIsNone(store.get_item("k"))
+            store.set_item("k", "v1")
+            store.set_item("k", "v2")
+            self.assertEqual(supabase_client.FileSessionStorage(path).get_item("k"), "v2")
+            store.remove_item("k")
+            self.assertIsNone(store.get_item("k"))
+            with open(path, "w") as f:
+                f.write("not json")
+            self.assertIsNone(store.get_item("k"))  # a broken file means "no session", not a crash
+
 
 @unittest.skipUnless(LIVE, "set LIVE_TESTS=1 to query IRSA and Supabase")
 class TestLive(unittest.TestCase):

@@ -384,6 +384,8 @@ def create_project(project: ProjectPayload):
 def update_project(project_id: int, changes: ProjectUpdate):
     try:
         updated = database.update_project(project_id, changes.model_dump())
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to update project: {str(e)}")
     if not updated:
@@ -393,8 +395,11 @@ def update_project(project_id: int, changes: ProjectUpdate):
 
 @app.delete("/api/projects/{project_id}")
 def delete_project(project_id: int):
-    if not database.delete_project(project_id):
+    result = database.delete_project(project_id)
+    if result == "not_found":
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+    if result == "forbidden":
+        raise HTTPException(status_code=403, detail="Only the person who saved this project can delete it")
     return {"status": "deleted", "id": project_id}
 
 
