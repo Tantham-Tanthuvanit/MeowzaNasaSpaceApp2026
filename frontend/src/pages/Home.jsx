@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import SkyMap from '../components/SkyMap';
 import ProjectDialog from '../components/ProjectDialog';
 import { ProjectCard, PinCard, CoordInfo } from '../components/MapCards';
-import { DEMO_TARGET } from '../components/DemoTour';
+import { DEMO_HREF } from '../components/DemoTour';
 import { BookIcon, CompassIcon, ShuffleIcon } from '../components/icons';
 import { useProjects, isUserProject, isOfficialProject } from '../core/projects';
 import { MARKER_COLORS } from '../core/targets';
@@ -15,7 +15,7 @@ const centredOn = (p) => ({ rot: p.ra, tilt: p.dec, zoom: 1 });
 export default function Home({ onOpenTutorial }) {
   const { projects, loaded, error, addProject, updateProject, deleteProject } = useProjects();
   const [params] = useSearchParams();
-  const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
+  const demoHref = DEMO_HREF();
 
   // Toggle for user-created projects and official benchmark targets
   const [showUserProjects, setShowUserProjects] = useState(() => {
@@ -226,7 +226,7 @@ export default function Home({ onOpenTutorial }) {
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
-              Try Guided Demo
+              Take the 2-minute demo
             </Link>
           </div>
         </div>

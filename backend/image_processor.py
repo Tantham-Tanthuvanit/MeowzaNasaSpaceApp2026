@@ -136,26 +136,47 @@ def create_false_color_composite(
     return (rgb * 255).astype(np.uint8)
 
 
+NOISE_SCALE_SIGMA = 6.0  # "noise" difference scale: full colour at 6 standard deviations
+
+
+def noise_level(arr: np.ndarray) -> Tuple[float, float]:
+    """(median, robust standard deviation from the median absolute deviation) of the finite pixels."""
+    vals = arr[np.isfinite(arr)]
+    if vals.size == 0:
+        return 0.0, 0.0
+    med = float(np.median(vals))
+    return med, float(1.4826 * np.median(np.abs(vals - med)))
+
+
 def array_to_png_bytes(
     arr: np.ndarray,
     is_difference: bool = False,
     colormap: str = "inferno",
-    stretch_type: str = "zscale"
+    stretch_type: str = "zscale",
+    diff_scale: str = "peak"
 ) -> bytes:
     """
     Converts a 2D or 3D numpy array into high-quality PNG image bytes.
     If is_difference is True, renders with a balanced bipolar color scale
     where zero flux is neutral and positive/negative residuals are colored.
+    diff_scale (difference images only):
+      "peak":  full colour at the 99.5th percentile of |difference| (the default). Bright
+               star leftovers set the scale, so faint changes fade into the grey.
+      "noise": the median level is grey and full colour is NOISE_SCALE_SIGMA times the noise
+               (robust standard deviation), so faint but real changes stand out.
     """
     if arr.ndim == 3 and arr.shape[2] == 3:
         # Already an RGB array
         img = Image.fromarray(arr.astype(np.uint8), mode="RGB")
     elif is_difference:
-        # Difference image: center at 0
-        diff_max = float(np.percentile(np.abs(arr), 99.5))
+        if diff_scale == "noise":
+            centre, diff_max = noise_level(arr)
+            diff_max *= NOISE_SCALE_SIGMA
+        else:
+            centre, diff_max = 0.0, float(np.percentile(np.abs(arr), 99.5))
         if diff_max <= 0:
             diff_max = 1e-4
-        norm = np.clip((arr + diff_max) / (2.0 * diff_max), 0.0, 1.0)
+        norm = np.clip((arr - centre + diff_max) / (2.0 * diff_max), 0.0, 1.0)
         # Apply coolwarm colormap (blue = faded/disappeared, red = appeared/brightened)
         cmap = mpl.colormaps.get("coolwarm", mpl.colormaps["viridis"])
         colored = (cmap(norm)[:, :, :3] * 255).astype(np.uint8)

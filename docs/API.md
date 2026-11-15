@@ -327,6 +327,7 @@ The difference between two specific visits (late minus early). `/api/sky-cutout`
 | `late_idx` | int | `1` | Comparison visit |
 | `stretch` | string | `zscale` | Accepted, but difference pictures always use the symmetric coolwarm scale |
 | `colormap` | string | `inferno` | Accepted, same note |
+| `diff_scale` | string | `peak` | `peak`: full colour at the strongest 0.5 % of changes (the same pictures as `/api/sky-cutout`). `noise`: the median is grey and full colour is 6× the noise (robust standard deviation), so faint changes such as a satellite streak show; star leftovers look stronger too. Anything else is `422` |
 
 Indices refer to the **4 most recent visits** (0 = oldest of those) and are clamped to the valid range. `early_idx` may be larger than `late_idx` (you get the reverse difference).
 
@@ -341,7 +342,8 @@ curl -s "localhost:8000/api/difference-image?ra=133.795129&dec=-7.245147&band_gr
   "difference_image_url": "https://.../diff_0_3.png?token=...",
   "pair": "0_3",
   "band_group": "array_6",
-  "fov_arcmin": 5.0
+  "fov_arcmin": 5.0,
+  "diff_scale": "peak"
 }
 ```
 

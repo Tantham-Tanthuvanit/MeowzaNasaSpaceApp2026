@@ -165,7 +165,8 @@ def get_difference_image(
     early_idx: int = Query(0, description="Reference early epoch index"),
     late_idx: int = Query(1, description="Comparison late epoch index"),
     stretch: str = Query("zscale", description="Contrast stretch: 'zscale', 'asinh', 'linear', 'log'"),
-    colormap: str = Query("inferno", description="Display colormap: 'inferno', 'viridis', 'magma', 'grayscale'")
+    colormap: str = Query("inferno", description="Display colormap: 'inferno', 'viridis', 'magma', 'grayscale'"),
+    diff_scale: str = Query("peak", pattern="^(peak|noise)$", description="'peak' (default): colour scale set by the strongest changes. 'noise': scaled to the noise, so faint changes such as a satellite streak show"),
 ):
     """
     Computes scientific difference imaging between two specified survey visits
@@ -173,7 +174,7 @@ def get_difference_image(
     """
     return sky_call(lambda: loader.get_difference_image(
         ra_input=ra, dec_input=dec, fov_arcmin=fov, band_group=band_group,
-        early_idx=early_idx, late_idx=late_idx, stretch=stretch, colormap=colormap
+        early_idx=early_idx, late_idx=late_idx, stretch=stretch, colormap=colormap, diff_scale=diff_scale
     ))
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookIcon, CloseIcon, CompassIcon, NextIcon, PrevIcon } from './icons';
-import { DEMO_TARGET } from './DemoTour';
+import { DEMO_HREF } from './DemoTour';
 
 const TABS = [
   { id: 'welcome', label: '1. What is SkyFlip?' },
@@ -12,7 +12,7 @@ const TABS = [
 export default function TutorialModal({ onClose }) {
   const [tab, setTab] = useState('welcome');
   const tabIndex = TABS.findIndex((t) => t.id === tab);
-  const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
+  const demoHref = DEMO_HREF();
 
   useEffect(() => {
     const onKey = (e) => {
@@ -243,7 +243,7 @@ export default function TutorialModal({ onClose }) {
               className="flex h-10 items-center gap-1.5 rounded-full border border-[#FF8A3D] bg-[#FFF5EB] px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#FFE6CE] dark:bg-[#2A1E17] dark:hover:bg-[#38271C]"
             >
               <CompassIcon />
-              Try 5-step Guided Demo (WISE 0855)
+              Take the 2-minute demo
             </Link>
             <button type="button" onClick={onClose} className="btn-primary h-10 px-5 text-sm">
               Got it, start exploring

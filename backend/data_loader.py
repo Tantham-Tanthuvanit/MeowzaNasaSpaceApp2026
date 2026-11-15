@@ -241,7 +241,7 @@ def build_spectrum(cutouts: List[Dict[str, Any]], centers: List[float]) -> Dict[
     }
 
 
-def render_png(arr: np.ndarray, stretch: str, colormap: str, is_difference: bool = False) -> bytes:
+def render_png(arr: np.ndarray, stretch: str, colormap: str, is_difference: bool = False, diff_scale: str = "peak") -> bytes:
     """Flip to north-up screen orientation, upscale to the display size, and encode."""
     if arr.ndim == 2:
         fill = np.nanmedian(arr) if np.isfinite(arr).any() else 0.0
@@ -249,7 +249,7 @@ def render_png(arr: np.ndarray, stretch: str, colormap: str, is_difference: bool
     arr = np.flipud(arr)  # FITS row 0 is south; PNG row 0 is the top (north)
     f = DISPLAY_DIM / arr.shape[0]
     arr = ndi.zoom(arr, (f, f) if arr.ndim == 2 else (f, f, 1), order=0)
-    return image_processor.array_to_png_bytes(arr, is_difference=is_difference, colormap=colormap, stretch_type=stretch)
+    return image_processor.array_to_png_bytes(arr, is_difference=is_difference, colormap=colormap, stretch_type=stretch, diff_scale=diff_scale)
 
 
 # ---------------------------------------------------------------------------
@@ -620,10 +620,14 @@ class SPHERExDataLoader:
         }
 
     def get_difference_image(self, ra_input: str, dec_input: str, fov_arcmin: float = 5.0, band_group: str = "stacked",
-                             early_idx: int = 0, late_idx: int = 1, stretch: str = "zscale", colormap: str = "inferno") -> Dict[str, Any]:
-        """Scientific difference image between two user-specified survey visits."""
+                             early_idx: int = 0, late_idx: int = 1, stretch: str = "zscale", colormap: str = "inferno",
+                             diff_scale: str = "peak") -> Dict[str, Any]:
+        """Scientific difference image between two user-specified survey visits.
+        diff_scale: 'peak' (default) or 'noise' (scaled to the noise, so faint changes show; see array_to_png_bytes)."""
         if band_group not in WAVELENGTH_FILTERS:
             raise ValueError(f"Unknown band_group '{band_group}'")
+        if diff_scale not in ("peak", "noise"):
+            raise ValueError("diff_scale must be 'peak' or 'noise'")
         coord, pos = self._locate(ra_input, dec_input, fov_arcmin)
         frames = self._frames(pos, band_group, 4)
         if len(frames) < 2:
@@ -639,8 +643,10 @@ class SPHERExDataLoader:
             raise NoData("Difference imaging is not supported for composite RGB bands.")
 
         diff = image_processor.compute_difference_image(frames[e_idx]["array"], frames[l_idx]["array"])
-        key = result_key(pos["position_key"], "diff", band_group, stretch, colormap, e_idx, l_idx)
-        diff_png = render_png(diff, stretch, colormap, is_difference=True)
+        # The noise scale gets its own key, so the default pictures (and their cache) are unchanged.
+        key_parts = (pos["position_key"], "diff", band_group, stretch, colormap, e_idx, l_idx) + (("noise",) if diff_scale == "noise" else ())
+        key = result_key(*key_parts)
+        diff_png = render_png(diff, stretch, colormap, is_difference=True, diff_scale=diff_scale)
         diff_path = self._upload_png(f"results/{key}/diff_{e_idx}_{l_idx}.png", diff_png)
         urls = self._signed_urls([diff_path])
         return {
@@ -649,7 +655,8 @@ class SPHERExDataLoader:
             "difference_image_url": urls.get(diff_path),
             "pair": f"{e_idx}_{l_idx}",
             "band_group": band_group,
-            "fov_arcmin": float(fov_arcmin)
+            "fov_arcmin": float(fov_arcmin),
+            "diff_scale": diff_scale,
         }
 
     def get_spectrum(self, ra_input: str, dec_input: str, fov_arcmin: float = 5.0) -> Dict[str, Any]:

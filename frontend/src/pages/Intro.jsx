@@ -6,14 +6,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFrames } from '../services/api';
-import { DEMO_TARGET } from '../components/DemoTour';
+import { DEMO_HREF, DEMO_TARGET } from '../components/DemoTour';
 import { fmtDate } from '../components/FlipPlayer';
 import { PauseIcon, PlayIcon } from '../components/icons';
 import { BANDS } from '../core/targets';
 import { OFFICIAL_PROJECT_NAMES, useProjects } from '../core/projects';
 
 const CHALLENGE_URL = 'https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=details';
-const DEMO_HREF = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
 const BLINK_MS = 750;
 
 // What to watch for at each of the challenge's five test targets.
@@ -231,8 +230,8 @@ export default function Intro() {
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link to="/map" className="btn-primary h-12 px-6 text-[16px]">Open the sky map</Link>
-              <Link to={DEMO_HREF} className="btn h-12 border border-white/40 px-6 text-[16px] text-white hover:border-white">
-                Take the guided demo
+              <Link to={DEMO_HREF()} className="btn h-12 border border-white/40 px-6 text-[16px] text-white hover:border-white">
+                Take the 2-minute demo
               </Link>
             </div>
           </div>

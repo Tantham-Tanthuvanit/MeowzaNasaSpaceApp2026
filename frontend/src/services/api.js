@@ -86,9 +86,13 @@ export const fetchShiftAndAdd = (ra, dec, band, shiftX, shiftY, fov = 5.0, color
 };
 
 // Difference image between two chosen survey visits (lateIdx minus earlyIdx).
-export const fetchDifferenceImage = (ra, dec, band = 'stacked', earlyIdx = 0, lateIdx = 1, fov = 5.0, colormap = 'inferno') => {
+// diffScale 'peak' (default): colours scaled to the strongest change. 'noise': scaled to the
+// noise, so faint changes (like a satellite streak) show; bright star leftovers then look strong too.
+export const fetchDifferenceImage = (ra, dec, band = 'stacked', earlyIdx = 0, lateIdx = 1, fov = 5.0, colormap = 'inferno', diffScale = 'peak') => {
   const cmap = typeof colormap === 'string' ? colormap : 'inferno';
-  return poll(`/api/difference-image?${spot(ra, dec, { band_group: band, stretch: 'zscale', colormap: cmap, early_idx: earlyIdx, late_idx: lateIdx, fov })}`);
+  const more = { band_group: band, stretch: 'zscale', colormap: cmap, early_idx: earlyIdx, late_idx: lateIdx, fov };
+  if (diffScale === 'noise') more.diff_scale = 'noise';
+  return poll(`/api/difference-image?${spot(ra, dec, more)}`);
 };
 
 // Every kind of light the backend can show: { id: { name, category, description } }.
