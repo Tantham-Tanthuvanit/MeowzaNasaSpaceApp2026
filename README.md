@@ -15,7 +15,6 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 
 ## 📑 Table of Contents
 
-<<<<<<< HEAD
 - [Overview](#-overview)
 - [Key Features](#-key-features)
 - [System Architecture](#-system-architecture)
@@ -30,7 +29,7 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 - [Running Test Suites](#-running-test-suites)
 - [Keyboard Shortcuts](#-keyboard-shortcuts)
 - [Data Credits](#-data-credits)
-=======
+
 1. **Real SPHEREx Pictures, One per Survey Visit**
    - For any RA/Dec, the backend asks the NASA/IPAC Infrared Science Archive (IRSA) which SPHEREx DR1/QR3 spectral images cover it, then downloads cutouts in the background.
    - Images are grouped into survey visits (for WISE 0855: May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026). Each flipbook frame is one visit.
