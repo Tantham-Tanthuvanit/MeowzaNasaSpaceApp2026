@@ -474,7 +474,7 @@ export default function Viewer() {
             {project && project.desc && <p className="text-[15px] leading-relaxed text-body">{project.desc}</p>}
 
             {project ? (
-              <Link to={`/?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
+              <Link to={`/map?project=${project.id}`} className="btn-plain self-start">Show on the sky map</Link>
             ) : hasSpot && (
               <button type="button" onClick={() => setSaving(true)} className="btn self-start border border-ink bg-surface text-ink">
                 <PlusIcon />Save as project

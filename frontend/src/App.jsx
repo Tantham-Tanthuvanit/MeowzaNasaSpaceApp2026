@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { BookIcon, CompassIcon, InfoIcon, MoonIcon, SunIcon, PaletteIcon } from './components/icons';
 import { DEMO_TARGET } from './components/DemoTour';
 import TutorialModal from './components/TutorialModal';
 import SettingsModal from './components/SettingsModal';
 import { getInitialTheme, getTheme, applyTheme } from './core/themes';
 import Home from './pages/Home';
+import Intro from './pages/Intro';
 import Viewer from './pages/Viewer';
 
 const navClass = ({ isActive }) =>
@@ -60,6 +61,8 @@ function Credits() {
 
 export default function App() {
   const [params] = useSearchParams();
+  const { pathname } = useLocation();
+  const onIntro = pathname === '/';
   const inDemo = Boolean(params.get('demo'));
   const demoHref = `/viewer?demo=1&ra=${encodeURIComponent(DEMO_TARGET.ra)}&dec=${encodeURIComponent(DEMO_TARGET.dec)}&band=6`;
 
@@ -77,7 +80,10 @@ export default function App() {
     setThemeId(nextThemeId);
   };
 
-  const [showTutorial, setShowTutorial] = useState(() => {
+  // The tutorial opens by itself on a first visit, but not over the welcome page (which already
+  // explains SkyFlip); it waits until the visitor reaches the map or the viewer.
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [firstVisit, setFirstVisit] = useState(() => {
     try {
       return !localStorage.getItem('skyflip_tutorial_seen');
     } catch {
@@ -92,10 +98,11 @@ export default function App() {
       // ignore storage errors in restricted browsing contexts
     }
     setShowTutorial(false);
+    setFirstVisit(false);
   };
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
+    <div className={`flex min-h-screen flex-col ${onIntro ? '' : 'lg:h-dvh lg:min-h-0 lg:overflow-hidden'}`}>
       <header className="border-b border-soft bg-surface">
         <div className="mx-auto flex min-h-[72px] max-w-[1720px] flex-wrap items-center justify-between gap-x-6 px-4 sm:px-8">
           <NavLink to="/" className="flex items-center gap-2.5" aria-label="SkyFlip home">
@@ -104,12 +111,13 @@ export default function App() {
               <rect x="10" y="10" width="18" height="18" rx="2" />
             </svg>
             <span className="font-display text-[22px] font-bold">SkyFlip</span>
-            <span className="ml-3 hidden text-[15px] text-muted xl:inline">
+            <span className="ml-3 hidden text-[15px] text-muted 2xl:inline">
               See how the night sky changes, picture by picture
             </span>
           </NavLink>
-          <nav aria-label="Main" className="flex items-center gap-1.5">
-            <NavLink to="/" end className={navClass}>Sky map</NavLink>
+          <nav aria-label="Main" className="flex flex-wrap items-center gap-1.5 py-2">
+            <NavLink to="/" end className={navClass}>Home</NavLink>
+            <NavLink to="/map" className={navClass}>Sky map</NavLink>
             <NavLink to="/viewer" className={(s) => navClass({ isActive: s.isActive && !inDemo })}>Sky viewer</NavLink>
             <button
               type="button"
@@ -165,10 +173,11 @@ export default function App() {
         </div>
       </header>
       <Routes>
-        <Route path="/" element={<Home onOpenTutorial={() => setShowTutorial(true)} />} />
+        <Route path="/" element={<Intro />} />
+        <Route path="/map" element={<Home onOpenTutorial={() => setShowTutorial(true)} />} />
         <Route path="/viewer" element={<Viewer />} />
       </Routes>
-      {showTutorial && !inDemo && <TutorialModal onClose={closeTutorial} />}
+      {(showTutorial || (firstVisit && !onIntro)) && !inDemo && <TutorialModal onClose={closeTutorial} />}
       {showSettings && (
         <SettingsModal
           currentThemeId={themeId}

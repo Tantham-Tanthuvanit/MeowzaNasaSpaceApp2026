@@ -30,6 +30,11 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 - [Keyboard Shortcuts](#-keyboard-shortcuts)
 - [Data Credits](#-data-credits)
 
+0. **Welcome Page (`#/`)**
+   - The first page a visitor sees tells the story: how comparing pictures over time found Pluto (1930), WISE 0855 (2014) and the brown dwarfs of Backyard Worlds, what SPHEREx sees (102 colours, the whole sky every six months), why team Meowza built SkyFlip for the NASA Space Apps 2026 "Planet X and SPHEREx" challenge, four steps to hunt, and links to the challenge's test targets (from the official projects in Supabase).
+   - The hero flips through the real, cached SPHEREx Band 6 pictures of WISE 0855 (pause button; with reduced motion it shows one visit at a time with buttons instead of blinking). If the backend can't be reached it says so and offers "Try again"; there are no stand-in pictures.
+   - The page scrolls. The sky map lives at `#/map`; the first-visit tutorial waits until the visitor reaches the map or the viewer.
+
 1. **Real SPHEREx Pictures, One per Survey Visit**
    - For any RA/Dec, the backend asks the NASA/IPAC Infrared Science Archive (IRSA) which SPHEREx DR1/QR3 spectral images cover it, then downloads cutouts in the background.
    - Images are grouped into survey visits (for WISE 0855: May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026). Each flipbook frame is one visit.
@@ -61,8 +66,8 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
    - If IRSA can't be reached the API returns an error; there is no made-up fallback.
 
 6. **Saved Projects and Citizen-Science Candidates**
-   - The Home sky map supports both **Visible light** (default, full-color optical **DSS2 Color** from NASA/STScI via IRSA HiPS tiles) and **Infrared** (**NASA SPHEREx DR1** all-sky data cube first layer at 0.75 µm) via a 1-click **Sky light** toggle (`Visible light` / `Infrared (SPHEREx)`), persisted in `localStorage` (`skyflip_sky_survey`). Progressive HEALPix tiles stream straight from `irsa.ipac.caltech.edu` under the coordinate grid and markers as the user zooms up to 20,000% (native sharp 512×512 tiles through `Norder5`, ~13 arcseconds/pixel at 5,000%), with `"Loading a sharper picture…"` feedback and `"Try again"` error recovery if IRSA is unreachable.
-   - Projects (the markers on the Home sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
+   - The sky map (`#/map`) supports both **Visible light** (default, full-color optical **DSS2 Color** from NASA/STScI via IRSA HiPS tiles) and **Infrared** (**NASA SPHEREx DR1** all-sky data cube first layer at 0.75 µm) via a 1-click **Sky light** toggle (`Visible light` / `Infrared (SPHEREx)`), persisted in `localStorage` (`skyflip_sky_survey`). Progressive HEALPix tiles stream straight from `irsa.ipac.caltech.edu` under the coordinate grid and markers as the user zooms up to 20,000% (native sharp 512×512 tiles through `Norder5`, ~13 arcseconds/pixel at 5,000%), with `"Loading a sharper picture…"` feedback and `"Try again"` error recovery if IRSA is unreachable.
+   - Projects (the markers on the sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
    - **Map Layers & Project Visibility Toggles**: The sky map features an interactive toggle control (`User projects` and `Official targets`) located both in the header search panel and as a floating chip on the map canvas. Users can easily hide or show community/user-created projects independently from official benchmark targets (Barnard's Star, WISE 0855, Epsilon Indi B, RW Aurigae, R Draconis), with live counts and preference persistence in `localStorage` (`skyflip_show_user_projects`). Search results and project detail cards clearly distinguish between official and user-created targets.
 
    - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate (recording your browser's `skyflip_voter_id` as the owner without exposing it publicly); "I see it too" votes for one, and flag owners see a **"Your flag"** badge and **"Delete"** action (backed by owner-only `403` enforcement on `DELETE /api/candidates/{id}`).
@@ -161,17 +166,19 @@ MeowzaNasaSpaceApp2026/
 │   ├── requirements.txt        # Python backend dependencies
 │   └── .env.example            # Environment configuration template
 ├── frontend/
-│   ├── src/
-│   │   ├── pages/              # Home (All-Sky Map) and Viewer (Flipbook)
-│   │   ├── components/         # SkyMap, FlipPlayer, SpectrumChart, RulerOverlay, etc.
-│   │   ├── core/               # Celestial projections, spectral lines, theme manager
-│   │   └── services/           # Backend polling API client & HiPS tile fetcher
-│   ├── package.json            # Frontend dependencies & scripts
-│   └── vite.config.js          # Vite build configuration
-├── supabase/migrations/        # PostgreSQL schema definitions & RLS policies
-├── docs/                       # Detailed API documentation (API.md)
-├── setup.sh, setup.bat         # Cross-platform installation scripts
-└── start.sh, start.bat         # Single-command dev server launch scripts
+│   └── src/
+│       ├── pages/                 # Intro (welcome page at /), Home (sky map at /map) and Viewer (flipbook)
+│       ├── components/            # SkyMap, SkyImage, FlipPlayer, SplitPlayer, DemoTour, TutorialModal, SettingsModal, SpectrumChart, RulerOverlay, RulerPanel, Flags, MapCards, ProjectDialog
+│       ├── core/                  # Sky projection, sky picture drawing, bands, spectral features, astronomical ruler, projects store
+│       └── services/              # api.js: backend calls (polls while pictures download); skyTiles.js: the Home map's sky picture from IRSA
+├── logs/                          # One entry per code change
+├── docs/API.md                    # Backend API reference
+├── docs/decisions/                # Open team decisions (SPHEREx vs WISE data)
+├── setup.sh, start.sh             # Environment setup and one-command startup (macOS / Linux / Git Bash)
+├── setup.bat, start.bat           # Windows Command Prompt / PowerShell setup and startup
+├── setup.ps1, start.ps1           # Windows PowerShell setup and startup scripts
+├── CLAUDE.md                      # Working rules for AI coding sessions
+└── README.md
 ```
 
 ### Database & Storage (Supabase)

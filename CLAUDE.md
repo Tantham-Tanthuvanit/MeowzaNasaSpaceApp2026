@@ -1,6 +1,6 @@
 # SkyFlip (NASA Space Apps 2026, SPHEREx challenge)
 
-A public web tool that shows real SPHEREx pictures of any sky position as a flipbook, so anyone can spot things that move or change. React 18 + Vite + Tailwind frontend (`frontend/`, HashRouter), FastAPI backend (`backend/`), all stored data in the Supabase project MeowZa. `README.md` has the features, file map and table list.
+A public web tool that shows real SPHEREx pictures of any sky position as a flipbook, so anyone can spot things that move or change. React 18 + Vite + Tailwind frontend (`frontend/`, HashRouter: `#/` welcome page, `#/map` sky map, `#/viewer`), FastAPI backend (`backend/`), all stored data in the Supabase project MeowZa. `README.md` has the features, file map and table list.
 
 ## Before starting work
 
