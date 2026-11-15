@@ -164,10 +164,11 @@ MeowzaNasaSpaceApp2026/
 │   ├── image_processor.py      # WCS reprojection, contrast stretch, difference imaging
 │   ├── coordinates.py          # Astropy celestial coordinate conversion
 │   ├── database.py             # Supabase data operations (candidates, votes, projects)
-│   ├── supabase_client.py      # Authenticated Supabase client
+│   ├── supabase_client.py      # Supabase client: publishable key + anonymous sign-in (session in .supabase-session.json)
 │   ├── test_suite.py           # Backend unit and live test suite
 │   ├── requirements.txt        # Python backend dependencies
-│   └── .env.example            # Environment configuration template
+│   ├── public.env              # Shared Supabase URL + public key (read directly; nothing to copy)
+│   └── .env                    # Optional, git-ignored private overrides (e.g. an owner's secret key)
 ├── frontend/
 │   └── src/
 │       ├── pages/                 # Intro (welcome page at /), Home (sky map at /map) and Viewer (flipbook)
@@ -194,6 +195,8 @@ MeowzaNasaSpaceApp2026/
 | `projects` | User-saved sky regions and official benchmark targets |
 | `candidates` & `candidate_votes` | Community discovery flags, coordinates, and upvotes |
 
+**Access (row-level security):** the app uses the public publishable key, so everyone shares one database. Each install signs in as a Supabase anonymous user. Everyone can read everything; you can add flags, votes and projects and only change or delete your own (`owner_id`). Rows from before 2026-11-15 have no owner and are read-only to the public. The cache tables and the `sky-cutouts` bucket are write-once: anyone can read and add to them (5 MB per file, `.npy` and PNG only), nobody can overwrite or delete through the public key. One vote per user per flag, at most 300 new flags and 300 new projects per user a day, and size limits on every text and JSON column. See `supabase/migrations/20261115221500_publishable_key_access.sql` and `20261115224500_harden_public_access.sql`.
+
 ---
 
 ## 📋 Prerequisites
@@ -203,7 +206,7 @@ Before installing, ensure your system has the following installed:
 1. **Python**: Version `3.9` or higher ([python.org](https://www.python.org/downloads/))
 2. **Node.js**: Version `18.0` or higher with `npm` ([nodejs.org](https://nodejs.org/))
 3. **Git**: Installed and in your system `PATH` ([git-scm.com](https://git-scm.com/))
-4. **Supabase Project**: A valid Supabase instance (requires project URL & secret service key)
+4. **Nothing else**: the shared Supabase project's URL and public key are already in `backend/public.env`
 
 ---
 
@@ -216,31 +219,16 @@ git clone https://github.com/Tantham-Tanthuvanit/MeowzaNasaSpaceApp2026.git
 cd MeowzaNasaSpaceApp2026
 ```
 
-### 2. Configure Environment Variables
+### 2. Supabase settings (nothing to do)
 
-Create your backend configuration file from the template:
+The backend reads `backend/public.env`, which has the shared project's URL and publishable key (`sb_publishable_...`). That key is public on purpose; row-level security decides what it can do.
 
-**Windows (PowerShell):**
-```powershell
-Copy-Item backend\.env.example backend\.env
-```
+On first start the backend signs in as an anonymous user and saves the session in `backend/.supabase-session.json`. Keep that file: it is how the app knows which flags and projects are yours. Delete it and you start as a new user.
 
-**macOS / Linux / Git Bash:**
-```bash
-cp backend/.env.example backend/.env
-```
-
-Open `backend/.env` in your editor and provide your Supabase credentials:
-```env
-# Supabase project URL
-SUPABASE_URL=https://your-project-id.supabase.co
-
-# Supabase secret service key (bypasses RLS for backend operations)
-SUPABASE_SECRET_KEY=sb_secret_your_secret_key_here
-```
+**What the database allows anyone:** read everything; add flags, votes and projects (at most 300 flags and 300 projects a day, one vote per flag) and change or delete only their own; add to the shared picture cache, never overwrite or delete it.
 
 > [!CAUTION]
-> **Never commit or share `backend/.env`**. The secret key has elevated permissions and must remain server-side only.
+> Project owners can put `SUPABASE_SECRET_KEY=sb_secret_...` in `backend/.env` (git-ignored; it wins over `public.env`). The secret key bypasses row-level security. **Never put it in `public.env` or commit it.**
 
 ---
 

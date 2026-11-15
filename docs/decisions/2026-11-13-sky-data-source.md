@@ -72,6 +72,6 @@ What that means for us:
 
 - `skyflip-ui` and `supabase-real-spherex` branch off `master` at `3d213da4`. `master` has since moved 8 commits ahead (SQLite DB, anti-spam votes, drag-to-pan, FOV changes).
 - Expected conflicts: `backend/data_loader.py`, `backend/main.py`, `backend/database.py`, `backend/coordinates.py`, `backend/flask_app.py` (deleted on our branch), and most of `frontend/src` (SkyFlip replaced the dashboard).
-- Secrets: `backend/.env` (Supabase secret key) is git-ignored; copy `backend/.env.example`.
+- Secrets: the shared URL and public key are in `backend/public.env`; an owner's secret key goes in the git-ignored `backend/.env`.
 
 Sources: [IRSA SPHEREx](https://irsa.ipac.caltech.edu/Missions/spherex.html), [IRSA SPHEREx tutorials](https://caltech-ipac.github.io/irsa-tutorials/spherex/), [WiseView](http://byw.tools/wiseview), [Space Apps challenge resources](https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=resources).

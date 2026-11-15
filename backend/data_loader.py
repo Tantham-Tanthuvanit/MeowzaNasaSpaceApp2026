@@ -337,6 +337,17 @@ def load_array(storage_path: str) -> np.ndarray:
     return np.load(io.BytesIO(data), allow_pickle=False)
 
 
+def _put_file(path: str, data: bytes, content_type: str) -> None:
+    """Upload to the cache bucket. Files are write-once (RLS refuses overwrites through the public key),
+    so a file that is already there is kept: it holds the same picture."""
+    try:
+        get_client().storage.from_(BUCKET).upload(path, data, {"content-type": content_type, "upsert": "false"})
+    except Exception as e:
+        if "409" in str(e) or "Duplicate" in str(e) or "already exists" in str(e):
+            return
+        raise
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -384,7 +395,7 @@ class SPHERExDataLoader:
             "position_key": position_key(ra_deg, dec_deg, fov_arcmin), "ra_deg": ra_deg, "dec_deg": dec_deg,
             "fov_arcmin": fov_arcmin, "images": images, "total_images": len(images), "status": "done" if not images else "queued",
         }
-        get_client().table("sky_positions").upsert(row).execute()
+        get_client().table("sky_positions").upsert(row, ignore_duplicates=True).execute()  # the cache is write-once
         return row
 
     def _cached(self, key: str) -> Dict[str, Dict[str, Any]]:
@@ -440,12 +451,11 @@ class SPHERExDataLoader:
         path = f"cutouts/{pos['position_key']}/{hashlib.sha1(image['uri'].encode()).hexdigest()[:20]}.npy"
         buf = io.BytesIO()
         np.save(buf, grid)
-        db = get_client()
-        db.storage.from_(BUCKET).upload(path, buf.getvalue(), {"content-type": "application/octet-stream", "upsert": "true"})
-        db.table("sky_cutouts").upsert({
+        _put_file(path, buf.getvalue(), "application/octet-stream")
+        get_client().table("sky_cutouts").upsert({
             "position_key": pos["position_key"], "irsa_uri": image["uri"], "detector": image["detector"],
             "obs_mjd": image["mjd"], "storage_path": path, **meta,
-        }).execute()
+        }, ignore_duplicates=True).execute()
 
     def _require(self, pos: Dict[str, Any], needed: List[Dict[str, Any]], priority: int) -> Dict[str, Dict[str, Any]]:
         """Cached cutouts, or queue the missing ones and raise NotReady with progress.
@@ -480,10 +490,11 @@ class SPHERExDataLoader:
         return rows[0]["payload"] if rows else None
 
     def _save_result(self, key: str, pos_key: str, payload: Dict[str, Any]) -> None:
-        get_client().table("sky_results").upsert({"result_key": key, "position_key": pos_key, "payload": payload}).execute()
+        get_client().table("sky_results").upsert({"result_key": key, "position_key": pos_key, "payload": payload},
+                                                 ignore_duplicates=True).execute()
 
     def _upload_png(self, path: str, png: bytes) -> str:
-        get_client().storage.from_(BUCKET).upload(path, png, {"content-type": "image/png", "upsert": "true"})
+        _put_file(path, png, "image/png")
         return path
 
     def _signed_urls(self, paths: List[str]) -> Dict[str, str]:

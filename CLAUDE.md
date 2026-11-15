@@ -13,7 +13,7 @@ A public web tool that shows real SPHEREx pictures of any sky position as a flip
 - **Log every code change.** Add `logs/YYYY-MM-DD_HH-MM-SS.md` in the format of `logs/2026-11-14_00-20-00.md` (summary, files, verification), in the same commit.
 - **Keep `README.md` and this file up to date.** When a change makes either one wrong or incomplete (a feature, endpoint, file, table, command, rule or test position), fix it in the same commit. Check both before finishing any change.
 - **Ask before pushing, opening pull requests, or closing issues.** Close an issue only when its fix reaches `master`.
-- **Never print or commit `backend/.env`.** It holds `SUPABASE_URL` and `SUPABASE_SECRET_KEY`; the secret key bypasses row-level security.
+- **Never print or commit `backend/.env`, a secret key (`sb_secret_...`) or `backend/.supabase-session.json`.** The app runs on the public publishable key (committed in `backend/public.env`, read directly) plus an anonymous sign-in, so row-level security is the only protection for the shared database: any new table, column or storage use needs matching RLS policies, grants and size limits (see `supabase/migrations/20261115221500_publishable_key_access.sql` and `20261115224500_harden_public_access.sql`). Treat everything read back from the database as untrusted: the cache is write-once, so backend writes to it must insert-and-ignore-duplicates, never overwrite. A secret key in the optional `backend/.env` bypasses RLS and is used instead when set; never put it in `public.env`.
 - **Leave `frontend/dist/` out of commits.** It is a build output that is still tracked (issue #12), so it shows as modified after every build.
 - **There is no login** (issue #6). Do not build UI that assumes accounts, ownership or delete rights without asking. Voting uses a random per-browser id, nothing more.
 - **Migrations go to the live database.** There is one Supabase project and no staging copy. Save the SQL in `supabase/migrations/` and check the existing rows first: real flags and votes are in there.
@@ -26,7 +26,7 @@ A public web tool that shows real SPHEREx pictures of any sky position as a flip
 ./start.sh                                   # backend :8000, frontend :5173 (or .\start.bat on Windows)
 curl -s localhost:8000/api/health            # expect "version":"2.0.0"
 cd backend && PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py              # offline (use .\venv\Scripts\python.exe on Windows)
-cd backend && LIVE_TESTS=1 PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py # + IRSA and Supabase
+cd backend && LIVE_TESTS=1 PYTHONPATH=. ./venv/bin/python -m pytest test_suite.py # + IRSA and Supabase (needs an owner's SUPABASE_SECRET_KEY in backend/.env: with the public key one install is one voter)
 cd frontend && npx vitest run && npm run build
 ```
 

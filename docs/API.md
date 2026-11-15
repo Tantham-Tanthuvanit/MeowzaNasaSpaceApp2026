@@ -41,7 +41,7 @@ PYTHONPATH=. ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 # Windows: .\venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-`backend/.env` must contain `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (copy `backend/.env.example`). Without them every endpoint that touches the cache or the database fails. Never commit or print that file.
+The backend reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from `backend/public.env` (committed; nothing to copy). An optional git-ignored `backend/.env` overrides it. The backend signs in as a Supabase anonymous user and keeps the session in `backend/.supabase-session.json`; row-level security lets it change or delete only the flags, votes and projects that install made. `PATCH`/`DELETE /api/projects/{id}` answer 403 for a project someone else saved, and `DELETE /api/candidates/{id}` answers 403 for a flag from another install. With the publishable key, votes and ownership use the install's signed-in user id instead of the browser's `voter_id` (one vote per user per flag). The database refuses more than 300 new flags or projects per user a day and oversized text. A `SUPABASE_SECRET_KEY` in `backend/.env` (owners only, bypasses RLS) is used instead when set. Never commit or print `.env` or a secret key.
 
 > `./start.sh` runs the backend without auto-reload. After changing backend code, restart it and check `/api/health`.
 
