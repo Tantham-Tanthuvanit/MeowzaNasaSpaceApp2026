@@ -15,6 +15,7 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 
 ## 📑 Table of Contents
 
+<<<<<<< HEAD
 - [Overview](#-overview)
 - [Key Features](#-key-features)
 - [System Architecture](#-system-architecture)
@@ -29,6 +30,72 @@ A public web application built for the **NASA Space Apps Challenge (SPHEREx Chal
 - [Running Test Suites](#-running-test-suites)
 - [Keyboard Shortcuts](#-keyboard-shortcuts)
 - [Data Credits](#-data-credits)
+=======
+1. **Real SPHEREx Pictures, One per Survey Visit**
+   - For any RA/Dec, the backend asks the NASA/IPAC Infrared Science Archive (IRSA) which SPHEREx DR1/QR3 spectral images cover it, then downloads cutouts in the background.
+   - Images are grouped into survey visits (for WISE 0855: May 2025, Oct/Nov 2025, Dec 2025, Apr/May 2026). Each flipbook frame is one visit.
+   - Every cutout has the zodiacal light model subtracted and is reprojected onto one north-up grid, so frames line up when blinked.
+   - **Band groups**: `stacked` (all 6 detectors), `array_1`..`array_6`, `false_color_rgb`, plus narrow-band filters and indices (`filter_ch4_deep`, `ratio_ch4`, ...) built from the images whose wavelength at that spot matches. See `/api/bands`.
+
+2. **Caching in Supabase (download once)**
+   - A cutout takes about 10–15 s (in theory) to download from IRSA. Each is downloaded once (4 at a time, as a courtesy to IRSA), then stored in Supabase Storage with a row in `sky_cutouts`. Finished responses are stored in `sky_results`.
+   - While images download, `/api/sky-cutout` and `/api/spectrum` answer **202** with `{cached_images, total_images}`. The viewer shows "N of M pictures are here" with one slot per picture, and polls.
+   - The viewer opens a spot in one band (Band 1, `array_1`), which needs one picture per visit (up to 4) and is ready in under a minute. "All bands combined" (`stacked`, `?band=all`) needs up to 24 and takes a few minutes the first time. The full 102-channel spectrum (about 260 images) takes about 10–15 minutes the first time. Later requests are instant.
+
+3. **Difference Imaging and Shift-and-Add**
+   - The difference image (user-selectable visits, e.g. visit $B$ − visit $A$) uses a bipolar colormap, so moving objects show a dipole. All visit pairs are pre-computed and selectable via dropdowns and quick presets.
+   - `/api/shift-and-add` co-adds the real visits along a trial motion, to bring out faint moving objects.
+
+4. **102-Channel Absorption & Emission Spectra Graph**
+   - Positioned directly below the flipbook controls in the viewer.
+   - `/api/spectrum` bins the centre-pixel brightness of every SPHEREx image of a spot into the 102 SPHEREx channels (0.75 – 5.00 µm). Channel wavelengths come from IRSA's DR1 all-sky cube.
+   - The interactive graph identifies and visualizes key cosmic signatures:
+     - **Absorption lines / bands (dips)**: Cooler molecules and ice mantles swallowing background light (H₂O ice at 3.05 µm, CH₄ methane at 1.66 & 3.30 µm, CO₂ ice at 4.27 µm, atmospheric water vapor at 1.40 & 1.90 µm, CO gas at 4.67 µm).
+     - **Emission lines (peaks)**: Hot ionized gas, shocks, and dust radiating brightly (Hydrogen Brackett-α at 4.05 µm, Paschen-α at 1.875 µm, Brackett-γ at 2.166 µm, PAH dust at 3.30 & 3.40 µm, shock-excited H₂ at 2.12 µm).
+     - **Kirchhoff's Dual Visual Spectra Bars**: An absorption spectrum bar (continuous rainbow infrared gradient with dark absorption slits) and an emission spectrum bar (dark background with bright glowing emission lines).
+     - Feature filter controls (`All features`, `Absorption only`, `Emission only`, `Clean plot`), continuum baseline tracking, live hover & keyboard inspector, automated dip/peak detection summary, and benchmark sky patch shortcuts (WISE 0855 brown dwarf, Proxima Centauri).
+
+5. **Gaia DR3 and AllWISE Overlay + Contamination & Observation Metadata**
+   - `/api/catalog-overlay` queries Gaia DR3 (`parallax`, `ruwe`) and AllWISE (`cc_flags`, `ext_flg`, `ph_qual`) through IRSA's TAP service. An AllWISE source with W1−W2 ≥ 1 and no Gaia star within 3″ is flagged as a brown dwarf candidate (WISE 0855 is).
+   - Contamination flags (`cc_flags` decoding diffraction spikes `D`, persistence `P`, halos `H`, and optical ghosts `O`, plus Gaia `RUWE ≥ 1.4`) are shown per source with a **Hide flagged artifacts** filter toggle in the viewer.
+   - Each SPHEREx visit frame in the Flipbook also displays live observation metadata (`Release: DR1/QR3`, `MJD`, `Exposures stacked`, and `Calibration: Zodiacal light removed`).
+   - If IRSA can't be reached the API returns an error; there is no made-up fallback.
+
+6. **Saved Projects and Citizen-Science Candidates**
+   - The Home sky map supports both **Visible light** (default, full-color optical **DSS2 Color** from NASA/STScI via IRSA HiPS tiles) and **Infrared** (**NASA SPHEREx DR1** all-sky data cube first layer at 0.75 µm) via a 1-click **Sky light** toggle (`Visible light` / `Infrared (SPHEREx)`), persisted in `localStorage` (`skyflip_sky_survey`). Progressive HEALPix tiles stream straight from `irsa.ipac.caltech.edu` under the coordinate grid and markers as the user zooms up to 20,000% (native sharp 512×512 tiles through `Norder5`, ~13 arcseconds/pixel at 5,000%), with `"Loading a sharper picture…"` feedback and `"Try again"` error recovery if IRSA is unreachable.
+   - Projects (the markers on the Home sky map) can be found with the "Find a project" search above the map (by name or description; picking one centres the map on it and opens its card). A "Random patch" button drops a pin on a randomly chosen celestial position so anyone can explore uncharted sky. A new project is started by clicking a spot on the map (or choosing a random patch) and saving the pin. Projects, candidates and votes are stored in Supabase and shared by everyone (there is no login yet). Each browser can vote once per candidate and can take the vote back (`vote_type: "unvote"`). The MPC-style export is at `/api/candidates/export-mpc`.
+   - **Map Layers & Project Visibility Toggles**: The sky map features an interactive toggle control (`User projects` and `Official targets`) located both in the header search panel and as a floating chip on the map canvas. Users can easily hide or show community/user-created projects independently from official benchmark targets (Barnard's Star, WISE 0855, Epsilon Indi B, RW Aurigae, R Draconis), with live counts and preference persistence in `localStorage` (`skyflip_show_user_projects`). Search results and project detail cards clearly distinguish between official and user-created targets.
+
+   - In the viewer, "Flag something here" marks a point on the picture and saves it as a candidate (recording your browser's `skyflip_voter_id` as the owner without exposing it publicly); "I see it too" votes for one, and flag owners see a **"Your flag"** badge and **"Delete"** action (backed by owner-only `403` enforcement on `DELETE /api/candidates/{id}`).
+
+7. **Monkeytype-Style UI Theme Settings & Palettes**
+   - The top navigation bar includes a **Theme Settings modal** (`🎨 Themes`) modeled after Monkeytype's popular theme system, complete with:
+     - **Live theme search** and category filter chips (`All`, `Dark`, `Light`).
+     - **Five-color palette swatches** (`[Background] [Surface] [Text] [Subtext] [Accent]`) on every theme card for instant visual reference.
+     - **Miniature UI previews** inside each card depicting a simulated flipbook layout.
+     - **Random Theme shuffle** button (`ShuffleIcon`) to quickly cycle through palettes.
+     - **Curated community & astronomical palettes**, including:
+       1. **Deep Spruce** (Coolors [#01161e-#124559-#598392-#aec3b0-#eff6e0](https://coolors.co/palette/01161e-124559-598392-aec3b0-eff6e0)) — Rich boreal teal dark mode with ~17:1 text contrast.
+       2. **Retro Sunset** (Coolors [#0081a7-#00afb9-#fdfcdc-#fed9b7-#f07167](https://coolors.co/palette/0081a7-00afb9-fdfcdc-fed9b7-f07167)) — Warm cream and coral vintage light mode.
+       3. **Ocean Coral** (Coolors #2 Dark Variant) — Deep cerulean dark mode with coral accents.
+       4. **Midnight SPHEREx**, **SkyFlip Light**, **Nordic Frost**, **Cyberpunk Neon**, **Solarized Light**, and **Monokai Infrared**.
+     - Instant CSS custom property updates (`--color-page`, `--color-surface`, `--color-ink`, `--color-accent`, etc.) with persistence in `localStorage` (`skyflip_theme_id`).
+   - A dedicated **Keyboard & Controls** tab inside the modal outlines all flipbook shortcuts (`Space`, `←`/`→`, `1`-`6`, `D`, `S`, `G`, `C`, `Esc`).
+
+8. **All of It in the Viewer (+ RA & Dec Grid and Astronomical Ruler)**
+   - The viewer page brings all capabilities together: the flipbook (with release/MJD/exposure metadata and `Space` / `←` / `→` shortcuts), a side-by-side **Split view** (comparing any two survey visits with quick swapping), a customizable **Difference image view** (subtracting any reference visit from any comparison visit with a bullet-point visual guide), a "Combined" view (shift-and-add with two drift sliders), a user-adjustable Field of View (FOV) selector (presets 3′, 5′, 8′, 12′, 15′ and smooth slider 1.0′–30.0′), an interactive **Right Ascension and Declination (RA & Dec) coordinate grid** with edge ticks and astronomical orientation indicator (`N ↑`, `E ←`, shortcut `G`), an interactive **Astronomical Ruler & Measurement Tool** (two-point click/drag measurement computing angular separation in arcseconds/arcminutes/mas, detector pixels, Position Angle East of North, endpoint celestial coordinates, coordinate offsets, and multi-epoch proper motion velocity, shortcut `M`), an on-screen **Corner Scale Bar** dynamically calibrated to FOV, a "More kinds of light…" list (filters and indices), an **Overlay Gaia & WISE stars (Mark known stars)** switch with contamination/quality flag badges and artifact filtering, the absorption & emission spectrum chart, the flags panel, and a "Random patch" button to quickly explore new sky coordinates.
+
+9. **Newcomer Tutorial & Field Guide (`How to use`)**
+   - First-time visitors automatically see an interactive 3-tab quick-start guide (`1. What is SkyFlip?`, `2. How to Hunt (4 Steps)`, `3. Field Guide & Shortcuts`) explaining SPHEREx infrared bands, how to spot blue+red moving dipoles vs. variable stars in "Difference image", keyboard shortcuts (`Space`, `←` / `→`, `G`, `C`), and citizen-science flagging.
+   - Accessible anytime via **How to use** in the header or **New here? How to use SkyFlip** on the Sky Map page.
+
+10. **Guided Demo Mode (5-Step Interactive Walkthrough)**
+   - Clicking **Guided demo** in the header (or **Start guided demo (WISE 0855)** in the viewer) launches an interactive 5-step tour on the cached WISE 0855 brown dwarf target (`RA 08h55m10.831s, Dec -07°14′42.53″`).
+   - Steps automatically walk through: (1) Infrared Flipbook in Band 6 (`4.42 µm`), (2) Side-by-Side Split View (`V1` vs `V4`), (3) Difference Imaging ("Difference image" dipole signature), (4) Shift-and-Add Co-addition ("Combined"), and (5) Gaia/AllWISE Catalogue Overlay + SPHEREx 102-channel Spectrum.
+
+11. **Query Sky Patches via URL**
+   - `http://localhost:5173/#/viewer?ra=08h55m10.831s&dec=-07d14m42.53s&fov=10` opens the viewer on that spot. Sexagesimal and decimal degrees both work, and `fov` sets the angular field of view in arcminutes (default 5.0′).
+>>>>>>> 27980c5fea800c22913d2e0adfdbc0f3a88724ff
 
 ---
 
